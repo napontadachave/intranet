@@ -2068,7 +2068,7 @@ openUserViewModal = function(id){
   const u=db.users.find(x=>x.id===id); if(!u)return;
   const enabled=Object.entries(u.perms||{}).filter(([,v])=>v).map(([k])=>permissionLabel(k));
   openModal('Cadastro do usuário',`<div class="section"><div><h2>${escape(u.name||'Sem nome')}</h2><p>${escape(u.email||u.user||'')} · ${escape(u.role||'Colaborador')}</p></div><span class="badge ${u.active!==false?'g':'r'}">${u.active!==false?'Ativo':'Inativo'}</span></div><div class="grid cols2"><div class="card pad"><h3>Dados cadastrais</h3><p><b>Nome:</b> ${escape(u.name||'')}</p><p><b>E-mail:</b> ${escape(u.email||u.user||'')}</p><p><b>Função:</b> ${escape(u.role||'')}</p><p><b>Aniversário:</b> ${u.birthday?userBirthdayDisplay(u):'Não informado'}</p><p><b>Troca de senha:</b> ${u.mustChangePassword?'pendente':'não pendente'}</p></div><div class="card pad"><h3>Permissões liberadas</h3>${permissionSummary(u.perms||{})}<div style="max-height:180px;overflow:auto;margin-top:8px">${enabled.map(l=>`<span class="badge" style="margin:4px">${escape(l)}</span>`).join('')||'<p class="sub">Nenhuma permissão específica marcada.</p>'}</div></div></div><div class="actions"><button class="primary" onclick="openUserEditModal('${u.id}')">Editar</button><button class="secondary" onclick="sendPasswordReset('${u.id}')">Enviar redefinição de senha</button>${u.active!==false?`<button class="danger" onclick="toggleUserActive('${u.id}',false);closeModal()">Inativar</button>`:`<button class="primary" onclick="toggleUserActive('${u.id}',true);closeModal()">Ativar</button>`}</div>`)
-}
+};
 
 // Reaplica permissões individuais em páginas adicionadas por patches antigos.
 (function(){
