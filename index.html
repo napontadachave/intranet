@@ -10617,3 +10617,31 @@ body:has(#login:not(.hidden)) #app.hidden{
 })();
 </script>
 
+
+<style id="npc-lead-records-responsive-fix">
+/* Ajuste pontual: impede que a tabela de Registros de Leads estoure a tela. */
+#leadRecordsBox{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+#leadRecordsBox .table{
+  width:100%;
+  min-width:1120px;
+  table-layout:auto;
+}
+#leadRecordsBox .table th,
+#leadRecordsBox .table td{
+  white-space:nowrap;
+}
+#leadRecordsBox .table td:nth-child(3){
+  white-space:normal;
+  min-width:170px;
+}
+@media(max-width:900px){
+  #leadRecordsBox .table{min-width:980px;}
+}
+</style>
