@@ -10645,3 +10645,266 @@ body:has(#login:not(.hidden)) #app.hidden{
   #leadRecordsBox .table{min-width:980px;}
 }
 </style>
+
+<style id="npc-visit-analysis-actions-style">
+/* Ajuste pontual: ações e permissão da validação na Análise de Visitas. */
+.visit-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.visit-actions button{
+  min-height:34px;
+  padding:8px 12px;
+  white-space:nowrap;
+}
+@media(max-width:760px){
+  .visit-actions{
+    min-width:170px;
+  }
+}
+</style>
+
+<script id="npc-visit-analysis-edit-delete-validation-perm">
+(function(){
+  'use strict';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  const js=v=>String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'');
+  const byId=id=>document.getElementById(id);
+  const cur=()=>window.current||{};
+  const data=()=>window.db||(window.db={});
+  const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const hasPerm=k=>{
+    try{
+      if(typeof window.hasPermission==='function') return !!window.hasPermission(k);
+      if(typeof has==='function') return !!has(k);
+    }catch(e){}
+    return !!(cur().perms&&cur().perms[k]===true);
+  };
+  const canAll=()=>{try{return typeof window.canViewAllUsers==='function'?!!window.canViewAllUsers():hasPerm('view_all_users');}catch(e){return hasPerm('view_all_users');}};
+  const canOpen=()=>hasPerm('performance_visitas_analise');
+  const canValidate=()=>hasPerm('performance_visitas_validar');
+  const keys=()=>{const u=cur();return [...new Set([u.id,u.uid,u.email,u.user,u.name,u.nome,u.displayName,norm(u.id),norm(u.uid),norm(u.email),norm(u.user),norm(u.name),norm(u.nome),norm(u.displayName)].map(v=>String(v||'').trim()).filter(Boolean))];};
+  const match=v=>{v=String(v||'').trim();return !!v&&(keys().includes(v)||keys().includes(norm(v)));};
+  const vals=(o,fields)=>fields.flatMap(f=>{const v=o?o[f]:null;return v&&typeof v==='object'?[v.id,v.uid,v.email,v.user,v.name,v.nome,v.displayName]:[v];}).map(v=>String(v||'').trim()).filter(Boolean);
+  const linked=o=>canAll()||vals(o,['createdBy','createdById','createdByUid','createdByEmail','createdByName','userId','uid','user','email','usuario','usuarioNome','assignedToId','assignedToUid','assignedToEmail','responsavel','responsavelId','corretor','corretorId']).some(match);
+  const scope=arr=>canAll()?(Array.isArray(arr)?arr:[]):(Array.isArray(arr)?arr.filter(linked):[]);
+
+  function ensureVisitData(){
+    if(!data().visitAnalysis) data().visitAnalysis=[];
+    if(!Array.isArray(data().visitAnalysis)) data().visitAnalysis=Object.values(data().visitAnalysis||{});
+  }
+  function saveVisits(){
+    try{ if(typeof window.save==='function') window.save(); }
+    catch(e){ console.error(e); if(typeof toast==='function') toast('Erro ao salvar visitas: '+(e.message||e),'warn'); }
+    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(data())); }catch(e){}
+  }
+  function userLabel(id){
+    const users=Array.isArray(data().users)?data().users:[];
+    const u=users.find(x=>String(x.id)===String(id)||String(x.uid)===String(id)||String(x.email||x.user)===String(id));
+    return u?.name||u?.nome||u?.email||u?.user||id||'-';
+  }
+  function activeUsers(){
+    let users=[];
+    try{ users=typeof window.perfUsers==='function'?window.perfUsers():(data().users||[]); }catch(e){ users=data().users||[]; }
+    return (Array.isArray(users)?users:[]).filter(u=>u&&u.active!==false);
+  }
+  function findVisit(id){
+    ensureVisitData();
+    return data().visitAnalysis.find(v=>String(v.id)===String(id));
+  }
+
+  try{ if(typeof PERMS!=='undefined') PERMS.performance_visitas_validar='Performance: validar visitas'; }catch(e){}
+  try{
+    const oldPermissionGroups=window.permissionGroups || (typeof permissionGroups==='function'?permissionGroups:null);
+    if(oldPermissionGroups && !window.__npcVisitValidationPermGroup){
+      window.__npcVisitValidationPermGroup=true;
+      window.permissionGroups=function(){
+        const groups=oldPermissionGroups.apply(this,arguments);
+        try{
+          const perf=(groups||[]).find(g=>g.id==='performance'||norm(g.title)==='performance');
+          if(perf && Array.isArray(perf.items) && !perf.items.some(i=>i&&i[0]==='performance_visitas_validar')){
+            const idx=perf.items.findIndex(i=>i&&i[0]==='performance_visitas_analise');
+            const item=['performance_visitas_validar','Validar visitas','Permite exibir e alterar a coluna Validação na Análise de Visitas.'];
+            if(idx>=0) perf.items.splice(idx+1,0,item); else perf.items.push(item);
+          }
+        }catch(e){}
+        return groups;
+      };
+      try{ permissionGroups=window.permissionGroups; }catch(e){}
+    }
+  }catch(e){}
+
+  window.npcOpenEditVisit=function(id){
+    ensureVisitData();
+    if(!canOpen()){ if(typeof toast==='function') toast('Você não tem permissão para editar visitas.','warn'); return; }
+    const v=findVisit(id);
+    if(!v){ if(typeof toast==='function') toast('Visita não encontrada.','warn'); return; }
+    if(!linked(v)){ if(typeof toast==='function') toast('Você não tem acesso a esta visita.','warn'); return; }
+    const users=activeUsers();
+    const userValue=String(v.userId||'');
+    const userField=canAll()
+      ? `<div class="field"><label>Usuário</label><select id="editVisitUser">${users.map(u=>{const val=String(u.id||u.uid||u.email||u.user||'');return `<option value="${esc(val)}" ${String(val)===userValue?'selected':''}>${esc(u.name||u.nome||u.email||u.user||u.id)}</option>`;}).join('')}</select></div>`
+      : `<div class="field"><label>Usuário</label><input id="editVisitUserReadonly" value="${esc(v.userName||userLabel(v.userId))}" disabled></div>`;
+    const validationField=canValidate()?`<div class="field"><label>Status da validação</label><select id="editVisitValidated"><option value="0" ${v.validated?'':'selected'}>Pendente</option><option value="1" ${v.validated?'selected':''}>Validada</option></select></div>`:'';
+    if(typeof openModal!=='function'){ if(typeof toast==='function') toast('Modal indisponível.','warn'); return; }
+    openModal('Editar visita',`<div class="grid cols2"><div class="field"><label>Cliente</label><input id="editVisitClient" value="${esc(v.clientName||'')}" placeholder="Nome do cliente"></div><div class="field"><label>Data da visita</label><input id="editVisitDate" type="date" value="${esc(String(v.visitDate||'').slice(0,10))}"></div>${userField}${validationField}</div><div class="actions"><button class="primary" onclick="npcSaveEditVisit('${js(id)}')">Salvar alterações</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>`);
+  };
+
+  window.npcSaveEditVisit=function(id){
+    ensureVisitData();
+    const v=findVisit(id);
+    if(!v){ if(typeof toast==='function') toast('Visita não encontrada.','warn'); return; }
+    if(!canOpen() || !linked(v)){ if(typeof toast==='function') toast('Você não tem permissão para editar esta visita.','warn'); return; }
+    const client=(byId('editVisitClient')?.value||'').trim();
+    const visitDate=byId('editVisitDate')?.value||'';
+    if(!client){ if(typeof toast==='function') toast('Informe o nome do cliente.','warn'); return; }
+    if(!visitDate){ if(typeof toast==='function') toast('Informe a data da visita.','warn'); return; }
+    v.clientName=client;
+    v.visitDate=visitDate;
+    v.performanceMonth=visitDate.slice(0,7);
+    v.performanceDay=visitDate.slice(8,10);
+    if(canAll() && byId('editVisitUser')){
+      v.userId=byId('editVisitUser').value||v.userId;
+      v.userName=userLabel(v.userId);
+    }
+    if(canValidate() && byId('editVisitValidated')){
+      const checked=byId('editVisitValidated').value==='1';
+      v.validated=checked;
+      v.validatedAt=checked?(v.validatedAt||new Date().toISOString()):null;
+      v.validatedBy=checked?(v.validatedBy||cur().id||cur().uid||cur().email||cur().user||''):null;
+      v.validatedByName=checked?(v.validatedByName||userLabel(v.validatedBy)) : null;
+    }
+    v.updatedAt=new Date().toISOString();
+    v.updatedBy=cur().id||cur().uid||cur().email||cur().user||'';
+    saveVisits();
+    try{ closeModal(); }catch(e){}
+    try{ window.drawVisitAnalysis(); }catch(e){}
+    if(typeof toast==='function') toast('Visita atualizada.');
+  };
+
+  window.npcDeleteVisit=function(id){
+    ensureVisitData();
+    const v=findVisit(id);
+    if(!v){ if(typeof toast==='function') toast('Visita não encontrada.','warn'); return; }
+    if(!canOpen() || !linked(v)){ if(typeof toast==='function') toast('Você não tem permissão para excluir esta visita.','warn'); return; }
+    if(!confirm('Excluir esta visita da Análise de Visitas?')) return;
+    data().visitAnalysis=data().visitAnalysis.filter(x=>String(x.id)!==String(id));
+    saveVisits();
+    try{ window.drawVisitAnalysis(); }catch(e){}
+    if(typeof toast==='function') toast('Visita excluída.');
+  };
+
+  const oldToggle=window.toggleVisitValidation;
+  window.toggleVisitValidation=function(id,checked){
+    if(!canValidate()){
+      if(typeof toast==='function') toast('Você não tem permissão para validar visitas.','warn');
+      try{ window.drawVisitAnalysis(); }catch(e){}
+      return;
+    }
+    const v=findVisit(id);
+    if(v && !linked(v)){ if(typeof toast==='function') toast('Você não tem acesso a esta visita.','warn'); try{ window.drawVisitAnalysis(); }catch(e){} return; }
+    if(oldToggle) return oldToggle.apply(this,arguments);
+  };
+
+  window.drawVisitAnalysis=function(){
+    ensureVisitData();
+    const month=byId('visitMonth')?.value || (typeof monthISO==='function'?monthISO():new Date().toISOString().slice(0,7));
+    const selected=byId('visitUser')?.value || 'all';
+    const status=byId('visitStatus')?.value || 'all';
+    let list=(data().visitAnalysis||[]).filter(v=>String(v.visitDate||'').slice(0,7)===month);
+    list=scope(list);
+    if(selected!=='all') list=list.filter(v=>String(v.userId||v.createdBy||v.assignedToId||'')===String(selected));
+    if(status==='pending') list=list.filter(v=>!v.validated);
+    if(status==='validated') list=list.filter(v=>!!v.validated);
+    list.sort((a,b)=>String(b.visitDate||'').localeCompare(String(a.visitDate||''))||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+    const showValidation=canValidate();
+    const validationHead=showValidation?'<th>Validação</th>':'';
+    const rows=list.map(v=>{
+      const d=String(v.visitDate||'');
+      const br=d&&d.includes('-')?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):esc(d||'-');
+      const validationCell=showValidation?`<td><label class="checkline" style="margin:0"><input type="checkbox" ${v.validated?'checked':''} onchange="toggleVisitValidation('${js(v.id)}',this.checked)"><span>${v.validated?'Validada':'Pendente'}</span></label>${v.validatedAt?`<br><small class="sub">${esc(v.validatedByName||'')} · ${new Date(v.validatedAt).toLocaleString('pt-BR')}</small>`:''}</td>`:'';
+      return `<tr><td><b>${esc(v.clientName||'-')}</b></td><td>${esc(v.userName||userLabel(v.userId))}</td><td>${br}</td>${validationCell}<td><div class="visit-actions"><button class="secondary" onclick="npcOpenEditVisit('${js(v.id)}')">Editar</button><button class="danger" onclick="npcDeleteVisit('${js(v.id)}')">Excluir</button></div></td></tr>`;
+    }).join('');
+    const colspan=showValidation?5:4;
+    const box=byId('visitAnalysisBox');
+    if(box) box.innerHTML=`<div class="grid cols3"><div class="card kpi"><div class="l">Visitas filtradas</div><div class="v">${list.length}</div></div><div class="card kpi"><div class="l">Validadas</div><div class="v">${list.filter(v=>v.validated).length}</div></div><div class="card kpi"><div class="l">Pendentes</div><div class="v">${list.filter(v=>!v.validated).length}</div></div></div><div style="height:16px"></div><div style="overflow:auto"><table class="perf-table"><thead><tr><th>Cliente</th><th>Usuário</th><th>Data da visita</th>${validationHead}<th>Ações</th></tr></thead><tbody>${rows||`<tr><td colspan="${colspan}">Nenhuma visita encontrada para os filtros.</td></tr>`}</tbody></table></div>`;
+  };
+})();
+</script>
+
+<script>
+/* ===== PATCH V92: Leads em tempo real no Firebase =====
+   Mantém Registros/Dashboard/Configurações de Leads atualizados para todos os usuários logados,
+   sem depender de fechar e abrir o sistema. */
+(function(){
+  if(window.__npcV92LeadsRealtime) return;
+  window.__npcV92LeadsRealtime = true;
+
+  function getDb(){ try{return db;}catch(e){return window.db||{};} }
+  function persist(){
+    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY, JSON.stringify(getDb())); }catch(e){}
+  }
+  function currentPage(){ try{return window.page || page || '';}catch(e){return window.page || '';} }
+  function rerenderLeads(){
+    const p = currentPage();
+    try{
+      if(p === 'leads_registros'){
+        if(typeof window.drawLeadRecords === 'function') window.drawLeadRecords();
+        else if(typeof drawLeadRecords === 'function') drawLeadRecords();
+      }else if(p === 'leads_dashboard'){
+        if(typeof window.drawLeadDashboard === 'function') window.drawLeadDashboard();
+        else if(typeof drawLeadDashboard === 'function') drawLeadDashboard();
+      }else if(p === 'leads_filas'){
+        if(typeof window.render_leads_filas === 'function') window.render_leads_filas();
+        else if(typeof render_leads_filas === 'function') render_leads_filas();
+      }
+      if(typeof updateLeadNextPreview === 'function' && document.getElementById('leadNextPreview')) updateLeadNextPreview();
+    }catch(e){ console.error('Falha ao atualizar Leads em tempo real:', e); }
+  }
+  let redrawTimer = null;
+  function scheduleRedraw(){
+    clearTimeout(redrawTimer);
+    redrawTimer = setTimeout(rerenderLeads, 120);
+  }
+  function normalizeList(value){
+    if(Array.isArray(value)) return value.filter(Boolean);
+    if(value && typeof value === 'object') return Object.values(value).filter(Boolean);
+    return [];
+  }
+  function startLeadsRealtime(){
+    if(window.__npcV92LeadsRealtimeStarted) return;
+    if(!window.firebaseDb || !window.firebaseAuth || !window.firebaseAuth.currentUser) return;
+    window.__npcV92LeadsRealtimeStarted = true;
+    const d = getDb();
+
+    window.__npcV92LeadsRef = window.firebaseDb.ref('/leads');
+    window.__npcV92LeadQueuesRef = window.firebaseDb.ref('/leadQueues');
+    window.__npcV92LeadSkipsRef = window.firebaseDb.ref('/leadQueueSkips');
+
+    window.__npcV92LeadsRef.on('value', function(snap){
+      getDb().leads = normalizeList(snap.val());
+      persist();
+      scheduleRedraw();
+    });
+    window.__npcV92LeadQueuesRef.on('value', function(snap){
+      getDb().leadQueues = snap.val() || {};
+      persist();
+      scheduleRedraw();
+    });
+    window.__npcV92LeadSkipsRef.on('value', function(snap){
+      getDb().leadQueueSkips = normalizeList(snap.val());
+      persist();
+      scheduleRedraw();
+    });
+  }
+
+  try{
+    if(window.firebaseAuth && typeof window.firebaseAuth.onAuthStateChanged === 'function'){
+      window.firebaseAuth.onAuthStateChanged(function(user){ if(user) setTimeout(startLeadsRealtime, 250); });
+    }
+  }catch(e){}
+  setTimeout(startLeadsRealtime, 600);
+})();
+</script>
