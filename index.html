@@ -4749,7 +4749,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
   window.npcEnsureVisitAnalysisData=ensureVisitData;
 
-  try{ if(typeof PERMS!=='undefined') PERMS.performance_visitas_analise='Performance: análise de visitas'; }catch(e){}
+  try{ if(typeof PERMS!=='undefined') PERMS.performance_visitas_analise='Performance: ver visitas'; }catch(e){}
   try{
     if(typeof pages!=='undefined' && !pages.some(function(p){return p[1]==='perf_visitas'})){
       const idx=pages.findIndex(function(p){return p[1]==='perf_ranking'});
@@ -4766,7 +4766,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         const groups=oldPermissionGroups();
         const perf=groups.find(function(g){return g.id==='performance'});
         if(perf && !perf.items.some(function(i){return i[0]==='performance_visitas_analise'})){
-          perf.items.push(['performance_visitas_analise','Análise de visitas','Permite acessar a validação individual das visitas lançadas em performance.']);
+          perf.items.push(['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.']);
         }
         return groups;
       };
@@ -5834,7 +5834,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       delete PERMS.admin;
       PERMS[VIEW_ALL_KEY]='Ver informações de todos os usuários';
       PERMS[MANAGE_USERS_KEY]=PERMS[MANAGE_USERS_KEY]||'Gerenciar usuários';
-      PERMS.performance_visitas_analise=PERMS.performance_visitas_analise||'Performance: análise de visitas';
+      PERMS.performance_visitas_analise=PERMS.performance_visitas_analise||'Performance: ver visitas';
       PERMS.performance_kanban=PERMS.performance_kanban||'Performance: vendas';
       PERMS.performance_kanban_gestao=PERMS.performance_kanban_gestao||'Performance: gestão de vendas';
     }
@@ -5940,7 +5940,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       {id:'comunicacao',title:'Comunicação',items:[['comunicados_ver','Ver comunicados','Permite consultar comunicados.'],['comunicados_gerenciar','Gerenciar comunicados','Permite criar e editar comunicados.'],['agenda_ver','Ver agenda','Permite consultar agenda.'],['agenda_gerenciar','Gerenciar agenda','Permite criar e editar eventos.'],['aniversariantes_ver','Ver aniversariantes','Permite consultar aniversariantes.'],['aniversariantes_gerenciar','Gerenciar aniversariantes','Permite editar aniversariantes.']]},
       {id:'capacitacao',title:'Capacitação',items:[['treinamentos_ver','Ver treinamentos','Permite acessar treinamentos.'],['treinamentos_gerenciar','Gerenciar treinamentos','Permite editar treinamentos.'],['biblioteca_ver','Ver biblioteca NPC','Permite acessar biblioteca.'],['playbook_ver','Ver playbook','Permite acessar playbook.'],['processos_ver','Ver processos','Permite acessar processos.']]},
       {id:'gestao',title:'Gestão',items:[['metas_ver','Ver metas e KPIs','Permite acessar metas e indicadores.']]},
-      {id:'performance',title:'Performance',items:[['performance_admin','Ver visão gerencial','Permite acessar visão gerencial respeitando escopo.'],['performance_dashboard','Ver dashboard de performance','Permite acessar dashboard de performance.'],['performance_base','Ver registros realizados','Permite lançar e consultar registros.'],['performance_ranking','Ver ranking','Permite acessar ranking.'],['performance_visitas_analise','Ver análise de visitas','Permite validar visitas.'],['performance_kanban','Ver vendas','Permite acessar quadro de vendas.'],['performance_kanban_gestao','Gerenciar vendas','Permite configurar colunas/opções de vendas.']]},
+      {id:'performance',title:'Performance',items:[['performance_admin','Ver visão gerencial','Permite acessar visão gerencial respeitando escopo.'],['performance_dashboard','Ver dashboard de performance','Permite acessar dashboard de performance.'],['performance_base','Ver registros realizados','Permite lançar e consultar registros.'],['performance_ranking','Ver ranking','Permite acessar ranking.'],['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.'],['performance_kanban','Ver vendas','Permite acessar quadro de vendas.'],['performance_kanban_gestao','Gerenciar vendas','Permite configurar colunas/opções de vendas.']]},
       {id:'leads',title:'Leads',items:[['leads_ver','Ver módulo de leads','Libera o bloco Leads no menu.'],['leads_cadastrar','Cadastrar leads','Permite criar novo lead e acionar rodízio.'],['leads_consultar','Consultar registros de leads','Permite ver registros cadastrados.'],['leads_inativar','Inativar leads','Permite excluir/inativar registros.'],['leads_dashboard','Dashboard de leads','Permite ver gráficos e visão gerencial.'],['leads_filas_configurar','Configurações de Leads','Permite configurar filas de rodízio e origens dos leads.'],['leads_pular_corretor','Pular corretor','Permite pular corretor com justificativa.']]},
       {id:'chamados',title:'Chamados',items:[['chamados_ver','Ver chamados','Permite consultar chamados próprios/atribuídos.'],['chamados_gerenciar','Gerenciar chamados','Permite gerenciar chamados.']]},
       {id:'areas',title:'Áreas',items:[['vendas_ver','Ver conteúdos de vendas','Permite acessar área de vendas.'],['locacao_ver','Ver conteúdos de locação','Permite acessar área de locação.'],['captacao_ver','Ver conteúdos de captação','Permite acessar área de captação.'],['marketing_ver','Ver marketing','Permite acessar marketing.'],['juridico_ver','Ver jurídico','Permite acessar jurídico.']]},
@@ -8510,7 +8510,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     performance_base:['Ver Registros Realizados','Permite exibir o item Registros Realizados no menu lateral.'],
     performance_leads_distribuidos:['Ver Leads Distribuídos','Permite exibir o item Leads Distribuídos no menu lateral.'],
     performance_ranking:['Ver Ranking','Permite exibir o item Ranking no menu lateral.'],
-    performance_visitas_analise:['Ver Análise de Visitas','Permite exibir o item Análise de Visitas no menu lateral.'],
+    performance_visitas_analise:['Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.'],
     performance_kanban:['Ver Vendas','Permite exibir o item Vendas no menu lateral.'],
     performance_kanban_gestao:['Ver Gestão de Vendas','Permite exibir o item Gestão de Vendas no menu lateral.'],
     leads_registros:['Ver Registros de Leads','Permite exibir o item Registros de Leads no menu lateral.'],
@@ -9187,6 +9187,70 @@ body:has(#login:not(.hidden)) #app.hidden{
 
 
 
+
+
+<script id="npc-v93-visit-permission-final-rules">
+(function(){
+  'use strict';
+  if(window.__npcV93VisitPermissionFinalRules) return;
+  window.__npcV93VisitPermissionFinalRules = true;
+
+  try{
+    if(typeof PERMS !== 'undefined'){
+      PERMS.performance_visitas_analise = 'Performance: ver visitas';
+      PERMS.performance_visitas_validar = 'Performance: validar visitas';
+    }
+  }catch(e){}
+
+  function norm(v){
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  }
+
+  function normalizeVisitItems(groups){
+    try{
+      groups = Array.isArray(groups) ? groups : [];
+      var perf = groups.find(function(g){ return g && (g.id === 'performance' || norm(g.title) === 'performance'); });
+      if(!perf) return groups;
+      perf.items = Array.isArray(perf.items) ? perf.items : [];
+
+      var viewItem = perf.items.find(function(i){ return i && i[0] === 'performance_visitas_analise'; });
+      if(viewItem){
+        viewItem[1] = 'Ver Visitas';
+        viewItem[2] = 'Pode ver, editar e excluir visitas lançadas na Análise de Visitas.';
+      }else{
+        perf.items.push(['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.']);
+      }
+
+      var validateItem = perf.items.find(function(i){ return i && i[0] === 'performance_visitas_validar'; });
+      if(validateItem){
+        validateItem[1] = 'Validar Visitas';
+        validateItem[2] = 'Pode validar visitas lançadas na Análise de Visitas.';
+      }else{
+        var idx = perf.items.findIndex(function(i){ return i && i[0] === 'performance_visitas_analise'; });
+        var item = ['performance_visitas_validar','Validar Visitas','Pode validar visitas lançadas na Análise de Visitas.'];
+        if(idx >= 0) perf.items.splice(idx + 1, 0, item); else perf.items.push(item);
+      }
+    }catch(e){}
+    return groups;
+  }
+
+  var previousPermissionGroups = window.permissionGroups || (typeof permissionGroups === 'function' ? permissionGroups : null);
+  if(typeof previousPermissionGroups === 'function'){
+    window.permissionGroups = function(){
+      return normalizeVisitItems(previousPermissionGroups.apply(this, arguments));
+    };
+    try{ permissionGroups = window.permissionGroups; }catch(e){}
+  }
+
+  var previousPermissionLabel = window.permissionLabel || (typeof permissionLabel === 'function' ? permissionLabel : null);
+  window.permissionLabel = function(key){
+    if(key === 'performance_visitas_analise') return 'Ver Visitas';
+    if(key === 'performance_visitas_validar') return 'Validar Visitas';
+    return typeof previousPermissionLabel === 'function' ? previousPermissionLabel.apply(this, arguments) : (typeof PERMS !== 'undefined' && PERMS[key] ? PERMS[key] : key);
+  };
+  try{ permissionLabel = window.permissionLabel; }catch(e){}
+})();
+</script>
 </body></html>
 <script>
 /* ===== PATCH V68: pop-up automático de novos comunicados não lidos ===== */
@@ -10726,7 +10790,7 @@ body:has(#login:not(.hidden)) #app.hidden{
           const perf=(groups||[]).find(g=>g.id==='performance'||norm(g.title)==='performance');
           if(perf && Array.isArray(perf.items) && !perf.items.some(i=>i&&i[0]==='performance_visitas_validar')){
             const idx=perf.items.findIndex(i=>i&&i[0]==='performance_visitas_analise');
-            const item=['performance_visitas_validar','Validar visitas','Permite exibir e alterar a coluna Validação na Análise de Visitas.'];
+            const item=['performance_visitas_validar','Validar Visitas','Pode validar visitas lançadas na Análise de Visitas.'];
             if(idx>=0) perf.items.splice(idx+1,0,item); else perf.items.push(item);
           }
         }catch(e){}
@@ -10906,5 +10970,139 @@ body:has(#login:not(.hidden)) #app.hidden{
     }
   }catch(e){}
   setTimeout(startLeadsRealtime, 600);
+})();
+</script>
+
+<!-- PATCH V94: Reconhecimento - popup somente até o usuário marcar como lido -->
+<script>
+(function(){
+  if(window.__npcV94ReconhecimentoLidoUnico) return;
+  window.__npcV94ReconhecimentoLidoUnico = true;
+
+  function esc(v){
+    try{ if(typeof escape === 'function') return escape(String(v == null ? '' : v)); }catch(e){}
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];});
+  }
+  function getUid(){
+    try{ return current && current.id ? String(current.id) : ''; }catch(e){ return ''; }
+  }
+  function ensureRecognitionState(){
+    try{
+      db.recognitions = Array.isArray(db.recognitions) ? db.recognitions : (db.recognitions ? Object.values(db.recognitions) : []);
+      db.recognitionReads = db.recognitionReads || {};
+    }catch(e){}
+  }
+  function appliesToCurrent(r){
+    var id=getUid();
+    if(!id || !r) return false;
+    if(r.targetType === 'all' || r.targetAll === true) return true;
+    if(r.targetType === 'user' || r.targetUserId) return String(r.targetUserId) === id;
+    return true;
+  }
+  function alreadyRead(r){
+    var id=getUid();
+    if(!id || !r || !r.id) return true;
+    return !!(r.seenBy && r.seenBy[id]) || !!(db.recognitionReads && db.recognitionReads[id] && db.recognitionReads[id][r.id]);
+  }
+  function targetLabel(r){
+    try{
+      if(!r) return 'Equipe';
+      if(r.targetType === 'all' || r.targetAll === true) return 'Todos';
+      if(r.targetUserName) return r.targetUserName;
+      if(r.targetUserId){
+        var u=(db.users||[]).find(function(x){return String(x.id)===String(r.targetUserId);});
+        return (u && (u.name || u.email || u.user)) || r.person || 'Usuário selecionado';
+      }
+      return r.person || 'Equipe';
+    }catch(e){ return 'Equipe'; }
+  }
+  function saveReadState(r){
+    var id=getUid();
+    if(!id || !r || !r.id) return;
+    ensureRecognitionState();
+    r.seenBy = r.seenBy || {};
+    r.seenBy[id] = new Date().toISOString();
+    db.recognitionReads[id] = db.recognitionReads[id] || {};
+    db.recognitionReads[id][r.id] = true;
+    try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+    try{
+      if(window.firebaseDb && (!window.firebaseAuth || window.firebaseAuth.currentUser)){
+        var updates = {};
+        updates['recognitionReads/' + id + '/' + r.id] = true;
+        var idx = (db.recognitions || []).findIndex(function(x){ return x && String(x.id) === String(r.id); });
+        if(idx >= 0) updates['recognitions/' + idx + '/seenBy/' + id] = r.seenBy[id];
+        firebaseDb.ref('/').update(updates).catch(function(e){
+          try{ if(typeof toast === 'function') toast('Não foi possível registrar leitura do reconhecimento: ' + e.message, 'warn'); }catch(_e){}
+        });
+      }
+    }catch(e){}
+  }
+  function nextPendingRecognition(){
+    ensureRecognitionState();
+    var list=(db.recognitions||[]).filter(function(r){ return r && r.kind === 'manual' && appliesToCurrent(r) && !alreadyRead(r); });
+    list.sort(function(a,b){ return new Date(a.createdAt || 0) - new Date(b.createdAt || 0); });
+    return list[0] || null;
+  }
+
+  window.npcMarkRecognitionReadAndClose = function(id){
+    ensureRecognitionState();
+    var r=(db.recognitions||[]).find(function(x){ return x && String(x.id) === String(id); });
+    if(r) saveReadState(r);
+    try{ closeModal(); }catch(e){}
+    setTimeout(function(){ try{ window.maybeShowManualRecognitionPopups(); }catch(e){} }, 350);
+  };
+
+  window.maybeShowManualRecognitionPopups = function(){
+    var r=nextPendingRecognition();
+    if(!r) return;
+    var safeId=String(r.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    openModal('Você recebeu um reconhecimento!', `
+      <div class="achievement-pop" style="text-align:center">
+        <img src="logo-npc-amarelo.png" alt="Na Ponta da Chave" style="max-width:240px;width:70%;height:auto;margin:0 auto 14px;display:block">
+        <div class="trophy">★</div>
+        <div class="achievement-title">${esc(r.title || 'Reconhecimento')}</div>
+        <p class="sub"><b>${esc(targetLabel(r))}</b></p>
+        <div class="callout" style="text-align:left;margin-top:14px">${esc(r.reason || 'Você foi reconhecido pela gestão.')}</div>
+        <div class="actions" style="justify-content:center;margin-top:18px">
+          <button class="primary" onclick="npcMarkRecognitionReadAndClose('${safeId}')">Lido</button>
+        </div>
+      </div>
+    `);
+  };
+
+  window.maybeShowRecognitionPopups = function(){
+    setTimeout(function(){ try{ window.maybeShowManualRecognitionPopups(); }catch(e){} }, 900);
+  };
+  try{ maybeShowManualRecognitionPopups = window.maybeShowManualRecognitionPopups; }catch(e){}
+  try{ maybeShowRecognitionPopups = window.maybeShowRecognitionPopups; }catch(e){}
+
+  var oldCloudToLocal = window.cloudToLocal || (typeof cloudToLocal === 'function' ? cloudToLocal : null);
+  if(oldCloudToLocal && !window.__npcV94CloudRecognitionReads){
+    window.__npcV94CloudRecognitionReads = true;
+    window.cloudToLocal = function(cloud){
+      var base = oldCloudToLocal.apply(this, arguments);
+      base.recognitions = Array.isArray(cloud && cloud.recognitions) ? cloud.recognitions : ((cloud && cloud.recognitions) ? Object.values(cloud.recognitions) : (base.recognitions || []));
+      base.recognitionReads = (cloud && cloud.recognitionReads) || base.recognitionReads || {};
+      return base;
+    };
+    try{ cloudToLocal = window.cloudToLocal; }catch(e){}
+  }
+
+  var oldLoad = window.loadCloudDb || (typeof loadCloudDb === 'function' ? loadCloudDb : null);
+  if(oldLoad && !window.__npcV94LoadRecognitionReads){
+    window.__npcV94LoadRecognitionReads = true;
+    window.loadCloudDb = async function(){
+      var result = await oldLoad.apply(this, arguments);
+      try{
+        if(window.firebaseDb){
+          var snap = await firebaseDb.ref('/recognitionReads').once('value');
+          db.recognitionReads = snap.val() || db.recognitionReads || {};
+          if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db));
+        }
+      }catch(e){}
+      return result;
+    };
+    try{ loadCloudDb = window.loadCloudDb; }catch(e){}
+  }
 })();
 </script>
