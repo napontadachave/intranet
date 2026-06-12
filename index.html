@@ -9251,6 +9251,279 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{ permissionLabel = window.permissionLabel; }catch(e){}
 })();
 </script>
+
+
+<script>
+/* PATCH V100 — Configurar responsáveis dos chamados: Firebase como única fonte
+   O botão "Salvar responsáveis" grava ticketAreaResponsibles apenas no Firebase.
+   Não há persistência local desse campo para evitar exibição de informação não confirmada no banco. */
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){ return String(v ?? '').replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];}); }
+  function expose(){
+    try{ if(typeof firebaseDb!=='undefined') window.firebaseDb=firebaseDb; }catch(e){}
+    try{ if(typeof firebaseAuth!=='undefined') window.firebaseAuth=firebaseAuth; }catch(e){}
+  }
+  function ensure(){
+    if(!window.db) window.db={};
+    db.tickets=Array.isArray(db.tickets)?db.tickets:(db.tickets?Object.values(db.tickets):[]);
+    db.auditLogs=Array.isArray(db.auditLogs)?db.auditLogs:(db.auditLogs?Object.values(db.auditLogs):[]);
+    db.ticketAreaResponsibles=(db.ticketAreaResponsibles && !Array.isArray(db.ticketAreaResponsibles))?db.ticketAreaResponsibles:{};
+    db.users=Array.isArray(db.users)?db.users:(db.users?Object.values(db.users):[]);
+  }
+  function hasAny(keys){
+    try{ if(current && current.perms && current.perms.admin===true) return true; }catch(e){}
+    try{ return keys.some(function(k){ return (typeof has==='function' && has(k)) || (current && current.perms && current.perms[k]===true); }); }catch(e){ return false; }
+  }
+  function canConfig(){
+    return hasAny(['chamados_configurar_responsaveis','chamados_configurar','tickets_configurar_responsaveis','chamados_status','usuarios_gerenciar','configuracoes','admin']);
+  }
+  function forceCloseModal(){
+    try{ if(typeof closeModal==='function') closeModal(); }catch(e){}
+    try{
+      var bg=byId('modalBg');
+      if(bg){ bg.classList.remove('open'); bg.style.display='none'; bg.setAttribute('aria-hidden','true'); }
+    }catch(e){}
+  }
+  function refresh(){
+    try{ if((window.page||'')==='chamados' && typeof window.npcDrawTicketsList==='function') window.npcDrawTicketsList(); }catch(e){}
+    try{ if((window.page||'')==='chamados' && typeof window.npcRenderTickets==='function' && !byId('ticketRows')) window.npcRenderTickets(); }catch(e){}
+  }
+  function addAuditLog(){
+    try{
+      db.auditLogs=db.auditLogs||[];
+      db.auditLogs.unshift({
+        id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+        tipo:'CHAMADOS_RESPONSAVEIS',
+        descricao:'Responsáveis por área/categoria de chamados atualizados',
+        criadoPorUid:current?.id||current?.uid||current?.email||'',
+        criadoPorNome:current?.name||current?.nome||current?.email||'Usuário',
+        criadoEm:new Date().toISOString()
+      });
+    }catch(e){}
+  }
+  window.npcSaveTicketAreaConfig=function(){
+    expose(); ensure();
+    if(!canConfig()){ if(typeof toast==='function') toast('Você não tem permissão para configurar responsáveis.','warn'); return; }
+    var resp={};
+    document.querySelectorAll('[data-ticket-area]').forEach(function(sel){
+      var area=sel.getAttribute('data-ticket-area')||'';
+      var val=sel.value||'';
+      if(area && val) resp[area]=val;
+    });
+    if(!(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser)){
+      if(typeof toast==='function') toast('Não foi possível salvar: conexão com o Firebase não disponível. Nada foi salvo no navegador.','warn');
+      return;
+    }
+
+    var previousResp=db.ticketAreaResponsibles||{};
+    var previousLogs=Array.isArray(db.auditLogs)?db.auditLogs.slice():[];
+    var log={
+      id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      tipo:'CHAMADOS_RESPONSAVEIS',
+      descricao:'Responsáveis por área/categoria de chamados atualizados',
+      criadoPorUid:current?.id||current?.uid||current?.email||'',
+      criadoPorNome:current?.name||current?.nome||current?.email||'Usuário',
+      criadoEm:new Date().toISOString()
+    };
+    var nextLogs=[log].concat(previousLogs);
+
+    try{
+      firebaseDb.ref('/').update({
+        ticketAreaResponsibles: resp,
+        auditLogs: nextLogs
+      }).then(function(){
+        db.ticketAreaResponsibles=resp;
+        db.auditLogs=nextLogs;
+        try{ window.__npcScrubTicketAreaResponsiblesLocal && window.__npcScrubTicketAreaResponsiblesLocal(); }catch(e){}
+        forceCloseModal(); refresh();
+        if(typeof toast==='function') toast('Responsáveis salvos com sucesso no Firebase.');
+      }).catch(function(err){
+        db.ticketAreaResponsibles=previousResp;
+        db.auditLogs=previousLogs;
+        try{ window.__npcScrubTicketAreaResponsiblesLocal && window.__npcScrubTicketAreaResponsiblesLocal(); }catch(e){}
+        if(typeof toast==='function') toast('Erro ao salvar responsáveis no Firebase: '+(err&&err.message?err.message:err),'warn');
+      });
+    }catch(err){
+      db.ticketAreaResponsibles=previousResp;
+      db.auditLogs=previousLogs;
+      try{ window.__npcScrubTicketAreaResponsiblesLocal && window.__npcScrubTicketAreaResponsiblesLocal(); }catch(e){}
+      if(typeof toast==='function') toast('Erro ao preparar salvamento dos responsáveis: '+(err&&err.message?err.message:err),'warn');
+    }
+  };
+
+  // Reforço visual: botões do modal não submetem formulário e mantêm o fechamento pelo Cancelar.
+  var oldOpen=window.npcOpenTicketAreaConfig;
+  if(typeof oldOpen==='function' && !window.__npcV99AreaConfigOpen){
+    window.__npcV99AreaConfigOpen=true;
+    window.npcOpenTicketAreaConfig=function(){
+      var out=oldOpen.apply(this,arguments);
+      setTimeout(function(){
+        try{ document.querySelectorAll('button[onclick="npcSaveTicketAreaConfig()"], button[onclick="closeModal()"], button[onclick="closeModal();"]').forEach(function(b){ b.type='button'; }); }catch(e){}
+      },0);
+      return out;
+    };
+  }
+})();
+</script>
+
+
+<script>
+/* PATCH V102 — Restaura botão Novo chamado com responsáveis em Firebase
+   Recria npcOpenTicketNew sem depender de variáveis internas de patches anteriores. */
+(function(){
+  function byId(id){return document.getElementById(id);}
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];});}
+  function ensure(){
+    try{ if(typeof ensureOpsData==='function') ensureOpsData(); }catch(e){}
+    window.db=window.db||{};
+    db.tickets=Array.isArray(db.tickets)?db.tickets:(db.tickets?Object.values(db.tickets):[]);
+    db.auditLogs=Array.isArray(db.auditLogs)?db.auditLogs:(db.auditLogs?Object.values(db.auditLogs):[]);
+    db.users=Array.isArray(db.users)?db.users:(db.users?Object.values(db.users):[]);
+    if(typeof window.npcNormalizeTicketAreaResponsibles==='function') db.ticketAreaResponsibles=window.npcNormalizeTicketAreaResponsibles(db.ticketAreaResponsibles||{});
+    else db.ticketAreaResponsibles=db.ticketAreaResponsibles&&typeof db.ticketAreaResponsibles==='object'&&!Array.isArray(db.ticketAreaResponsibles)?db.ticketAreaResponsibles:{};
+  }
+  function canOpen(){
+    try{ if(typeof can==='function' && can('chamados_abrir')) return true; }catch(e){}
+    try{ if(typeof has==='function' && has('chamados_abrir')) return true; }catch(e){}
+    return !!(window.current && current.perms && (current.perms.admin===true || current.perms.chamados_abrir===true));
+  }
+  var CATS=['Sistema / Acesso','Dúvida operacional','Marketing','Jurídico','Documentos','Comercial','Financeiro','Manutenção / Estrutura','Sugestão de melhoria','Outro'];
+  var PRIS=['Baixa','Média','Alta','Urgente'];
+  function userName(uid){
+    ensure();
+    var u=(db.users||[]).find(function(x){return String(x.id||x.uid||x.email)===String(uid);});
+    return u?(u.name||u.nome||u.email||uid):uid;
+  }
+  function responsibleFor(cat){
+    ensure();
+    if(typeof window.npcGetTicketAreaResponsible==='function') return window.npcGetTicketAreaResponsible(cat)||'';
+    var raw=db.ticketAreaResponsibles||{};
+    var rec=raw[cat];
+    if(rec && typeof rec==='object') return rec.userId||rec.uid||rec.id||'';
+    return rec||'';
+  }
+  window.npcUpdateTicketAssigneePreview=function(){
+    var cat=byId('ntCat')?byId('ntCat').value:'';
+    var uid=responsibleFor(cat);
+    var box=byId('ntAutoRespBox');
+    if(!box) return;
+    box.innerHTML=uid?'<b>Responsável automático:</b>&nbsp;'+esc(userName(uid)):'<b>Responsável automático:</b>&nbsp;nenhum responsável configurado para esta área.';
+  };
+  window.npcOpenTicketNew=function(){
+    ensure();
+    if(!canOpen()){ if(typeof toast==='function') toast('Você não tem permissão para abrir chamados.','warn'); return; }
+    var html='<div class="grid cols2">'
+      +'<div class="field"><label>Título</label><input id="ntTitle" placeholder="Ex.: problema de acesso, solicitação de material..."></div>'
+      +'<div class="field"><label>Área do chamado</label><select id="ntCat" onchange="npcUpdateTicketAssigneePreview()">'+CATS.map(function(c){return '<option>'+esc(c)+'</option>';}).join('')+'</select></div>'
+      +'<div class="field"><label>Prioridade</label><select id="ntPri">'+PRIS.map(function(p){return '<option>'+esc(p)+'</option>';}).join('')+'</select></div>'
+      +'<div class="ticket-assigned-preview" id="ntAutoRespBox"></div>'
+      +'</div>'
+      +'<div class="field"><label>Descrição</label><textarea id="ntDesc" rows="4" placeholder="Descreva a solicitação com clareza..."></textarea></div>'
+      +'<div class="actions"><button class="primary" onclick="npcSaveNewTicket()">Salvar chamado</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    if(typeof openModal==='function') openModal('Novo chamado',html);
+    setTimeout(function(){try{window.npcUpdateTicketAssigneePreview();}catch(e){}},30);
+  };
+  window.npcSaveNewTicket=function(){
+    ensure();
+    if(!canOpen()){ if(typeof toast==='function') toast('Você não tem permissão para abrir chamados.','warn'); return; }
+    var title=(byId('ntTitle')&&byId('ntTitle').value||'').trim();
+    var desc=(byId('ntDesc')&&byId('ntDesc').value||'').trim();
+    if(!title){ if(typeof toast==='function') toast('Informe o título do chamado.','warn'); return; }
+    if(!desc){ if(typeof toast==='function') toast('Informe a descrição do chamado.','warn'); return; }
+    if(!(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser)){ if(typeof toast==='function') toast('Não foi possível salvar: conexão com o Firebase não disponível.','warn'); return; }
+    var cat=byId('ntCat')?byId('ntCat').value:'';
+    var resp=responsibleFor(cat);
+    var now=new Date().toISOString();
+    var c=window.current||{};
+    var prevTickets=(db.tickets||[]).slice();
+    var prevLogs=(db.auditLogs||[]).slice();
+    var ticket={
+      id:'tk_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      number:String((prevTickets.length+1)).padStart(4,'0'),
+      title:title,category:cat,priority:(byId('ntPri')&&byId('ntPri').value)||'Média',description:desc,
+      status:'aberto',ativo:true,assignedToId:resp,assignedToName:resp?userName(resp):'',
+      createdById:c.id||c.uid||'',createdByName:c.name||c.nome||c.email||'Usuário',createdAt:now,updatedAt:now,
+      history:[{type:'criado',text:resp?'Chamado criado e delegado automaticamente para '+userName(resp)+'.':'Chamado criado sem responsável automático configurado.',byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}],
+      responses:[]
+    };
+    var log={id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo:'CHAMADO_CRIADO',descricao:'Chamado criado',criadoPorUid:c.id||c.uid||'',criadoPorNome:c.name||c.nome||c.email||'Usuário',criadoEm:now,refId:ticket.id};
+    var nextTickets=[ticket].concat(prevTickets);
+    var nextLogs=[log].concat(prevLogs);
+    firebaseDb.ref('/').update({tickets:nextTickets,auditLogs:nextLogs}).then(function(){
+      db.tickets=nextTickets; db.auditLogs=nextLogs;
+      if(typeof closeModal==='function') closeModal();
+      if(typeof render_chamados==='function') render_chamados();
+      if(typeof toast==='function') toast(resp?'Chamado criado e delegado automaticamente.':'Chamado criado sem responsável automático configurado.');
+    }).catch(function(err){
+      db.tickets=prevTickets; db.auditLogs=prevLogs;
+      if(typeof toast==='function') toast('Erro ao salvar chamado no Firebase: '+(err&&err.message?err.message:err),'warn');
+    });
+  };
+})();
+</script>
+
+
+<script>
+/* PATCH V105 — Chamados: impede que o modal fique invisível após primeira ação */
+(function(){
+  'use strict';
+  if(window.__npcV105ModalChamadosFix) return;
+  window.__npcV105ModalChamadosFix = true;
+
+  function modalBg(){ return document.getElementById('modalBg'); }
+  function normalizeModalDisplay(){
+    try{
+      var bg = modalBg();
+      if(bg){
+        bg.style.display = '';
+        bg.removeAttribute('aria-hidden');
+      }
+    }catch(e){}
+  }
+
+  if(typeof window.openModal === 'function' && !window.__npcV105OpenModalWrapped){
+    window.__npcV105OpenModalWrapped = true;
+    var oldOpenModal = window.openModal;
+    window.openModal = function(title, body){
+      normalizeModalDisplay();
+      var result = oldOpenModal.apply(this, arguments);
+      normalizeModalDisplay();
+      try{ var bg = modalBg(); if(bg) bg.classList.add('open'); }catch(e){}
+      return result;
+    };
+  }
+
+  if(typeof window.closeModal === 'function' && !window.__npcV105CloseModalWrapped){
+    window.__npcV105CloseModalWrapped = true;
+    var oldCloseModal = window.closeModal;
+    window.closeModal = function(){
+      var result;
+      try{ result = oldCloseModal.apply(this, arguments); }catch(e){}
+      try{
+        var bg = modalBg();
+        if(bg){
+          bg.classList.remove('open');
+          bg.style.display = '';
+          bg.setAttribute('aria-hidden','true');
+        }
+      }catch(e){}
+      return result;
+    };
+  }
+
+  /* Reforça abertura dos botões da lista, mesmo após re-renderizações da tabela. */
+  document.addEventListener('click', function(ev){
+    var btn = ev.target && ev.target.closest ? ev.target.closest('[data-npc-ticket-action],[data-ticket-action]') : null;
+    if(!btn) return;
+    var action = btn.getAttribute('data-npc-ticket-action') || btn.getAttribute('data-ticket-action');
+    var id = btn.getAttribute('data-npc-ticket-id') || btn.getAttribute('data-ticket-id');
+    if(!action || !id) return;
+    normalizeModalDisplay();
+  }, true);
+})();
+</script>
+
 </body></html>
 <script>
 /* ===== PATCH V68: pop-up automático de novos comunicados não lidos ===== */
@@ -11690,5 +11963,641 @@ body:has(#login:not(.hidden)) #app.hidden{
     }
   };
   try{ render_reconhecimentos = window.render_reconhecimentos; }catch(e){}
+})();
+</script>
+
+<script>
+/* ===== PATCH V98: Chamados - salvar fecha modal + atualização em tempo real ===== */
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function safeToast(msg,type){ try{ if(typeof toast==='function') toast(msg,type); }catch(e){} }
+  function getDb(){ if(!window.db) window.db={}; return window.db; }
+  function normArr(v){ return Array.isArray(v) ? v : (v ? Object.values(v) : []); }
+  function forceCloseModal(){
+    try{ if(typeof window.closeModal==='function') window.closeModal(); }catch(e){}
+    try{
+      var bg=byId('modalBg');
+      if(bg){
+        bg.classList.remove('open');
+        bg.style.display='';
+        bg.setAttribute('aria-hidden','true');
+      }
+    }catch(e){}
+  }
+  function currentPage(){ try{return window.page || page || '';}catch(e){return window.page || '';} }
+  function refreshTicketsView(){
+    try{
+      var p=currentPage();
+      if(p==='chamados'){
+        if(byId('ticketRows') && typeof window.npcDrawTicketsList==='function') window.npcDrawTicketsList();
+        else if(typeof window.npcRenderTickets==='function') window.npcRenderTickets();
+      }else if(p==='chamados_dashboard' && typeof window.npcRenderTicketsDashboard==='function'){
+        window.npcRenderTicketsDashboard();
+      }
+    }catch(e){ console.warn('Falha ao atualizar chamados em tempo real:', e); }
+  }
+  function syncLocalTickets(nextTickets, nextAreaResponsibles){
+    var db=getDb();
+    var changed=false;
+    if(nextTickets){
+      var arr=normArr(nextTickets);
+      try{ changed = JSON.stringify(db.tickets||[]) !== JSON.stringify(arr); }catch(e){ changed=true; }
+      db.tickets=arr;
+    }
+    if(nextAreaResponsibles){
+      try{ changed = changed || JSON.stringify(db.ticketAreaResponsibles||{}) !== JSON.stringify(nextAreaResponsibles||{}); }catch(e){ changed=true; }
+      db.ticketAreaResponsibles=nextAreaResponsibles||{};
+    }
+    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    if(changed) refreshTicketsView();
+  }
+  function installRealtime(){
+    try{
+      if(!window.firebaseDb || !window.firebaseAuth || !firebaseAuth.currentUser) return false;
+      if(window.__npcV98TicketsRealtimeInstalled) return true;
+      window.__npcV98TicketsRealtimeInstalled=true;
+      if(window.__npcV98TicketsRef){ try{ window.__npcV98TicketsRef.off(); }catch(e){} }
+      if(window.__npcV98TicketRespRef){ try{ window.__npcV98TicketRespRef.off(); }catch(e){} }
+      window.__npcV98TicketsRef=firebaseDb.ref('/tickets');
+      window.__npcV98TicketRespRef=firebaseDb.ref('/ticketAreaResponsibles');
+      window.__npcV98TicketsRef.on('value',function(snap){
+        try{ syncLocalTickets(snap.val(), null); }catch(e){ console.warn('Realtime tickets:', e); }
+      });
+      window.__npcV98TicketRespRef.on('value',function(snap){
+        try{ syncLocalTickets(null, snap.val()||{}); }catch(e){ console.warn('Realtime ticketAreaResponsibles:', e); }
+      });
+      return true;
+    }catch(e){ console.warn('Falha ao instalar realtime de chamados:', e); return false; }
+  }
+  var attempts=0;
+  var timer=setInterval(function(){ attempts++; if(installRealtime() || attempts>30) clearInterval(timer); }, 700);
+  window.npcInstallTicketsRealtime=installRealtime;
+
+  function newTicketLooksValid(){
+    var title=(byId('ntTitle')&&byId('ntTitle').value||'').trim();
+    var desc=(byId('ntDesc')&&byId('ntDesc').value||'').trim();
+    return !!(title && desc);
+  }
+  function editTicketHasChanges(id){
+    var db=getDb();
+    var t=(db.tickets||[]).find(function(x){return String(x.id)===String(id);});
+    if(!t) return false;
+    var ns=byId('vtStatus') ? byId('vtStatus').value : t.status;
+    var nr=byId('vtAssigned') ? byId('vtAssigned').value : (t.assignedToId||'');
+    var resp=(byId('vtResponse')&&byId('vtResponse').value||'').trim();
+    return !!(resp || ns!==t.status || nr!==(t.assignedToId||''));
+  }
+
+  if(typeof window.npcSaveNewTicket==='function' && !window.__npcV98WrapNewTicket){
+    window.__npcV98WrapNewTicket=true;
+    var oldNew=window.npcSaveNewTicket;
+    window.npcSaveNewTicket=function(){
+      var shouldClose=newTicketLooksValid();
+      var out=oldNew.apply(this,arguments);
+      if(shouldClose){ setTimeout(forceCloseModal,80); setTimeout(refreshTicketsView,140); setTimeout(installRealtime,250); }
+      return out;
+    };
+  }
+  if(typeof window.npcSaveTicketView==='function' && !window.__npcV98WrapEditTicket){
+    window.__npcV98WrapEditTicket=true;
+    var oldEdit=window.npcSaveTicketView;
+    window.npcSaveTicketView=function(id){
+      var shouldClose=editTicketHasChanges(id);
+      var out=oldEdit.apply(this,arguments);
+      if(shouldClose){ setTimeout(forceCloseModal,80); setTimeout(refreshTicketsView,140); setTimeout(installRealtime,250); }
+      return out;
+    };
+  }
+
+  if(typeof window.saveTickets==='function' && !window.__npcV98WrapSaveTickets){
+    window.__npcV98WrapSaveTickets=true;
+    var oldSaveTickets=window.saveTickets;
+    window.saveTickets=function(){
+      var out=oldSaveTickets.apply(this,arguments);
+      setTimeout(refreshTicketsView,120);
+      setTimeout(installRealtime,250);
+      return out;
+    };
+  }
+})();
+</script>
+
+<script>
+/* PATCH V100 — não persistir responsáveis de chamados no navegador */
+(function(){
+  function mainKey(){ try{ return typeof KEY !== 'undefined' ? KEY : 'npc_intranet_v5'; }catch(e){ return 'npc_intranet_v5'; } }
+  function scrub(){
+    try{
+      var k=mainKey();
+      var raw=localStorage.getItem(k);
+      if(!raw) return;
+      var obj=JSON.parse(raw);
+      if(obj && Object.prototype.hasOwnProperty.call(obj,'ticketAreaResponsibles')){
+        delete obj.ticketAreaResponsibles;
+        Storage.prototype.setItem.call(localStorage,k,JSON.stringify(obj));
+      }
+    }catch(e){}
+  }
+  window.__npcScrubTicketAreaResponsiblesLocal=scrub;
+  try{
+    if(!window.__npcNoLocalTicketAreaRespPatch){
+      window.__npcNoLocalTicketAreaRespPatch=true;
+      var nativeSetItem=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(key,value){
+        try{
+          if(String(key)===String(mainKey())){
+            var obj=JSON.parse(String(value));
+            if(obj && Object.prototype.hasOwnProperty.call(obj,'ticketAreaResponsibles')){
+              delete obj.ticketAreaResponsibles;
+              value=JSON.stringify(obj);
+            }
+          }
+        }catch(e){}
+        return nativeSetItem.call(this,key,value);
+      };
+    }
+  }catch(e){}
+  scrub();
+})();
+</script>
+
+
+<script>
+/* PATCH V101 — Responsáveis de chamados com chaves seguras no Firebase
+   Corrige erro de categorias com barra, ponto ou caracteres proibidos pelo Firebase. */
+(function(){
+  var CATS=['Sistema / Acesso','Dúvida operacional','Marketing','Jurídico','Documentos','Comercial','Financeiro','Manutenção / Estrutura','Sugestão de melhoria','Outro'];
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];});}
+  function byId(id){return document.getElementById(id);}
+  function expose(){try{if(typeof firebaseDb!=='undefined')window.firebaseDb=firebaseDb;}catch(e){} try{if(typeof firebaseAuth!=='undefined')window.firebaseAuth=firebaseAuth;}catch(e){}}
+  function keyFor(cat){
+    var out='cat_';
+    String(cat||'').split('').forEach(function(ch){out+=ch.charCodeAt(0).toString(16).padStart(4,'0');});
+    return out || 'cat_';
+  }
+  function catFromKey(key){
+    key=String(key||'');
+    if(key.indexOf('cat_')!==0) return '';
+    var hex=key.slice(4), out='';
+    for(var i=0;i<hex.length;i+=4){var part=hex.slice(i,i+4); if(part.length===4) out+=String.fromCharCode(parseInt(part,16));}
+    return out;
+  }
+  function invalidKey(k){return /[.#$/\[\]]/.test(String(k||''));}
+  function ensure(){
+    if(!window.db) window.db={};
+    db.users=Array.isArray(db.users)?db.users:(db.users?Object.values(db.users):[]);
+    db.tickets=Array.isArray(db.tickets)?db.tickets:(db.tickets?Object.values(db.tickets):[]);
+    db.auditLogs=Array.isArray(db.auditLogs)?db.auditLogs:(db.auditLogs?Object.values(db.auditLogs):[]);
+    db.ticketAreaResponsibles=normalize(db.ticketAreaResponsibles||{});
+  }
+  function normalize(raw){
+    var obj=(raw && typeof raw==='object' && !Array.isArray(raw))?raw:{};
+    var out={};
+    Object.keys(obj).forEach(function(k){
+      var v=obj[k];
+      if(k.indexOf('cat_')===0 && !invalidKey(k)){
+        if(v && typeof v==='object') out[k]={category:String(v.category||catFromKey(k)||''),userId:String(v.userId||v.uid||v.id||'')};
+        else out[k]={category:catFromKey(k),userId:String(v||'')};
+        return;
+      }
+      var cat=String((v&&typeof v==='object'&&v.category)?v.category:k);
+      var uid=String((v&&typeof v==='object')?(v.userId||v.uid||v.id||''):v||'');
+      if(cat && uid) out[keyFor(cat)]={category:cat,userId:uid};
+    });
+    return out;
+  }
+  window.npcTicketAreaKey=keyFor;
+  window.npcNormalizeTicketAreaResponsibles=normalize;
+  window.npcGetTicketAreaResponsible=function(cat){
+    ensure();
+    var rec=db.ticketAreaResponsibles[keyFor(cat)];
+    if(rec && typeof rec==='object') return rec.userId||'';
+    if(typeof rec==='string') return rec;
+    return '';
+  };
+  function userName(uid){
+    ensure();
+    var u=(db.users||[]).find(function(x){return String(x.id||x.uid||x.email)===String(uid);});
+    return u?(u.name||u.nome||u.email||uid):uid;
+  }
+  function activeUsers(){ensure();return (db.users||[]).filter(function(u){return u && u.ativo!==false && u.active!==false;});}
+  function userOptions(selected){
+    return activeUsers().map(function(u){var id=String(u.id||u.uid||u.email||'');return id?'<option value="'+esc(id)+'" '+(String(selected)===id?'selected':'')+'>'+esc(u.name||u.nome||u.email||id)+'</option>':'';}).join('');
+  }
+  function hasAny(keys){
+    try{if(current && current.perms && current.perms.admin===true)return true;}catch(e){}
+    try{return keys.some(function(k){return (typeof has==='function'&&has(k)) || (current&&current.perms&&current.perms[k]===true);});}catch(e){return false;}
+  }
+  function canOpen(){return hasAny(['chamados_ver','chamados_abrir','chamados_cadastrar','tickets_ver','tickets_abrir','tickets_cadastrar','admin']);}
+  function canConfig(){return hasAny(['chamados_configurar_responsaveis','chamados_configurar','tickets_configurar_responsaveis','usuarios_gerenciar','configuracoes','admin']);}
+  function forceClose(){try{if(typeof closeModal==='function')closeModal();}catch(e){} try{var bg=byId('modalBg'); if(bg){bg.classList.remove('open');bg.style.display='none';bg.setAttribute('aria-hidden','true');}}catch(e){}}
+  function refresh(){try{if((window.page||'')==='chamados'){if(typeof npcDrawTicketsList==='function')npcDrawTicketsList(); else if(typeof npcRenderTickets==='function')npcRenderTickets();}}catch(e){}}
+  function scrubLocal(){try{window.__npcScrubTicketAreaResponsiblesLocal&&window.__npcScrubTicketAreaResponsiblesLocal();}catch(e){}}
+
+  if(typeof window.cloudToLocal==='function' && !window.__npcV101Cloud){
+    window.__npcV101Cloud=true;
+    var oldCloud=window.cloudToLocal;
+    window.cloudToLocal=function(cloud){var base=oldCloud.apply(this,arguments);base.ticketAreaResponsibles=normalize((cloud&&cloud.ticketAreaResponsibles)||base.ticketAreaResponsibles||{});return base;};
+    try{cloudToLocal=window.cloudToLocal;}catch(e){}
+  }
+  if(typeof window.npcFirebasePayload==='function' && !window.__npcV101Payload){
+    window.__npcV101Payload=true;
+    var oldPayload=window.npcFirebasePayload;
+    window.npcFirebasePayload=function(){var p=oldPayload.apply(this,arguments)||{};p.ticketAreaResponsibles=normalize((db&&db.ticketAreaResponsibles)||{});return p;};
+  }
+
+  window.npcOpenTicketAreaConfig=function(){
+    if(!canConfig()){if(typeof toast==='function')toast('Você não tem permissão para configurar responsáveis.','warn');return;}
+    ensure();
+    var rows=CATS.map(function(cat){
+      var selected=window.npcGetTicketAreaResponsible(cat);
+      return '<div class="npc-v48-config-row ticket-config-row"><div class="npc-v48-config-grid ticket-config-grid"><div><b>'+esc(cat)+'</b><span class="sub">Responsável automático ao abrir chamado nesta área.</span></div><select data-ticket-area="'+esc(cat)+'"><option value="">Selecione uma opção</option>'+userOptions(selected)+'</select></div></div>';
+    }).join('');
+    openModal('Configurar responsáveis','<div class="callout"><b>Delegação automática:</b> ao selecionar uma área/categoria no novo chamado, o sistema preencherá o responsável configurado aqui.</div><div style="display:grid;gap:10px;margin-top:10px">'+rows+'</div><div class="actions"><button type="button" class="primary" onclick="npcSaveTicketAreaConfig()">Salvar responsáveis</button><button type="button" class="secondary" onclick="closeModal()">Cancelar</button></div>');
+  };
+
+  window.npcSaveTicketAreaConfig=function(){
+    expose(); ensure();
+    if(!canConfig()){if(typeof toast==='function')toast('Você não tem permissão para configurar responsáveis.','warn');return;}
+    if(!(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser)){if(typeof toast==='function')toast('Não foi possível salvar: conexão com o Firebase não disponível. Nada foi salvo no navegador.','warn');return;}
+    var next={};
+    document.querySelectorAll('[data-ticket-area]').forEach(function(sel){
+      var area=sel.getAttribute('data-ticket-area')||'', uid=sel.value||'';
+      if(area && uid) next[keyFor(area)]={category:area,userId:uid};
+    });
+    var prev=db.ticketAreaResponsibles||{};
+    var prevLogs=Array.isArray(db.auditLogs)?db.auditLogs.slice():[];
+    var log={id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo:'CHAMADOS_RESPONSAVEIS',descricao:'Responsáveis por área/categoria de chamados atualizados',criadoPorUid:(window.current&&(current.id||current.uid||current.email))||'',criadoPorNome:(window.current&&(current.name||current.nome||current.email))||'Usuário',criadoEm:new Date().toISOString()};
+    var nextLogs=[log].concat(prevLogs);
+    try{
+      firebaseDb.ref('/').update({ticketAreaResponsibles:next,auditLogs:nextLogs}).then(function(){
+        db.ticketAreaResponsibles=next; db.auditLogs=nextLogs; scrubLocal(); forceClose(); refresh();
+        if(typeof toast==='function')toast('Responsáveis salvos com sucesso no Firebase.');
+      }).catch(function(err){db.ticketAreaResponsibles=prev; db.auditLogs=prevLogs; scrubLocal(); if(typeof toast==='function')toast('Erro ao salvar responsáveis no Firebase: '+(err&&err.message?err.message:err),'warn');});
+    }catch(err){db.ticketAreaResponsibles=prev; db.auditLogs=prevLogs; scrubLocal(); if(typeof toast==='function')toast('Erro ao preparar salvamento dos responsáveis: '+(err&&err.message?err.message:err),'warn');}
+  };
+
+  window.npcUpdateTicketAssigneePreview=function(){
+    var cat=byId('ntCat')?byId('ntCat').value:'';
+    var uid=window.npcGetTicketAreaResponsible(cat);
+    var box=byId('ntAutoRespBox');
+    if(box) box.innerHTML=uid?'<b>Responsável automático:</b>&nbsp;'+esc(userName(uid)):'<b>Responsável automático:</b>&nbsp;nenhum responsável configurado para esta área.';
+  };
+
+  window.npcSaveNewTicket=function(){
+    expose(); ensure();
+    if(!canOpen()){if(typeof toast==='function')toast('Você não tem permissão para abrir chamados.','warn');return;}
+    var title=(byId('ntTitle')&&byId('ntTitle').value||'').trim();
+    var desc=(byId('ntDesc')&&byId('ntDesc').value||'').trim();
+    if(!title || !desc){if(typeof toast==='function')toast('Informe o título e a descrição do chamado.','warn');return;}
+    var cat=byId('ntCat')?byId('ntCat').value:'';
+    var resp=window.npcGetTicketAreaResponsible(cat);
+    var now=new Date().toISOString();
+    var c=window.current||{};
+    var t={id:'tk_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),number:String((db.tickets||[]).length+1).padStart(4,'0'),title:title,category:cat,priority:(byId('ntPri')&&byId('ntPri').value)||'normal',description:desc,status:'aberto',ativo:true,assignedToId:resp,assignedToName:resp?userName(resp):'',createdById:c.id||c.uid||'',createdByName:c.name||c.nome||c.email||'Usuário',createdAt:now,updatedAt:now,history:[{type:'criado',text:resp?'Chamado criado e delegado automaticamente para '+userName(resp)+'.':'Chamado criado sem responsável automático configurado.',byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}],responses:[]};
+    db.tickets.unshift(t);
+    try{if(typeof addAudit==='function')addAudit('CHAMADO_CRIADO','Chamado criado',t);else db.auditLogs.unshift({id:'log_'+Date.now().toString(36),tipo:'CHAMADO_CRIADO',descricao:'Chamado criado',criadoEm:now});}catch(e){}
+    if(!(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser)){if(typeof toast==='function')toast('Não foi possível salvar: conexão com o Firebase não disponível.','warn');return;}
+    firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[]}).then(function(){forceClose(); refresh(); if(typeof toast==='function')toast(resp?'Chamado criado e delegado automaticamente.':'Chamado criado sem responsável automático configurado.');}).catch(function(err){db.tickets.shift(); if(typeof toast==='function')toast('Erro ao salvar chamado no Firebase: '+(err&&err.message?err.message:err),'warn');});
+  };
+
+  try{ensure();}catch(e){}
+})();
+
+/* PATCH V103 — Corrige botões Ver/Cancelar dos Chamados após estrutura segura do Firebase */
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];}); }
+  function toastMsg(msg,type){ try{ if(typeof toast==='function') return toast(msg,type||''); }catch(e){} alert(msg); }
+  function exposeFirebase(){
+    try{ if(typeof firebaseDb !== 'undefined') window.firebaseDb = firebaseDb; }catch(e){}
+    try{ if(typeof firebaseAuth !== 'undefined') window.firebaseAuth = firebaseAuth; }catch(e){}
+  }
+  function ensureTicketsV103(){
+    if(!window.db) window.db = {};
+    if(Array.isArray(db.tickets)){
+      db.tickets = db.tickets.filter(Boolean).map(function(t,i){ if(t && !t.id) t.id='tk_'+i; return t; });
+    }else if(db.tickets && typeof db.tickets === 'object'){
+      db.tickets = Object.keys(db.tickets).map(function(k){ var t=db.tickets[k]||{}; if(!t.id) t.id=k; return t; });
+    }else db.tickets = [];
+    db.auditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : (db.auditLogs && typeof db.auditLogs==='object' ? Object.values(db.auditLogs) : []);
+  }
+  function canAny(keys){
+    try{ if(window.current && current.perms && current.perms.admin===true) return true; }catch(e){}
+    return keys.some(function(k){
+      try{ if(typeof has==='function' && has(k)) return true; }catch(e){}
+      try{ return !!(window.current && current.perms && current.perms[k]===true); }catch(e){ return false; }
+    });
+  }
+  function canView(){ return canAny(['chamados_ver','tickets_ver']); }
+  function canRespond(){ return canAny(['chamados_responder','tickets_responder']); }
+  function canStatus(){ return canAny(['chamados_status','chamados_alterar_status','tickets_status','tickets_alterar_status']); }
+  function canCancel(){ return canAny(['chamados_excluir','chamados_cancelar','tickets_excluir','tickets_cancelar']); }
+  function userName(uid){
+    ensureTicketsV103();
+    var u=(db.users||[]).find(function(x){ return String(x.id||x.uid||x.email||'')===String(uid||''); });
+    return u ? (u.name||u.nome||u.email||uid) : (uid||'');
+  }
+  function activeUsers(){
+    return (db.users||[]).filter(function(u){ return u && u.active!==false && u.ativo!==false; });
+  }
+  function userOptions(selected){
+    selected=String(selected||'');
+    return activeUsers().map(function(u){
+      var id=String(u.id||u.uid||u.email||'');
+      if(!id) return '';
+      return '<option value="'+esc(id)+'" '+(id===selected?'selected':'')+'>'+esc(u.name||u.nome||u.email||id)+'</option>';
+    }).join('');
+  }
+  var STATUSES=[['aberto','Aberto'],['analise','Em análise'],['andamento','Em andamento'],['aguardando','Aguardando solicitante'],['resolvido','Resolvido'],['cancelado','Cancelado']];
+  function statusLabel(s){ return (STATUSES.find(function(x){return x[0]===s;})||['',s||'-'])[1]; }
+  function statusTag(s){ return '<span class="tag '+(s==='resolvido'?'ok':s==='cancelado'?'muted':s==='aberto'?'warn':'')+'">'+esc(statusLabel(s))+'</span>'; }
+  function priorityTag(p){ var c=String(p||'').toLowerCase(); return '<span class="tag '+(c.indexOf('urg')>=0||c.indexOf('alta')>=0?'danger':c.indexOf('méd')>=0||c.indexOf('med')>=0?'warn':'muted')+'">'+esc(p||'-')+'</span>'; }
+  function findTicket(id){ ensureTicketsV103(); return db.tickets.find(function(t){ return String(t.id)===String(id); }); }
+  function addAudit(tipo,descricao,t){
+    db.auditLogs=db.auditLogs||[];
+    db.auditLogs.unshift({id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo:tipo,descricao:descricao,ticketId:t&&t.id||'',targetNome:t&&t.title||'',criadoPorUid:(window.current&&(current.id||current.uid||current.email))||'',criadoPorNome:(window.current&&(current.name||current.nome||current.email))||'Usuário',criadoEm:new Date().toISOString()});
+  }
+  function refreshTickets(){
+    try{ if((window.page||'')==='chamados_dashboard' && typeof window.npcRenderTicketsDashboard==='function') return window.npcRenderTicketsDashboard(); }catch(e){}
+    try{ if((window.page||'')==='chamados' && typeof window.npcRenderTickets==='function') return window.npcRenderTickets(); }catch(e){}
+  }
+  function closeModalHard(){
+    try{ if(typeof closeModal==='function') closeModal(); }catch(e){}
+    try{ var m=byId('modalBg'); if(m){ m.classList.remove('open'); m.style.display='none'; m.setAttribute('aria-hidden','true'); } }catch(e){}
+  }
+  function saveTicketsFirebaseOnly(successMsg, rollbackFn){
+    exposeFirebase(); ensureTicketsV103();
+    if(!(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser)){
+      if(typeof rollbackFn==='function') rollbackFn();
+      toastMsg('Não foi possível salvar: conexão com o Firebase não disponível. Nada foi salvo no navegador.','warn');
+      return;
+    }
+    firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[]}).then(function(){
+      closeModalHard(); refreshTickets(); if(successMsg) toastMsg(successMsg);
+    }).catch(function(err){
+      if(typeof rollbackFn==='function') rollbackFn();
+      toastMsg('Erro ao salvar chamado no Firebase: '+(err&&err.message?err.message:err),'warn');
+    });
+  }
+
+  window.npcOpenTicketView=function(id){
+    ensureTicketsV103();
+    if(!canView()){ toastMsg('Você não tem permissão para visualizar chamados.','warn'); return; }
+    var t=findTicket(id);
+    if(!t){ toastMsg('Chamado não encontrado. Atualize a página e tente novamente.','warn'); return; }
+    var hist=([]).concat(t.history||[], (t.responses||[]).map(function(r){return {type:'resposta',text:r.text,byName:r.byName,at:r.at};}))
+      .sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));})
+      .map(function(h){return '<div class="callout" style="margin-bottom:8px"><b>'+esc(h.byName||'Sistema')+'</b><br><small class="sub">'+esc(h.at?new Date(h.at).toLocaleString('pt-BR'):'')+' · '+esc(h.type||'movimentação')+'</small><p>'+esc(h.text||'').replace(/\n/g,'<br>')+'</p></div>';}).join('') || '<p class="sub">Sem movimentações.</p>';
+    openModal('Chamado #'+esc(t.number||String(t.id).slice(-5)),
+      '<div class="grid cols2"><div><h3>'+esc(t.title||'Sem título')+'</h3><p class="sub">'+esc(t.category||'-')+' · solicitante: '+esc(t.createdByName||'-')+'</p></div><div class="actions" style="justify-content:flex-end">'+priorityTag(t.priority)+' '+statusTag(t.status)+'</div></div>'+ 
+      '<div class="callout" style="margin:12px 0"><b>Descrição</b><br>'+esc(t.description||'Sem descrição.').replace(/\n/g,'<br>')+'</div>'+ 
+      '<div class="grid cols2"><div class="field"><label>Status</label><select id="vtStatus" '+(canStatus()?'':'disabled')+'>'+STATUSES.map(function(s){return '<option value="'+s[0]+'" '+(t.status===s[0]?'selected':'')+'>'+s[1]+'</option>';}).join('')+'</select></div>'+ 
+      '<div class="field"><label>Responsável</label><select id="vtAssigned" '+(canStatus()?'':'disabled')+'><option value="">Sem responsável</option>'+userOptions(t.assignedToId||'')+'</select></div></div>'+ 
+      (canRespond()?'<div class="field"><label>Resposta / movimentação</label><textarea id="vtResponse" rows="3" placeholder="Escreva uma resposta ou atualização..."></textarea></div>':'')+ 
+      '<h3>Histórico</h3><div style="max-height:240px;overflow:auto">'+hist+'</div>'+ 
+      '<div class="actions"><button type="button" class="primary" onclick="npcSaveTicketView(\''+esc(String(t.id))+'\')">Salvar alterações</button>'+(canCancel()&&t.ativo!==false?'<button type="button" class="danger" onclick="npcCancelTicket(\''+esc(String(t.id))+'\')">Cancelar/inativar</button>':'')+'<button type="button" class="secondary" onclick="closeModal()">Fechar</button></div>'
+    );
+  };
+
+  window.npcSaveTicketView=function(id){
+    ensureTicketsV103();
+    var idx=db.tickets.findIndex(function(x){return String(x.id)===String(id);});
+    if(idx<0){ toastMsg('Chamado não encontrado.','warn'); return; }
+    var before=JSON.parse(JSON.stringify(db.tickets[idx]));
+    var t=db.tickets[idx], now=new Date().toISOString(), changed=false, responded=false, statusChanged=false;
+    var c=window.current||{};
+    if(canStatus()){
+      var ns=byId('vtStatus')?byId('vtStatus').value:t.status;
+      var nr=byId('vtAssigned')?byId('vtAssigned').value:(t.assignedToId||'');
+      if(ns!==t.status){ t.history=t.history||[]; t.history.push({type:'status',text:'Status alterado para '+statusLabel(ns)+'.',byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}); t.status=ns; changed=true; statusChanged=true; }
+      if(nr!==(t.assignedToId||'')){ t.assignedToId=nr; t.assignedToName=nr?userName(nr):''; t.history=t.history||[]; t.history.push({type:'responsavel',text:'Responsável alterado para '+(t.assignedToName||'sem responsável')+'.',byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}); changed=true; statusChanged=true; }
+    }
+    var resp=(byId('vtResponse')&&byId('vtResponse').value||'').trim();
+    if(canRespond() && resp){ t.responses=t.responses||[]; t.responses.push({text:resp,byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}); changed=true; responded=true; }
+    if(!changed){ toastMsg('Nenhuma alteração informada.','warn'); return; }
+    t.updatedAt=now; addAudit('CHAMADO_ATUALIZADO','Chamado atualizado',t);
+    saveTicketsFirebaseOnly(responded?'Chamado respondido com sucesso.':(statusChanged?'Chamado atualizado com sucesso.':'Chamado atualizado com sucesso.'), function(){ db.tickets[idx]=before; });
+  };
+
+  window.npcCancelTicket=function(id){
+    ensureTicketsV103();
+    if(!canCancel()){ toastMsg('Você não tem permissão para cancelar/inativar chamados.','warn'); return; }
+    var t=findTicket(id);
+    if(!t){ toastMsg('Chamado não encontrado. Atualize a página e tente novamente.','warn'); return; }
+    openModal('Cancelar/inativar chamado','<div class="callout"><b>Confirmação necessária:</b> informe a justificativa para cancelar ou inativar este chamado.</div><div class="field"><label>Justificativa</label><textarea id="ctReason" rows="4"></textarea></div><div class="actions"><button type="button" class="danger" onclick="npcConfirmCancelTicket(\''+esc(String(t.id))+'\')">Confirmar cancelamento</button><button type="button" class="secondary" onclick="closeModal()">Voltar</button></div>');
+  };
+
+  window.npcConfirmCancelTicket=function(id){
+    ensureTicketsV103();
+    var idx=db.tickets.findIndex(function(x){return String(x.id)===String(id);});
+    if(idx<0){ toastMsg('Chamado não encontrado.','warn'); return; }
+    var reason=(byId('ctReason')&&byId('ctReason').value||'').trim();
+    if(!reason){ toastMsg('Informe a justificativa.','warn'); return; }
+    var before=JSON.parse(JSON.stringify(db.tickets[idx]));
+    var t=db.tickets[idx], now=new Date().toISOString(), c=window.current||{};
+    t.ativo=false; t.status='cancelado'; t.updatedAt=now; t.history=t.history||[];
+    t.history.push({type:'cancelado',text:'Chamado cancelado/inativado. Justificativa: '+reason,byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now});
+    addAudit('CHAMADO_CANCELADO','Chamado cancelado/inativado',t);
+    saveTicketsFirebaseOnly('Chamado cancelado/inativado com sucesso.', function(){ db.tickets[idx]=before; });
+  };
+
+  // Redesenha a lista usando botões estáveis e sem depender de funções antigas de clique.
+  window.npcDrawTicketsList=function(){
+    ensureTicketsV103();
+    var box=byId('ticketRows'); if(!box) return;
+    var list=(db.tickets||[]).filter(function(t){
+      if(!canAny(['chamados_ver_todos','tickets_ver_todos'])){
+        var c=window.current||{}; if(String(t.createdById||t.createdByUid||'')!==String(c.id||c.uid||'') && String(t.assignedToId||t.assignedToUid||'')!==String(c.id||c.uid||'')) return false;
+      }
+      var st=byId('tkStatus')?byId('tkStatus').value:'ativos';
+      var cat=byId('tkCat')?byId('tkCat').value:'';
+      var pri=byId('tkPri')?byId('tkPri').value:'';
+      var resp=byId('tkResp')?byId('tkResp').value:'';
+      var q=(byId('tkBusca')&&byId('tkBusca').value||'').toLowerCase().trim();
+      if(st==='ativos' && (t.ativo===false || t.status==='cancelado')) return false;
+      if(st && st!=='ativos' && st!=='todos' && t.status!==st) return false;
+      if(cat && t.category!==cat) return false;
+      if(pri && t.priority!==pri) return false;
+      if(resp && t.assignedToId!==resp) return false;
+      if(q && ![t.title,t.description,t.createdByName,t.assignedToName,t.category,t.priority,statusLabel(t.status)].join(' ').toLowerCase().includes(q)) return false;
+      return true;
+    }).sort(function(a,b){return String(b.createdAt||'').localeCompare(String(a.createdAt||''));});
+    box.innerHTML='<div style="overflow:auto"><table class="table npc-v48-ticket-table"><thead><tr><th>Nº/Data</th><th>Chamado</th><th>Solicitante</th><th>Responsável</th><th>Prioridade</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
+      (list.map(function(t){return '<tr><td><b>#'+esc(t.number||String(t.id||'').slice(-5))+'</b><br><span class="sub">'+esc(t.createdAt?new Date(t.createdAt).toLocaleString('pt-BR'):'-')+'</span></td><td><b>'+esc(t.title||'')+'</b><br><span class="sub">'+esc(t.category||'-')+'</span></td><td>'+esc(t.createdByName||'-')+'</td><td>'+esc(t.assignedToName||'Sem responsável')+'</td><td>'+priorityTag(t.priority)+'</td><td>'+statusTag(t.status)+'</td><td><div class="actions"><button type="button" class="secondary" data-ticket-action="view" data-ticket-id="'+esc(t.id)+'">Ver</button>'+(canCancel()&&t.ativo!==false?'<button type="button" class="danger" data-ticket-action="cancel" data-ticket-id="'+esc(t.id)+'">Cancelar</button>':'')+'</div></td></tr>';}).join('') || '<tr><td colspan="7">Nenhum chamado encontrado.</td></tr>')+
+      '</tbody></table></div>';
+    box.querySelectorAll('[data-ticket-action]').forEach(function(btn){
+      btn.addEventListener('click',function(){ var id=this.getAttribute('data-ticket-id'); var action=this.getAttribute('data-ticket-action'); if(action==='view') window.npcOpenTicketView(id); else if(action==='cancel') window.npcCancelTicket(id); });
+    });
+  };
+
+  try{ ensureTicketsV103(); }catch(e){}
+})();
+
+</script>
+
+
+<script>
+/* PATCH V104 — Chamados: estabiliza botões Ver/Cancelar sem alterar demais módulos */
+(function(){
+  'use strict';
+  if(window.__npcV104ChamadosBotoes) return;
+  window.__npcV104ChamadosBotoes = true;
+
+  var STATUSES=[['aberto','Aberto'],['analise','Em análise'],['andamento','Em andamento'],['aguardando','Aguardando solicitante'],['resolvido','Resolvido'],['cancelado','Cancelado']];
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];}); }
+  function toastMsg(msg,type){ try{ if(typeof toast==='function') return toast(msg,type||''); }catch(e){} try{ alert(msg); }catch(_e){} }
+  function exposeFirebase(){ try{ if(typeof firebaseDb!=='undefined') window.firebaseDb=firebaseDb; }catch(e){} try{ if(typeof firebaseAuth!=='undefined') window.firebaseAuth=firebaseAuth; }catch(e){} }
+  function ensureTickets(){
+    if(!window.db) window.db={};
+    db.users = Array.isArray(db.users) ? db.users : (db.users && typeof db.users==='object' ? Object.values(db.users) : []);
+    if(Array.isArray(db.tickets)){
+      db.tickets=db.tickets.filter(Boolean).map(function(t,i){ if(t && !t.id) t.id='tk_'+i; return t; });
+    }else if(db.tickets && typeof db.tickets==='object'){
+      db.tickets=Object.keys(db.tickets).map(function(k){ var t=db.tickets[k]||{}; if(!t.id) t.id=k; return t; });
+    }else{
+      db.tickets=[];
+    }
+    db.auditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : (db.auditLogs && typeof db.auditLogs==='object' ? Object.values(db.auditLogs) : []);
+  }
+  function canAny(keys){
+    try{ if(window.current && current.perms && current.perms.admin===true) return true; }catch(e){}
+    return keys.some(function(k){
+      try{ if(typeof has==='function' && has(k)) return true; }catch(e){}
+      try{ if(window.current && current.perms && current.perms[k]===true) return true; }catch(e){}
+      try{ if(window.current && current.permissoes && current.permissoes[k]===true) return true; }catch(e){}
+      return false;
+    });
+  }
+  function canView(){ return canAny(['chamados_ver','tickets_ver','chamados_abrir','chamados_cadastrar','tickets_abrir','tickets_cadastrar','chamados_responder','tickets_responder','chamados_status','chamados_alterar_status','tickets_status','chamados_excluir','chamados_cancelar','tickets_excluir','tickets_cancelar','chamados_dashboard']); }
+  function canAll(){ return canAny(['chamados_ver_todos','tickets_ver_todos']); }
+  function canRespond(){ return canAny(['chamados_responder','tickets_responder']); }
+  function canStatus(){ return canAny(['chamados_status','chamados_alterar_status','chamados_alterar_responsavel','tickets_status','tickets_alterar_status']); }
+  function canCancel(){ return canAny(['chamados_excluir','chamados_cancelar','chamados_inativar','tickets_excluir','tickets_cancelar']); }
+  function statusLabel(s){ return (STATUSES.find(function(x){return x[0]===s;})||['',s||'-'])[1]; }
+  function statusTag(s){ return '<span class="tag '+(s==='resolvido'?'ok':s==='cancelado'?'muted':s==='aberto'?'warn':'')+'">'+esc(statusLabel(s))+'</span>'; }
+  function priorityTag(p){ var c=String(p||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); return '<span class="tag '+(c.indexOf('urg')>=0||c.indexOf('alta')>=0?'danger':c.indexOf('media')>=0?'warn':'muted')+'">'+esc(p||'-')+'</span>'; }
+  function currentId(){ var c=window.current||{}; return String(c.id||c.uid||c.email||''); }
+  function isVisibleTicket(t){ if(canAll()) return true; var id=currentId(); return String(t.createdById||t.createdByUid||'')===id || String(t.assignedToId||t.assignedToUid||'')===id; }
+  function findTicket(id){ ensureTickets(); return (db.tickets||[]).find(function(t){ return String(t.id)===String(id); }); }
+  function userName(uid){ ensureTickets(); var u=(db.users||[]).find(function(x){ return String(x.id||x.uid||x.email||'')===String(uid||''); }); return u ? (u.name||u.nome||u.email||uid) : (uid||''); }
+  function userOptions(selected){ selected=String(selected||''); ensureTickets(); return (db.users||[]).filter(function(u){return u&&u.active!==false&&u.ativo!==false;}).map(function(u){ var id=String(u.id||u.uid||u.email||''); return id?'<option value="'+esc(id)+'" '+(id===selected?'selected':'')+'>'+esc(u.name||u.nome||u.email||id)+'</option>':''; }).join(''); }
+  function closeModalHard(){ try{ if(typeof closeModal==='function') closeModal(); }catch(e){} try{ var m=byId('modalBg'); if(m){ m.classList.remove('open'); m.style.display='none'; m.setAttribute('aria-hidden','true'); } }catch(e){} }
+  function refreshTickets(){ try{ if((window.page||'')==='chamados_dashboard' && typeof window.npcRenderTicketsDashboard==='function') return window.npcRenderTicketsDashboard(); }catch(e){} try{ if((window.page||'')==='chamados' && typeof window.npcDrawTicketsList==='function') return window.npcDrawTicketsList(); }catch(e){} }
+  function addAudit(tipo,descricao,t){ ensureTickets(); db.auditLogs.unshift({id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo:tipo,descricao:descricao,ticketId:t&&t.id||'',targetNome:t&&t.title||'',criadoPorUid:(window.current&&(current.id||current.uid||current.email))||'',criadoPorNome:(window.current&&(current.name||current.nome||current.email))||'Usuário',criadoEm:new Date().toISOString()}); }
+  function saveFirebaseOnly(successMsg, rollbackFn){
+    exposeFirebase(); ensureTickets();
+    if(!(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser)){ if(typeof rollbackFn==='function') rollbackFn(); toastMsg('Não foi possível salvar: conexão com o Firebase não disponível. Nada foi salvo no navegador.','warn'); return; }
+    firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[]}).then(function(){ closeModalHard(); refreshTickets(); if(successMsg) toastMsg(successMsg); }).catch(function(err){ if(typeof rollbackFn==='function') rollbackFn(); toastMsg('Erro ao salvar chamado no Firebase: '+(err&&err.message?err.message:err),'warn'); });
+  }
+
+  window.npcOpenTicketView=function(id){
+    ensureTickets();
+    if(!canView()){ toastMsg('Você não tem permissão para visualizar chamados.','warn'); return; }
+    var t=findTicket(id);
+    if(!t || !isVisibleTicket(t)){ toastMsg('Chamado não encontrado ou sem permissão para visualização.','warn'); return; }
+    var hist=([]).concat(t.history||[], (t.responses||[]).map(function(r){return {type:'resposta',text:r.text,byName:r.byName,at:r.at};}))
+      .sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));})
+      .map(function(h){return '<div class="callout" style="margin-bottom:8px"><b>'+esc(h.byName||'Sistema')+'</b><br><small class="sub">'+esc(h.at?new Date(h.at).toLocaleString('pt-BR'):'')+' · '+esc(h.type||'movimentação')+'</small><p>'+esc(h.text||'').replace(/\n/g,'<br>')+'</p></div>';}).join('') || '<p class="sub">Sem movimentações.</p>';
+    var canEdit = canStatus() || canRespond();
+    openModal('Chamado #'+esc(t.number||String(t.id).slice(-5)),
+      '<div class="grid cols2"><div><h3>'+esc(t.title||'Sem título')+'</h3><p class="sub">'+esc(t.category||'-')+' · solicitante: '+esc(t.createdByName||'-')+'</p></div><div class="actions" style="justify-content:flex-end">'+priorityTag(t.priority)+' '+statusTag(t.status)+'</div></div>'+ 
+      '<div class="callout" style="margin:12px 0"><b>Descrição</b><br>'+esc(t.description||'Sem descrição.').replace(/\n/g,'<br>')+'</div>'+ 
+      '<div class="grid cols2"><div class="field"><label>Status</label><select id="vtStatus" '+(canStatus()?'':'disabled')+'>'+STATUSES.map(function(s){return '<option value="'+esc(s[0])+'" '+(t.status===s[0]?'selected':'')+'>'+esc(s[1])+'</option>';}).join('')+'</select></div>'+ 
+      '<div class="field"><label>Responsável</label><select id="vtAssigned" '+(canStatus()?'':'disabled')+'><option value="">Sem responsável</option>'+userOptions(t.assignedToId||'')+'</select></div></div>'+ 
+      (canRespond()?'<div class="field"><label>Resposta / movimentação</label><textarea id="vtResponse" rows="3" placeholder="Escreva uma resposta ou atualização..."></textarea></div>':'')+ 
+      '<h3>Histórico</h3><div style="max-height:240px;overflow:auto">'+hist+'</div>'+ 
+      '<div class="actions">'+(canEdit?'<button type="button" class="primary" id="npcV104SaveTicketBtn">Salvar alterações</button>':'')+(canCancel()&&t.ativo!==false?'<button type="button" class="danger" id="npcV104CancelTicketBtn">Cancelar/inativar</button>':'')+'<button type="button" class="secondary" onclick="closeModal()">Fechar</button></div>'
+    );
+    setTimeout(function(){
+      var saveBtn=byId('npcV104SaveTicketBtn'); if(saveBtn) saveBtn.onclick=function(){ window.npcSaveTicketView(t.id); };
+      var cancelBtn=byId('npcV104CancelTicketBtn'); if(cancelBtn) cancelBtn.onclick=function(){ window.npcCancelTicket(t.id); };
+    },0);
+  };
+
+  window.npcSaveTicketView=function(id){
+    ensureTickets();
+    var idx=(db.tickets||[]).findIndex(function(x){return String(x.id)===String(id);});
+    if(idx<0){ toastMsg('Chamado não encontrado.','warn'); return; }
+    var before=JSON.parse(JSON.stringify(db.tickets[idx]));
+    var t=db.tickets[idx], now=new Date().toISOString(), changed=false, responded=false, statusChanged=false, c=window.current||{};
+    if(canStatus()){
+      var ns=byId('vtStatus')?byId('vtStatus').value:t.status;
+      var nr=byId('vtAssigned')?byId('vtAssigned').value:(t.assignedToId||'');
+      if(ns!==t.status){ t.history=t.history||[]; t.history.push({type:'status',text:'Status alterado para '+statusLabel(ns)+'.',byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}); t.status=ns; changed=true; statusChanged=true; }
+      if(nr!==(t.assignedToId||'')){ t.assignedToId=nr; t.assignedToName=nr?userName(nr):''; t.history=t.history||[]; t.history.push({type:'responsavel',text:'Responsável alterado para '+(t.assignedToName||'sem responsável')+'.',byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}); changed=true; statusChanged=true; }
+    }
+    var resp=(byId('vtResponse')&&byId('vtResponse').value||'').trim();
+    if(canRespond() && resp){ t.responses=t.responses||[]; t.responses.push({text:resp,byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now}); changed=true; responded=true; }
+    if(!changed){ toastMsg('Nenhuma alteração informada.','warn'); return; }
+    t.updatedAt=now; addAudit('CHAMADO_ATUALIZADO','Chamado atualizado',t);
+    saveFirebaseOnly(responded?'Chamado respondido com sucesso.':(statusChanged?'Chamado atualizado com sucesso.':'Chamado atualizado com sucesso.'), function(){ db.tickets[idx]=before; });
+  };
+
+  window.npcCancelTicket=function(id){
+    ensureTickets();
+    if(!canCancel()){ toastMsg('Você não tem permissão para cancelar/inativar chamados.','warn'); return; }
+    var t=findTicket(id);
+    if(!t || !isVisibleTicket(t)){ toastMsg('Chamado não encontrado ou sem permissão para cancelamento.','warn'); return; }
+    openModal('Cancelar/inativar chamado','<div class="callout"><b>Confirmação necessária:</b> informe a justificativa para cancelar ou inativar este chamado.</div><div class="field"><label>Justificativa</label><textarea id="ctReason" rows="4"></textarea></div><div class="actions"><button type="button" class="danger" id="npcV104ConfirmCancelBtn">Confirmar cancelamento</button><button type="button" class="secondary" onclick="closeModal()">Voltar</button></div>');
+    setTimeout(function(){ var btn=byId('npcV104ConfirmCancelBtn'); if(btn) btn.onclick=function(){ window.npcConfirmCancelTicket(t.id); }; },0);
+  };
+
+  window.npcConfirmCancelTicket=function(id){
+    ensureTickets();
+    var idx=(db.tickets||[]).findIndex(function(x){return String(x.id)===String(id);});
+    if(idx<0){ toastMsg('Chamado não encontrado.','warn'); return; }
+    var reason=(byId('ctReason')&&byId('ctReason').value||'').trim();
+    if(!reason){ toastMsg('Informe a justificativa.','warn'); return; }
+    var before=JSON.parse(JSON.stringify(db.tickets[idx]));
+    var t=db.tickets[idx], now=new Date().toISOString(), c=window.current||{};
+    t.ativo=false; t.status='cancelado'; t.updatedAt=now; t.history=t.history||[];
+    t.history.push({type:'cancelado',text:'Chamado cancelado/inativado. Justificativa: '+reason,byId:c.id||c.uid||'',byName:c.name||c.nome||c.email||'Usuário',at:now});
+    addAudit('CHAMADO_CANCELADO','Chamado cancelado/inativado',t);
+    saveFirebaseOnly('Chamado cancelado/inativado com sucesso.', function(){ db.tickets[idx]=before; });
+  };
+
+  window.npcDrawTicketsList=function(){
+    ensureTickets();
+    var box=byId('ticketRows'); if(!box) return;
+    var st=byId('tkStatus')?byId('tkStatus').value:'ativos';
+    var cat=byId('tkCat')?byId('tkCat').value:'';
+    var pri=byId('tkPri')?byId('tkPri').value:'';
+    var resp=byId('tkResp')?byId('tkResp').value:'';
+    var q=(byId('tkBusca')&&byId('tkBusca').value||'').toLowerCase().trim();
+    var list=(db.tickets||[]).filter(function(t){
+      if(!isVisibleTicket(t)) return false;
+      if(st==='ativos' && (t.ativo===false || t.status==='cancelado')) return false;
+      if(st && st!=='ativos' && st!=='todos' && t.status!==st) return false;
+      if(cat && t.category!==cat) return false;
+      if(pri && t.priority!==pri) return false;
+      if(resp && String(t.assignedToId||'')!==String(resp)) return false;
+      if(q && ![t.title,t.description,t.createdByName,t.assignedToName,t.category,t.priority,statusLabel(t.status)].join(' ').toLowerCase().includes(q)) return false;
+      return true;
+    }).sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')); });
+    box.innerHTML='<div style="overflow:auto"><table class="table npc-v48-ticket-table"><thead><tr><th>Nº/Data</th><th>Chamado</th><th>Solicitante</th><th>Responsável</th><th>Prioridade</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
+      (list.map(function(t){return '<tr><td><b>#'+esc(t.number||String(t.id||'').slice(-5))+'</b><br><span class="sub">'+esc(t.createdAt?new Date(t.createdAt).toLocaleString('pt-BR'):'-')+'</span></td><td><b>'+esc(t.title||'')+'</b><br><span class="sub">'+esc(t.category||'-')+'</span></td><td>'+esc(t.createdByName||'-')+'</td><td>'+esc(t.assignedToName||'Sem responsável')+'</td><td>'+priorityTag(t.priority)+'</td><td>'+statusTag(t.status)+'</td><td><div class="actions"><button type="button" class="secondary" data-npc-ticket-action="view" data-npc-ticket-id="'+esc(t.id)+'">Ver</button>'+(canCancel()&&t.ativo!==false?'<button type="button" class="danger" data-npc-ticket-action="cancel" data-npc-ticket-id="'+esc(t.id)+'">Cancelar</button>':'')+'</div></td></tr>';}).join('') || '<tr><td colspan="7">Nenhum chamado encontrado.</td></tr>')+
+      '</tbody></table></div>';
+  };
+
+  document.addEventListener('click',function(ev){
+    var btn=ev.target && ev.target.closest ? ev.target.closest('[data-npc-ticket-action],[data-ticket-action]') : null;
+    if(!btn) return;
+    var action=btn.getAttribute('data-npc-ticket-action') || btn.getAttribute('data-ticket-action');
+    var id=btn.getAttribute('data-npc-ticket-id') || btn.getAttribute('data-ticket-id');
+    if(!action || !id) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if(action==='view') window.npcOpenTicketView(id);
+    if(action==='cancel') window.npcCancelTicket(id);
+  },true);
+
+  if(typeof window.npcRenderTickets==='function' && !window.__npcV104WrapRenderTickets){
+    window.__npcV104WrapRenderTickets=true;
+    var oldRender=window.npcRenderTickets;
+    window.npcRenderTickets=function(){ var out=oldRender.apply(this,arguments); try{ window.npcDrawTicketsList(); }catch(e){} return out; };
+    try{ if(typeof renders!=='undefined') renders.chamados=window.npcRenderTickets; }catch(e){}
+  }
+  try{ if((window.page||'')==='chamados') window.npcDrawTicketsList(); }catch(e){}
 })();
 </script>
