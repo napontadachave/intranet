@@ -11106,3 +11106,468 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
 })();
 </script>
+<script id="npc-v95-visitas-sync-firebase">
+/* PATCH V95 - Sincronização bidirecional Registros Realizados x Análise de Visitas
+   Escopo: somente visitas de performance, persistência no Firebase e vínculo com lançamentos. */
+(function(){
+  'use strict';
+  if(window.__npcV95VisitasSyncFirebase) return;
+  window.__npcV95VisitasSyncFirebase = true;
+
+  function dbObj(){ return window.db || (window.db = {}); }
+  function cur(){ return window.current || {}; }
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];}); }
+  function js(v){ return String(v == null ? '' : v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,''); }
+  function now(){ return new Date().toISOString(); }
+  function currentUid(){ var u=cur(); return String(u.id || u.uid || u.email || u.user || '').trim(); }
+  function hasPerm(k){ try{ if(typeof window.hasPermission === 'function') return !!window.hasPermission(k); if(typeof window.has === 'function') return !!window.has(k); }catch(e){} return !!(cur().perms && cur().perms[k]); }
+  function canAll(){ try{ if(typeof window.canViewAllUsers === 'function') return !!window.canViewAllUsers(); }catch(e){} return hasPerm('view_all_users') || hasPerm('usuarios_gerenciar'); }
+  function canOpen(){ return hasPerm('performance_visitas_analise'); }
+  function canValidate(){ return hasPerm('performance_visitas_validar'); }
+  function ensure(){
+    var db=dbObj();
+    db.visitAnalysis = Array.isArray(db.visitAnalysis) ? db.visitAnalysis : (db.visitAnalysis ? Object.values(db.visitAnalysis) : []);
+    db.performanceRecords = db.performanceRecords || {};
+    return db;
+  }
+  function userLabel(id){
+    var db=ensure(), users=Array.isArray(db.users)?db.users:[], raw=String(id||''), n=raw.toLowerCase();
+    var u=users.find(function(x){return [x&&x.id,x&&x.uid,x&&x.email,x&&x.user,x&&x.name,x&&x.nome].some(function(v){return String(v||'').toLowerCase()===n;});});
+    return (u && (u.name || u.nome || u.email || u.user || u.id)) || raw || '-';
+  }
+  function currentKeys(){
+    var u=cur();
+    return [u.id,u.uid,u.email,u.user,u.name,u.nome,u.displayName].map(function(v){return String(v||'').trim();}).filter(Boolean);
+  }
+  function linked(v){
+    if(canAll()) return true;
+    var keys=currentKeys();
+    return [v&&v.userId,v&&v.uid,v&&v.user,v&&v.email,v&&v.createdBy,v&&v.createdById,v&&v.assignedToId,v&&v.responsavelId,v&&v.corretorId].some(function(x){return keys.indexOf(String(x||'').trim())>=0;});
+  }
+  function normalizeEntry(raw, entryId){
+    if(!raw) return null;
+    if(raw.entries && typeof raw.entries === 'object') return raw.entries[entryId] || null;
+    if(String(entryId) === 'legacy') return raw;
+    return null;
+  }
+  function findPerfEntry(uid, month, day, entryId){
+    var db=ensure(), dayData=((((db.performanceRecords||{})[uid]||{})[month]||{})[String(day).padStart(2,'0')]);
+    if(!dayData) return null;
+    var entry=normalizeEntry(dayData, entryId);
+    return entry ? {dayData:dayData, entry:entry} : null;
+  }
+  function visitCountsByEntry(){
+    var counts={};
+    ensure().visitAnalysis.forEach(function(v){
+      if(!v || !v.performanceEntryId) return;
+      var k=String(v.performanceEntryId);
+      counts[k]=(counts[k]||0)+1;
+    });
+    return counts;
+  }
+  function reconcileVisitCounters(affectedIds){
+    var db=ensure(), counts=visitCountsByEntry();
+    var affected = affectedIds && affectedIds.length ? new Set(affectedIds.map(String)) : null;
+    Object.keys(db.performanceRecords||{}).forEach(function(uid){
+      var byMonth=db.performanceRecords[uid]||{};
+      Object.keys(byMonth).forEach(function(month){
+        var byDay=byMonth[month]||{};
+        Object.keys(byDay).forEach(function(day){
+          var raw=byDay[day];
+          if(!raw) return;
+          if(raw.entries && typeof raw.entries === 'object'){
+            Object.keys(raw.entries).forEach(function(eid){
+              if(affected && !affected.has(String(eid))) return;
+              if(Object.prototype.hasOwnProperty.call(raw.entries[eid]||{}, 'visitas') || counts[eid] !== undefined){
+                raw.entries[eid].visitas = Number(counts[eid] || 0);
+                raw.entries[eid].updatedAt = now();
+              }
+            });
+          }else if(!affected || affected.has('legacy')){
+            if(Object.prototype.hasOwnProperty.call(raw, 'visitas')) raw.visitas = Number(counts.legacy || 0);
+          }
+        });
+      });
+    });
+  }
+  function affectedUsersFromVisitsAndEntries(extra){
+    var db=ensure(), set=new Set();
+    (extra||[]).forEach(function(x){ if(x) set.add(String(x)); });
+    db.visitAnalysis.forEach(function(v){ if(v && v.userId) set.add(String(v.userId)); });
+    return Array.from(set);
+  }
+  function persistSync(extraUsers){
+    var db=ensure();
+    try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+    try{
+      if(!window.firebaseDb || !window.firebaseAuth || !window.firebaseAuth.currentUser) return;
+      var updates={ visitAnalysis: db.visitAnalysis || [] };
+      if(canAll() || hasPerm('usuarios_gerenciar')){
+        updates.performanceRecords = db.performanceRecords || {};
+      }else{
+        affectedUsersFromVisitsAndEntries([currentUid()].concat(extraUsers||[])).forEach(function(uid){
+          if(uid) updates['performanceRecords/' + uid] = (db.performanceRecords || {})[uid] || {};
+        });
+      }
+      return window.firebaseDb.ref('/').update(updates).catch(function(e){ try{ if(typeof toast==='function') toast('Erro ao salvar visitas no Firebase: '+e.message,'warn'); }catch(_e){} });
+    }catch(e){ console.error('Falha ao persistir visitas/performance:', e); }
+  }
+  function refreshScreens(){
+    try{ if(typeof window.drawVisitAnalysis === 'function' && byId('visitAnalysisBox')) window.drawVisitAnalysis(); }catch(e){}
+    try{ if(typeof window.drawPerfBase === 'function' && byId('perfBaseBox')) window.drawPerfBase(); }catch(e){}
+  }
+
+  var oldCloudToLocal = window.cloudToLocal || (typeof cloudToLocal === 'function' ? cloudToLocal : null);
+  if(oldCloudToLocal){
+    window.cloudToLocal = function(cloud){
+      var base = oldCloudToLocal.apply(this, arguments);
+      base.visitAnalysis = Array.isArray(cloud && cloud.visitAnalysis) ? cloud.visitAnalysis : ((cloud && cloud.visitAnalysis) ? Object.values(cloud.visitAnalysis) : (base.visitAnalysis || []));
+      return base;
+    };
+    try{ cloudToLocal = window.cloudToLocal; }catch(e){}
+  }
+
+  var oldPayload = window.npcFirebasePayload;
+  if(typeof oldPayload === 'function'){
+    window.npcFirebasePayload = function(){
+      var payload = oldPayload.apply(this, arguments) || {};
+      payload.visitAnalysis = ensure().visitAnalysis || [];
+      payload.performanceRecords = ensure().performanceRecords || {};
+      return payload;
+    };
+  }
+
+  var oldSave = window.save || (typeof save === 'function' ? save : null);
+  if(oldSave){
+    window.save = function(){
+      ensure();
+      var r = oldSave.apply(this, arguments);
+      persistSync([currentUid()]);
+      return r;
+    };
+    try{ save = window.save; }catch(e){}
+  }
+
+  var oldLoad = window.loadCloudDb || (typeof loadCloudDb === 'function' ? loadCloudDb : null);
+  if(oldLoad){
+    window.loadCloudDb = async function(){
+      var r = await oldLoad.apply(this, arguments);
+      try{
+        if(window.firebaseDb){
+          var snap = await window.firebaseDb.ref('/visitAnalysis').once('value');
+          var val = snap.val();
+          db.visitAnalysis = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+          ensure();
+          try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+        }
+      }catch(e){ console.warn('Falha ao carregar Análise de Visitas:', e); }
+      return r;
+    };
+    try{ loadCloudDb = window.loadCloudDb; }catch(e){}
+  }
+
+  var oldDeletePerf = window.deletePerfEntry || (typeof deletePerfEntry === 'function' ? deletePerfEntry : null);
+  window.deletePerfEntry = function(uid, month, day, entryId){
+    ensure();
+    var eid=String(entryId||'');
+    var beforeCount = ensure().visitAnalysis.filter(function(v){return String(v.performanceEntryId||'')===eid;}).length;
+    if(beforeCount > 0){
+      if(!confirm('Excluir este lançamento? As visitas vinculadas também serão removidas da Análise de Visitas.')) return;
+      var db=ensure();
+      var dayKey=String(day).padStart(2,'0');
+      var dayData=((((db.performanceRecords||{})[uid]||{})[month]||{})[dayKey]);
+      if(!dayData){ try{ if(typeof toast==='function') toast('Registro não encontrado.','warn'); }catch(e){} return; }
+      if(dayData.entries && typeof dayData.entries === 'object'){
+        delete dayData.entries[eid];
+        if(!Object.keys(dayData.entries).length) delete db.performanceRecords[uid][month][dayKey];
+      }else{
+        delete db.performanceRecords[uid][month][dayKey];
+      }
+      db.visitAnalysis = db.visitAnalysis.filter(function(v){ return String(v.performanceEntryId||'') !== eid; });
+      persistSync([uid]);
+      refreshScreens();
+      try{ if(typeof toast==='function') toast('Lançamento e visitas vinculadas excluídos.'); }catch(e){}
+      return;
+    }
+    var ret = oldDeletePerf ? oldDeletePerf.apply(this, arguments) : undefined;
+    persistSync([uid]);
+    refreshScreens();
+    return ret;
+  };
+  try{ deletePerfEntry = window.deletePerfEntry; }catch(e){}
+
+  window.toggleVisitValidation = function(id, checked){
+    var db=ensure();
+    if(!canValidate()){ try{ if(typeof toast==='function') toast('Você não tem permissão para validar visitas.','warn'); }catch(e){} refreshScreens(); return; }
+    var v=db.visitAnalysis.find(function(x){return String(x.id)===String(id);});
+    if(!v){ try{ if(typeof toast==='function') toast('Visita não encontrada.','warn'); }catch(e){} return; }
+    if(!linked(v)){ try{ if(typeof toast==='function') toast('Você não tem acesso a esta visita.','warn'); }catch(e){} refreshScreens(); return; }
+    v.validated = !!checked;
+    v.validatedAt = checked ? now() : null;
+    v.validatedBy = checked ? currentUid() : null;
+    v.validatedByName = checked ? userLabel(currentUid()) : null;
+    v.updatedAt = now();
+    v.updatedBy = currentUid();
+    persistSync([v.userId]);
+    refreshScreens();
+    try{ if(typeof toast==='function') toast(checked ? 'Visita validada e salva no Firebase.' : 'Validação removida e salva no Firebase.'); }catch(e){}
+  };
+
+  window.npcSaveEditVisit = function(id){
+    var db=ensure();
+    var v=db.visitAnalysis.find(function(x){return String(x.id)===String(id);});
+    if(!v){ try{ if(typeof toast==='function') toast('Visita não encontrada.','warn'); }catch(e){} return; }
+    if(!canOpen() || !linked(v)){ try{ if(typeof toast==='function') toast('Você não tem permissão para editar esta visita.','warn'); }catch(e){} return; }
+    var oldUser=v.userId;
+    var client=(byId('editVisitClient') && byId('editVisitClient').value || '').trim();
+    var visitDate=(byId('editVisitDate') && byId('editVisitDate').value || '').trim();
+    if(!client){ try{ if(typeof toast==='function') toast('Informe o nome do cliente.','warn'); }catch(e){} return; }
+    if(!visitDate){ try{ if(typeof toast==='function') toast('Informe a data da visita.','warn'); }catch(e){} return; }
+    v.clientName = client;
+    v.visitDate = visitDate;
+    v.performanceMonth = visitDate.slice(0,7);
+    v.performanceDay = visitDate.slice(8,10);
+    if(canAll() && byId('editVisitUser')){
+      v.userId = byId('editVisitUser').value || v.userId;
+      v.userName = userLabel(v.userId);
+    }
+    if(canValidate() && byId('editVisitValidated')){
+      var ok = byId('editVisitValidated').value === '1';
+      v.validated = ok;
+      v.validatedAt = ok ? (v.validatedAt || now()) : null;
+      v.validatedBy = ok ? (v.validatedBy || currentUid()) : null;
+      v.validatedByName = ok ? (v.validatedByName || userLabel(v.validatedBy)) : null;
+    }
+    v.updatedAt = now();
+    v.updatedBy = currentUid();
+    reconcileVisitCounters(v.performanceEntryId ? [v.performanceEntryId] : []);
+    persistSync([oldUser, v.userId]);
+    try{ closeModal(); }catch(e){}
+    refreshScreens();
+    try{ if(typeof toast==='function') toast('Visita atualizada e salva no Firebase.'); }catch(e){}
+  };
+
+  window.npcDeleteVisit = function(id){
+    var db=ensure();
+    var v=db.visitAnalysis.find(function(x){return String(x.id)===String(id);});
+    if(!v){ try{ if(typeof toast==='function') toast('Visita não encontrada.','warn'); }catch(e){} return; }
+    if(!canOpen() || !linked(v)){ try{ if(typeof toast==='function') toast('Você não tem permissão para excluir esta visita.','warn'); }catch(e){} return; }
+    if(!confirm('Excluir esta visita? O total de visitas em Registros Realizados será atualizado automaticamente.')) return;
+    var eid=v.performanceEntryId, uid=v.userId;
+    db.visitAnalysis = db.visitAnalysis.filter(function(x){return String(x.id)!==String(id);});
+    reconcileVisitCounters(eid ? [eid] : []);
+    persistSync([uid]);
+    refreshScreens();
+    try{ if(typeof toast==='function') toast('Visita excluída e Registros Realizados atualizado.'); }catch(e){}
+  };
+
+  var oldDraw = window.drawVisitAnalysis;
+  window.drawVisitAnalysis = function(){
+    ensure();
+    var month=(byId('visitMonth') && byId('visitMonth').value) || (typeof monthISO==='function' ? monthISO() : new Date().toISOString().slice(0,7));
+    var selected=(byId('visitUser') && byId('visitUser').value) || 'all';
+    var status=(byId('visitStatus') && byId('visitStatus').value) || 'all';
+    var list=(db.visitAnalysis||[]).filter(function(v){return String(v.visitDate||'').slice(0,7)===month;}).filter(linked);
+    if(selected !== 'all') list=list.filter(function(v){return String(v.userId||'')===String(selected);});
+    if(status === 'pending') list=list.filter(function(v){return !v.validated;});
+    if(status === 'validated') list=list.filter(function(v){return !!v.validated;});
+    list.sort(function(a,b){return String(b.visitDate||'').localeCompare(String(a.visitDate||'')) || String(b.createdAt||'').localeCompare(String(a.createdAt||''));});
+    var showValidation=canValidate();
+    var rows=list.map(function(v){
+      var d=String(v.visitDate||'');
+      var br=d && d.indexOf('-')>0 ? d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4) : esc(d||'-');
+      var validationCell=showValidation ? '<td><label class="checkline" style="margin:0"><input type="checkbox" '+(v.validated?'checked':'')+' onchange="toggleVisitValidation(\''+js(v.id)+'\',this.checked)"><span>'+(v.validated?'Validada':'Pendente')+'</span></label>'+(v.validatedAt?'<br><small class="sub">'+esc(v.validatedByName||'')+' · '+new Date(v.validatedAt).toLocaleString('pt-BR')+'</small>':'')+'</td>' : '';
+      return '<tr><td><b>'+esc(v.clientName||'-')+'</b></td><td>'+esc(v.userName||userLabel(v.userId))+'</td><td>'+br+'</td>'+validationCell+'<td><div class="visit-actions"><button class="secondary" onclick="npcOpenEditVisit(\''+js(v.id)+'\')">Editar</button><button class="danger" onclick="npcDeleteVisit(\''+js(v.id)+'\')">Excluir</button></div></td></tr>';
+    }).join('');
+    var box=byId('visitAnalysisBox');
+    if(!box){ return oldDraw ? oldDraw.apply(this, arguments) : undefined; }
+    var colspan=showValidation?5:4;
+    box.innerHTML='<div class="grid cols3"><div class="card kpi"><div class="l">Visitas filtradas</div><div class="v">'+list.length+'</div></div><div class="card kpi"><div class="l">Validadas</div><div class="v">'+list.filter(function(v){return v.validated;}).length+'</div></div><div class="card kpi"><div class="l">Pendentes</div><div class="v">'+list.filter(function(v){return !v.validated;}).length+'</div></div></div><div style="height:16px"></div><div style="overflow:auto"><table class="perf-table"><thead><tr><th>Cliente</th><th>Usuário</th><th>Data da visita</th>'+(showValidation?'<th>Validação</th>':'')+'<th>Ações</th></tr></thead><tbody>'+(rows||'<tr><td colspan="'+colspan+'">Nenhuma visita encontrada para os filtros.</td></tr>')+'</tbody></table></div>';
+  };
+  try{ drawVisitAnalysis = window.drawVisitAnalysis; }catch(e){}
+
+  setTimeout(function(){ try{ ensure(); persistSync([currentUid()]); }catch(e){} }, 0);
+})();
+</script>
+
+
+
+<script>
+/* ===== PATCH V96: Registros de Leads - avanço da fila persistido no Firebase =====
+   Correção cirúrgica: garante que, ao salvar e distribuir um lead, o índice da fila
+   avance localmente e seja gravado explicitamente no Firebase junto com o lead. */
+(function(){
+  if(window.__npcV96LeadQueueAdvanceFix) return;
+  window.__npcV96LeadQueueAdvanceFix = true;
+
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){
+    try{ if(typeof escape === 'function') return escape(String(v == null ? '' : v)); }catch(e){}
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];});
+  }
+  function norm(v){ return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
+  function toastMsg(msg,type){ try{ if(typeof toast === 'function') toast(msg,type); }catch(e){} }
+  function getDb(){ window.db = window.db || {}; return window.db; }
+  function getCurrent(){ try{ return window.current || current || {}; }catch(e){ return window.current || {}; } }
+  function canCreateLead(){ try{ return typeof has === 'function' && has('leads_cadastrar'); }catch(e){ return false; } }
+  function label(qid){ try{ return typeof leadQueueLabel === 'function' ? leadQueueLabel(qid) : qid; }catch(e){ return qid; } }
+  function activeCorretores(){
+    try{
+      if(typeof leadCorretores === 'function') return leadCorretores().filter(Boolean);
+    }catch(e){}
+    var d=getDb();
+    return (Array.isArray(d.users)?d.users:[]).filter(function(u){return u && u.active !== false && String(u.role||u.perfil||'').toLowerCase().indexOf('corretor') >= 0;}).sort(function(a,b){return String(a.name||a.nome||'').localeCompare(String(b.name||b.nome||''),'pt-BR');});
+  }
+  function ensureQueue(qid){
+    var d=getDb();
+    d.leadQueues = d.leadQueues || {};
+    d.leadQueues[qid] = d.leadQueues[qid] || {currentIndex:0};
+    var st=d.leadQueues[qid];
+    var all=activeCorretores();
+    var activeIds=new Set(all.map(function(u){return String(u.id || u.uid || u.email || u.user || u.name);}));
+    if(!Array.isArray(st.members) || !st.members.length){
+      st.members = all.map(function(u){return String(u.id || u.uid || u.email || u.user || u.name);});
+    }else{
+      st.members = st.members.map(String).filter(function(id){return activeIds.has(id);});
+      if(!st.members.length) st.members = all.map(function(u){return String(u.id || u.uid || u.email || u.user || u.name);});
+    }
+    var len=st.members.length;
+    st.currentIndex = len ? (((Number(st.currentIndex)||0)%len+len)%len) : 0;
+    return st;
+  }
+  function queueMembers(qid){
+    var st=ensureQueue(qid);
+    var all=activeCorretores();
+    var by=new Map(all.map(function(u){return [String(u.id || u.uid || u.email || u.user || u.name),u];}));
+    return st.members.map(function(id){return by.get(String(id));}).filter(Boolean);
+  }
+  function nextCorretor(qid){
+    var arr=queueMembers(qid);
+    if(!arr.length) return null;
+    var st=ensureQueue(qid);
+    var idx=((Number(st.currentIndex)||0)%arr.length+arr.length)%arr.length;
+    return {user:arr[idx],idx:idx,all:arr};
+  }
+  function advanceQueue(qid,steps){
+    var arr=queueMembers(qid);
+    var st=ensureQueue(qid);
+    if(!arr.length){ st.currentIndex=0; return st; }
+    st.currentIndex = ((Number(st.currentIndex)||0)+Number(steps||1))%arr.length;
+    if(st.currentIndex < 0) st.currentIndex += arr.length;
+    return st;
+  }
+  function localPersist(){ try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(getDb())); }catch(e){} }
+  function firebasePersistLeadQueue(){
+    var d=getDb();
+    if(!(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser)) return Promise.resolve();
+    var updates={
+      leads:Array.isArray(d.leads)?d.leads:[],
+      leadQueues:d.leadQueues||{},
+      leadQueueSkips:Array.isArray(d.leadQueueSkips)?d.leadQueueSkips:[]
+    };
+    try{ updates.auditLogs = d.auditLogs || []; }catch(e){}
+    return window.firebaseDb.ref('/').update(updates);
+  }
+  function userLabel(id){
+    var u=activeCorretores().find(function(x){return String(x.id||x.uid||x.email||x.user||x.name)===String(id);});
+    return u ? (u.name||u.nome||u.email||u.user||u.id) : '';
+  }
+
+  window.leadQueueMembers = queueMembers;
+  window.leadNextCorretor = nextCorretor;
+  window.leadAdvance = advanceQueue;
+  try{ leadQueueMembers=window.leadQueueMembers; leadNextCorretor=window.leadNextCorretor; leadAdvance=window.leadAdvance; }catch(e){}
+
+  window.updateLeadNextPreview = function(){
+    var q=(byId('leadQueue') && byId('leadQueue').value) || ((typeof LEAD_QUEUES !== 'undefined' && LEAD_QUEUES[0]) ? LEAD_QUEUES[0].id : '');
+    var box=byId('leadNextPreview');
+    if(!box) return;
+    var n=nextCorretor(q);
+    box.innerHTML = n ? '<b>'+esc(n.user.name||n.user.nome||'')+'</b><br><span class="sub">'+esc(n.user.email||'')+' · posição '+(n.idx+1)+'/'+n.all.length+'</span>' : '<b>Nenhum corretor ativo encontrado.</b>';
+  };
+  try{ updateLeadNextPreview=window.updateLeadNextPreview; }catch(e){}
+
+  window.saveLead = function(){
+    if(!canCreateLead()){ toastMsg('Sem permissão.','warn'); return; }
+    var q=byId('leadQueue') && byId('leadQueue').value;
+    var nome=(byId('leadName') && byId('leadName').value || '').trim();
+    if(!q || !nome){ toastMsg('Informe a fila e o nome do lead.','warn'); return; }
+    var originBase=(byId('leadOrigin') && byId('leadOrigin').value || '').trim();
+    if(!originBase){ toastMsg('Selecione a origem do lead.','warn'); return; }
+
+    var origem=originBase, origemDetalhe='', origemUsuarioId='', origemUsuarioNome='', origemParceria='';
+    if(norm(originBase)==='colaborador'){
+      origemUsuarioId=(byId('leadOriginUser') && byId('leadOriginUser').value) || '';
+      if(!origemUsuarioId){ toastMsg('Selecione o colaborador que originou o lead.','warn'); return; }
+      origemUsuarioNome=userLabel(origemUsuarioId) || origemUsuarioId;
+      origemDetalhe=origemUsuarioNome;
+      origem='Colaborador - '+origemDetalhe;
+    }else if(norm(originBase)==='parceria'){
+      origemParceria=(byId('leadOriginPartner') && byId('leadOriginPartner').value || '').trim();
+      if(!origemParceria){ toastMsg('Informe o nome da parceria.','warn'); return; }
+      origemDetalhe=origemParceria;
+      origem='Parceria - '+origemParceria;
+    }
+
+    var n=nextCorretor(q);
+    if(!n){ toastMsg('Não há corretor ativo para esta fila.','warn'); return; }
+    var c=getCurrent();
+    var uid=c.id || c.uid || c.email || c.user || '';
+    var uname=c.name || c.nome || c.email || c.user || '';
+    var corretorId=n.user.id || n.user.uid || n.user.email || n.user.user || n.user.name;
+    var lead={
+      id:'lead_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+      tipoFila:q,
+      filaLabel:label(q),
+      nomeLead:nome,
+      telefone:(byId('leadPhone') && byId('leadPhone').value || '').trim(),
+      email:(byId('leadEmail') && byId('leadEmail').value || '').trim(),
+      origem:origem,
+      origemTipo:originBase,
+      origemDetalhe:origemDetalhe,
+      origemUsuarioId:origemUsuarioId,
+      origemUsuarioNome:origemUsuarioNome,
+      origemParceria:origemParceria,
+      qualificadoPor:(byId('leadQualifiedBy') && byId('leadQualifiedBy').value || '').trim(),
+      qualificadoPorLabel:(byId('leadQualifiedBy') && byId('leadQualifiedBy').value || '').trim(),
+      leadQualifiedBy:(byId('leadQualifiedBy') && byId('leadQualifiedBy').value || '').trim(),
+      interesse:(byId('leadInterest') && byId('leadInterest').value || '').trim(),
+      observacao:(byId('leadObs') && byId('leadObs').value || '').trim(),
+      corretorUid:corretorId,
+      corretorId:corretorId,
+      corretorNome:n.user.name || n.user.nome || n.user.email || '',
+      assignedToUid:corretorId,
+      assignedToName:n.user.name || n.user.nome || n.user.email || '',
+      criadoPorUid:uid,
+      criadoPorNome:uname,
+      criadoEm:new Date().toISOString(),
+      distribuidoEm:new Date().toISOString(),
+      ativo:true
+    };
+
+    var d=getDb();
+    d.leads = Array.isArray(d.leads) ? d.leads : [];
+    d.leads.unshift(lead);
+    advanceQueue(q,1);
+    try{ if(typeof logAudit === 'function') logAudit('Lead cadastrado',lead.filaLabel+': '+lead.nomeLead+' → '+lead.corretorNome); }catch(e){}
+    localPersist();
+
+    firebasePersistLeadQueue().then(function(){
+      try{ if(typeof closeModal === 'function') closeModal(); }catch(e){}
+      toastMsg('Lead cadastrado e fila avançada para o próximo corretor.');
+      try{
+        if((window.page || (typeof page !== 'undefined' ? page : '')) === 'leads_registros'){
+          if(typeof window.render_leads_registros === 'function') window.render_leads_registros();
+          else if(typeof render_leads_registros === 'function') render_leads_registros();
+        }
+        if(typeof window.updateLeadNextPreview === 'function') window.updateLeadNextPreview();
+      }catch(e){}
+    }).catch(function(e){
+      console.error(e);
+      toastMsg('Lead salvo localmente, mas houve erro ao atualizar a fila no Firebase: '+(e && e.message ? e.message : e),'warn');
+    });
+  };
+  try{ saveLead=window.saveLead; }catch(e){}
+})();
+</script>
