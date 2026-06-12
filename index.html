@@ -11571,3 +11571,124 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{ saveLead=window.saveLead; }catch(e){}
 })();
 </script>
+
+<!-- PATCH V97: Mural de reconhecimentos - exibir destinatário para gestores e corrigir data inválida -->
+<style>
+  .rec-v97-meta{margin-top:10px;padding:9px 10px;border-radius:10px;background:#f6f7f9;border:1px solid #e5e8ef;font-size:12.5px;color:#43536a;line-height:1.35}
+  .rec-v97-meta b{color:#172234}
+  .rec-v97-date{display:block;margin-top:10px;color:#5b6b83;font-size:12px;font-weight:700}
+</style>
+<script>
+(function(){
+  'use strict';
+  if(window.__npcV97ReconhecimentoDestinatarioGestor) return;
+  window.__npcV97ReconhecimentoDestinatarioGestor = true;
+
+  function byId(id){ try{return document.getElementById(id);}catch(e){return null;} }
+  function esc(v){
+    try{
+      if(typeof escape === 'function') return escape(String(v ?? ''));
+      return String(v ?? '').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]});
+    }catch(e){ return String(v ?? ''); }
+  }
+  function canManageRecognitions(){
+    try{ return typeof has === 'function' && has('reconhecimentos_gerenciar'); }catch(e){ return false; }
+  }
+  function usersList(){
+    try{ return Array.isArray(db && db.users) ? db.users : []; }catch(e){ return []; }
+  }
+  function userNameById(id){
+    if(!id) return '';
+    var sid = String(id);
+    var u = usersList().find(function(x){
+      return x && [x.id,x.uid,x.email,x.user,x.name].some(function(v){return v != null && String(v) === sid;});
+    });
+    return u ? (u.name || u.nome || u.email || u.user || '') : '';
+  }
+  function inferAutoRecipientFromId(r){
+    try{
+      var id = String(r && r.id || '');
+      // Formato atual: auto_ind_<uid>_<AAAA-MM>_...
+      if(id.indexOf('auto_ind_') === 0){
+        var rest = id.replace(/^auto_ind_/, '');
+        var monthIdx = rest.search(/_\d{4}-\d{2}_/);
+        var uid = monthIdx > 0 ? rest.slice(0, monthIdx) : rest.split('_')[0];
+        return userNameById(uid);
+      }
+      if(id.indexOf('auto_team_') === 0 || r.scope === 'coletivo' || r.kind === 'coletivo') return 'Equipe NPC';
+    }catch(e){}
+    return '';
+  }
+  function recipientLabel(r){
+    r = r || {};
+    if(r.targetType === 'all' || r.targetAll === true) return 'Todos';
+    if(r.targetUserName) return r.targetUserName;
+    if(r.targetUserId) return userNameById(r.targetUserId) || 'Usuário selecionado';
+    if(r.person) return r.person;
+    return inferAutoRecipientFromId(r) || 'Não identificado';
+  }
+  function createdByLabel(r){
+    r = r || {};
+    if(r.createdBy === 'sistema' || r.kind === 'automatico' || r.kind === 'coletivo' || r.kind === 'individual' || String(r.id||'').indexOf('auto_') === 0) return 'Sistema';
+    return userNameById(r.createdBy) || r.createdByName || '';
+  }
+  function safeDateBR(value){
+    if(!value) return 'Data não informada';
+    var d = new Date(value);
+    if(isNaN(d.getTime())) return 'Data não informada';
+    return d.toLocaleDateString('pt-BR');
+  }
+  function titleLabel(r){
+    var title = String((r && r.title) || '').trim();
+    return title || 'Reconhecimento';
+  }
+  function reasonLabel(r){
+    var reason = String((r && r.reason) || '').trim();
+    return reason || 'Reconhecimento automático gerado pelo sistema.';
+  }
+  function cardHtml(r, can){
+    r = r || {};
+    var recipient = recipientLabel(r);
+    var creator = createdByLabel(r);
+    var autoClass = (r.kind && r.kind !== 'manual') || String(r.id||'').indexOf('auto_') === 0 || r.createdBy === 'sistema' ? ' recognition-auto' : '';
+    var managerMeta = can
+      ? '<div class="rec-v97-meta"><div><b>Recebedor:</b> '+esc(recipient)+'</div>'+ (creator ? '<div><b>Criado por:</b> '+esc(creator)+'</div>' : '') +'</div>'
+      : '<p><b>'+esc(recipient)+'</b></p>';
+
+    return '<div class="card pad recognition'+autoClass+'">'
+      + '<div class="rank-badge">★</div>'
+      + '<h3 style="margin-top:12px">'+esc(titleLabel(r))+'</h3>'
+      + managerMeta
+      + '<p>'+esc(reasonLabel(r))+'</p>'
+      + '<small class="rec-v97-date">'+esc(safeDateBR(r.createdAt || r.date || r.createdAtIso))+'</small>'
+      + (can && typeof window.deleteRecognition === 'function' ? '<div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="danger" onclick="deleteRecognition(\''+esc(r.id)+'\')">Excluir</button></div>' : '')
+      + '</div>';
+  }
+
+  var oldRender = window.render_reconhecimentos || (typeof render_reconhecimentos === 'function' ? render_reconhecimentos : null);
+  window.render_reconhecimentos = function(){
+    try{
+      if(typeof ensureOpsData === 'function') ensureOpsData();
+      var can = canManageRecognitions();
+      var recs = Array.isArray(db && db.recognitions) ? db.recognitions : [];
+      var mine = '';
+      try{ mine = typeof badgesHtml === 'function' && current ? badgesHtml(current.id, typeof monthISO === 'function' ? monthISO() : undefined) : ''; }catch(e){}
+      var content = byId('content');
+      if(!content){ if(typeof oldRender === 'function') return oldRender.apply(this, arguments); return; }
+      content.innerHTML = '<div class="section"><div><h2>Reconhecimento NPC</h2><p>Conquistas individuais, metas coletivas, badges e elogios da gestão.</p></div>'
+        + (can ? '<button class="primary" onclick="openRecognitionModal()">Novo reconhecimento</button>' : '')
+        + '</div>'
+        + '<div class="recognition-strip"><div class="star">★</div><div><h3>Cobrança acompanha o processo. Reconhecimento fortalece a cultura.</h3><p class="sub">Aqui ficam as conquistas automáticas e os reconhecimentos manuais publicados pela gestão.</p></div></div>'
+        + (mine ? '<div class="card pad"><div class="section"><div><h3>Minhas conquistas do mês</h3><p>Badges liberados automaticamente conforme performance, registro e treinamento.</p></div><button class="secondary" onclick="maybeShowRecognitionPopups()">Verificar conquistas</button></div>'+mine+'</div><div style="height:18px"></div>' : '')
+        + '<div class="section"><div><h2>Mural de reconhecimentos</h2><p>Histórico de reconhecimentos recentes.</p></div></div>'
+        + '<div class="grid cols3">'
+        + (recs.length ? recs.map(function(r){ return cardHtml(r, can); }).join('') : '<div class="empty">Nenhum reconhecimento publicado ainda.</div>')
+        + '</div>';
+    }catch(e){
+      console.error('Erro ao renderizar reconhecimentos V97:', e);
+      if(typeof oldRender === 'function') return oldRender.apply(this, arguments);
+    }
+  };
+  try{ render_reconhecimentos = window.render_reconhecimentos; }catch(e){}
+})();
+</script>
