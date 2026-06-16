@@ -9548,6 +9548,62 @@ body:has(#login:not(.hidden)) #app.hidden{
   document.addEventListener('DOMContentLoaded',init);
 })();
 </script>
+
+<script id="global-realtime-sync-v2">
+(function(){
+  function hardRefresh(){
+    try{
+      if(window.__refreshingRealtime) return;
+      window.__refreshingRealtime=true;
+
+      if(typeof loadCloudDb==='function'){
+        Promise.resolve(loadCloudDb()).finally(function(){
+          try{
+            if(typeof render==='function') render();
+            document.querySelectorAll('[onclick]').forEach(function(el){});
+          }catch(e){}
+          window.__refreshingRealtime=false;
+        });
+      } else {
+        window.__refreshingRealtime=false;
+        location.reload();
+      }
+    }catch(e){
+      window.__refreshingRealtime=false;
+    }
+  }
+
+  function install(){
+    if(!window.firebaseDb || window.__globalRealtimeSyncV2Installed) return;
+    window.__globalRealtimeSyncV2Installed=true;
+
+    let initialized=false;
+    firebaseDb.ref('/').on('value', function(){
+      if(!initialized){ initialized=true; return; }
+      hardRefresh();
+    });
+
+    document.addEventListener('click', function(){
+      setTimeout(function(){
+        try{
+          if(typeof loadCloudDb==='function') loadCloudDb().then(function(){
+            if(typeof render==='function') render();
+          });
+        }catch(e){}
+      },50);
+    }, true);
+
+    document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) hardRefresh();
+    });
+  }
+
+  setInterval(install,1000);
+  if(document.readyState!=='loading') install();
+  else document.addEventListener('DOMContentLoaded', install);
+})();
+</script>
+
 </body></html>
 <script>
 /* ===== PATCH V68: pop-up automático de novos comunicados não lidos ===== */
