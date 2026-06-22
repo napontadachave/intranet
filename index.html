@@ -4349,12 +4349,15 @@ body:has(#login:not(.hidden)) #app.hidden{
     const title=$('kbTitle').value.trim();
     const existing=cardId?db.kanbanCards.find(x=>x.id===cardId):null;
     if(cardId&&(!existing||!canEditCard(existing))){toast('Sem permissão para salvar este card.');return;}
-    const payload={title,columnId:$('kbColumn').value,valorVenda:$('kbValor').value.trim(),comissao:$('kbComissao').value.trim(),vendedora:$('kbVendedora').value.trim(),emailVendedora:$('kbEmailVendedora').value.trim(),compradora:$('kbCompradora').value.trim(),emailCompradora:$('kbEmailCompradora').value.trim(),posse:$('kbPosse').value.trim(),documentos:$('kbDocumentos').value.trim(),paymentConditions:(window.collectPaymentConditions?window.collectPaymentConditions():[]),obs:$('kbObs').value.trim(),updatedAt:new Date().toISOString(),updatedBy:current?.id||''};
+    /* Lê ownerId ANTES do closeModal() — closeModal limpa o DOM e kbOwner deixa de existir */
+    const _ownerEl=document.getElementById('kbOwner')||(document.getElementById('npcOwnerField')&&document.getElementById('npcOwnerField').querySelector('select'));
+    const _resolvedOwnerId=(_ownerEl&&_ownerEl.value)?_ownerEl.value:(existing?existing.ownerId:(current?.id||''));
+    const payload={title,columnId:$('kbColumn').value,ownerId:_resolvedOwnerId,valorVenda:$('kbValor').value.trim(),comissao:$('kbComissao').value.trim(),vendedora:$('kbVendedora').value.trim(),emailVendedora:$('kbEmailVendedora').value.trim(),compradora:$('kbCompradora').value.trim(),emailCompradora:$('kbEmailCompradora').value.trim(),posse:$('kbPosse').value.trim(),documentos:$('kbDocumentos').value.trim(),paymentConditions:(window.collectPaymentConditions?window.collectPaymentConditions():[]),obs:$('kbObs').value.trim(),updatedAt:new Date().toISOString(),updatedBy:current?.id||''};
     payload.itensChecklist=readItemsEditor(existing?.itensChecklist||[]);
     payload.itens=payload.itensChecklist.map(x=>x.title).join('\n');
     const _pcArr=Array.isArray(payload.paymentConditions)?payload.paymentConditions:[];
     payload.pagamentos=_pcArr.map(p=>p.label+': '+p.value+(p.observation?' ('+p.observation+')':'')).filter(Boolean).join('\n');
-    if(cardId){Object.assign(existing,payload);} else {db.kanbanCards.push({...payload,id:'card_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),order:Date.now(),createdAt:new Date().toISOString(),createdBy:current?.id||'',createdByName:current?.name||current?.email||'',createdByEmail:current?.email||current?.user||'',ownerId:current?.id||'',checklist:KANBAN_CHECKLIST.map((t,i)=>({id:'ck_'+i,title:t,done:false,doneBy:'',doneByName:'',doneAt:''}))});}
+    if(cardId){Object.assign(existing,payload);} else {db.kanbanCards.push({...payload,id:'card_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),order:Date.now(),createdAt:new Date().toISOString(),createdBy:current?.id||'',createdByName:current?.name||current?.email||'',createdByEmail:current?.email||current?.user||'',ownerId:_resolvedOwnerId,checklist:KANBAN_CHECKLIST.map((t,i)=>({id:'ck_'+i,title:t,done:false,doneBy:'',doneByName:'',doneAt:''}))});}
     save();__kanbanDirty=false;closeModal();render_perf_kanban();toast('Card salvo.');
   };
   window.openKanbanCardView=function(cardId){
@@ -13197,5 +13200,686 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   window.npcGoUserTypes=renderUserTypes;
   console.log('[V106] Tipos de Usuário inicializado.');
+})();
+</script>
+
+<script>
+/* ===== PATCH V107 — KANBAN: DOCUMENTOS, CHAT E NOTIFICAÇÕES REESTRUTURADAS =====
+   1. Aba de Documentos nos cards (base64, salvo em c.attachments no Firebase)
+   2. Chat interno por card (messages com notificação até ser lido)
+   3. render_notificacoes reestruturada: citações, comunicados, reconhecimentos, aniversariantes
+*/
+(function(){
+  'use strict';
+  if(window.__npcV107) return;
+  window.__npcV107 = true;
+
+  var esc = function(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];}); };
+  var byId = function(id){ return document.getElementById(id); };
+  var getDb = function(){ return window.db || {}; };
+  var getCur = function(){ return window.current || {}; };
+  var todayStr = function(){ return new Date().toISOString().slice(0,10); };
+
+  /* ───────────── HELPERS DE SAVE KANBAN ───────────── */
+  function saveCard(card){
+    try{
+      if(typeof save === 'function') save();
+      if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser && card && card.id){
+        var up = {}; up['kanbanCards'] = (getDb().kanbanCards||[]);
+        window.firebaseDb.ref('/').update(up);
+      }
+    }catch(e){ console.warn('saveCard:', e); }
+  }
+
+  /* ───────────── PATCH: openKanbanCardView → MODAL COM ABAS ───────────── */
+  var _origView = window.openKanbanCardView;
+
+  window.openKanbanCardView = function(cardId){
+    var cards = (Array.isArray(getDb().kanbanCards) ? getDb().kanbanCards : []);
+    var c = cards.find(function(x){ return String(x.id) === String(cardId); });
+    if(!c){ if(typeof toast==='function') toast('Card não encontrado.','warn'); return; }
+
+    /* marcar mensagens como lidas pelo usuário atual */
+    var uid = getCur().id || '';
+    if(c.messages && c.messages.length){
+      c.messages.forEach(function(m){ if(!m.readBy) m.readBy={}; m.readBy[uid]=true; });
+    }
+
+    /* renderizar as abas */
+    var tabStyle = 'display:inline-block;padding:8px 18px;cursor:pointer;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;border:1px solid var(--linha);border-bottom:none;background:var(--bg);margin-right:4px;';
+    var tabActiveStyle = 'display:inline-block;padding:8px 18px;cursor:pointer;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;border:1px solid var(--linha);border-bottom:2px solid var(--amarelo);background:#fff;margin-right:4px;';
+
+    /* painel de dados */
+    var _pcArr=(function(card){
+      if(Array.isArray(card.paymentConditions)&&card.paymentConditions.length) return card.paymentConditions;
+      var legacy=[];['A','B','C'].forEach(function(l){var v=card['pagamento'+l];if(v&&String(v).trim())legacy.push({label:l,value:String(v).trim(),observation:''}); });
+      return legacy;
+    })(c);
+    var _payHtml=_pcArr.length?_pcArr.map(function(p){ return '<p><b>'+esc(p.label||'')+':</b> '+esc(p.value||'')+(p.observation?' — '+esc(p.observation):'' )+'</p>'; }).join('') :'<p style="color:#999">Nenhuma condição cadastrada.</p>';
+
+    var checklistHtml = '';
+    try{
+      checklistHtml = (c.checklist||[]).map(function(ck,i){
+        var done = ck.done;
+        var dis = (typeof canEditCard==='function' && !canEditCard(c)) ? 'disabled' : '';
+        return '<label class="kanban-check-row"><input type="checkbox" '+(done?'checked':'')+' onchange="window.npcKanbanToggleCk(\''+esc(String(c.id))+'\',\''+esc(String(ck.id||('ck_'+i)))+'\',this.checked)" '+dis+'><span>'+(typeof safeHtml==='function'?safeHtml(ck.title):esc(ck.title))+(done?'<small>Concluído por '+esc(ck.doneByName||ck.doneBy||'?')+' em '+(ck.doneAt?new Date(ck.doneAt).toLocaleString('pt-BR'):'')+'</small>':'<small>Pendente</small>')+'</span></label>';
+      }).join('');
+    }catch(e){}
+
+    var itemsHtml = '';
+    try{ if(typeof renderItemChecklist==='function') itemsHtml=renderItemChecklist(c); }catch(e){}
+
+    var obsHtml = c.obs ? '<div class="kanban-info" style="margin-top:12px"><h4>Observações</h4><p>'+esc(c.obs)+'</p></div>' : '';
+
+    var dadosPanel = '<div class="kanban-detail">'
+      +'<div><div class="kanban-info"><h4>Dados da negociação</h4>'
+      +'<p><b>Valor da venda:</b> '+(typeof currencyBR==='function'?esc(currencyBR(c.valorVenda||'')):'')+'</p>'
+      +'<p><b>Comissão:</b> '+esc(c.comissao||'')+'</p>'
+      +'<p><b>Posse:</b> '+esc(c.posse||'')+'</p>'
+      +'<p><b>Vendedor(a):</b> '+esc(c.vendedora||'')+' '+(c.emailVendedora?'— '+esc(c.emailVendedora):'')+'</p>'
+      +'<p><b>Comprador(a):</b> '+esc(c.compradora||'')+' '+(c.emailCompradora?'— '+esc(c.emailCompradora):'')+'</p>'
+      +'<p><b>Documentos enviados por:</b> '+esc(c.documentos||'')+'</p>'
+      +'</div>'
+      +'<div class="kanban-info" style="margin-top:12px"><h4>Condições de pagamento</h4>'+_payHtml+'</div>'
+      +'<div class="kanban-info" style="margin-top:12px"><h4>Itens que permanecerão no imóvel</h4><div class="kanban-check">'+itemsHtml+'</div></div>'
+      +obsHtml+'</div>'
+      +'<div><h4 style="margin-top:0">Checklist com responsável</h4><div class="kanban-check">'+checklistHtml+'</div></div>'
+      +'</div>';
+
+    /* painel de documentos */
+    var docs = c.attachments || [];
+    var docList = docs.length ? docs.map(function(d,i){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--linha);border-radius:8px;margin-bottom:6px">'
+        +'<span style="font-size:22px">📎</span>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.name)+'</div>'
+        +'<div style="font-size:11px;color:var(--muted)">'+new Date(d.uploadedAt).toLocaleString('pt-BR')+' · '+esc(d.uploadedByName||'?')+'</div></div>'
+        +'<a href="'+d.data+'" download="'+esc(d.name)+'" style="color:var(--amarelo);font-weight:700;text-decoration:none">⬇ Baixar</a>'
+        +(getCur().perms&&getCur().perms.performance_kanban_gestao ? ' <button class="danger" style="font-size:11px;padding:4px 8px" onclick="window.npcDeleteAttachment(\''+esc(String(c.id))+'\','+i+')">×</button>' : '')
+        +'</div>';
+    }).join('') : '<p style="color:#999;margin:18px 0">Nenhum documento anexado ainda.</p>';
+
+    var docsPanel = '<div style="padding:4px 0">'
+      +docList
+      +'<div style="margin-top:16px;border:2px dashed var(--linha);border-radius:12px;padding:18px;text-align:center">'
+      +'<p style="color:var(--muted);margin:0 0 10px"><b>Anexar documento</b><br><small>PDF, imagem ou arquivo (máx. 4 MB)</small></p>'
+      +'<input type="file" id="npcAttachFile" accept="*/*" style="display:none" onchange="window.npcUploadAttachment(\''+esc(String(c.id))+'\')">'
+      +'<button class="secondary" onclick="document.getElementById(\'npcAttachFile\').click()">📎 Escolher arquivo</button>'
+      +'</div></div>';
+
+    /* painel de chat */
+    var msgs = c.messages || [];
+    var canManageChat = !!(getCur().perms && (getCur().perms.performance_kanban_gestao || getCur().perms.view_all_users));
+    var isOwner = c.ownerId === uid || c.createdBy === uid;
+    var canChat = canManageChat || isOwner;
+
+    var msgsHtml = msgs.length ? msgs.map(function(m){
+      var isMe = m.uid === uid;
+      return '<div class="npc-chat-msg'+(isMe?'':' other')+'">'
+        +'<div class="npc-chat-author">'+esc(m.name||'Usuário')+'<span>'+new Date(m.createdAt).toLocaleString('pt-BR')+'</span></div>'
+        +'<div>'+esc(m.text)+'</div></div>';
+    }).join('') : '<p style="color:#999;text-align:center;margin:24px 0">Nenhuma mensagem ainda.</p>';
+
+    var chatPanel = '<div class="npc-chat-box" style="margin:0">'
+      +'<div class="npc-chat-messages" id="npcChatMessages">'+msgsHtml+'</div>';
+    if(canChat){
+      chatPanel += '<textarea id="npcChatInput" class="npc-chat-input" placeholder="Digite uma mensagem..."></textarea>'
+        +'<div class="npc-chat-actions">'
+        +'<button class="primary" onclick="window.npcSendChatMsg(\''+esc(String(c.id))+'\')">Enviar mensagem</button>'
+        +'</div>';
+    } else {
+      chatPanel += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Apenas o responsável pelo card e administradores podem enviar mensagens.</p>';
+    }
+    chatPanel += '</div>';
+
+    /* montar o modal com abas */
+    var unreadCount = msgs.filter(function(m){ return !m.readBy || !m.readBy[uid]; }).length;
+    var chatBadge = unreadCount > 0 ? ' <span style="background:var(--amarelo);color:#222;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">'+unreadCount+'</span>' : '';
+
+    var modalBody = '<div id="npcCardTabBar" style="margin-bottom:-1px;border-bottom:1px solid var(--linha)">'
+      +'<span id="npcTab_dados" style="'+tabActiveStyle+'" onclick="window.npcCardTab(\'dados\')">📋 Detalhes</span>'
+      +'<span id="npcTab_docs" style="'+tabStyle+'" onclick="window.npcCardTab(\'docs\')">📎 Documentos'+(docs.length?' <b>('+docs.length+')</b>':'')+'</span>'
+      +'<span id="npcTab_chat" style="'+tabStyle+'" onclick="window.npcCardTab(\'chat\')">💬 Chat'+chatBadge+'</span>'
+      +'</div>'
+      +'<div id="npcTabPanel_dados" style="margin-top:14px">'+dadosPanel+'</div>'
+      +'<div id="npcTabPanel_docs" style="margin-top:14px;display:none">'+docsPanel+'</div>'
+      +'<div id="npcTabPanel_chat" style="margin-top:14px;display:none">'+chatPanel+'</div>'
+      +'<div class="actions" style="margin-top:16px">'
+      +(typeof canEditCard==='function'&&canEditCard(c)? '<button class="primary" onclick="openKanbanCardModal(\'\', \''+esc(String(c.id))+'\')">Editar venda</button>' : '')
+      +'<button class="secondary" onclick="closeModal()">Fechar</button>'
+      +'</div>';
+
+    if(typeof openModal==='function') openModal(c.title||'Card', modalBody);
+
+    /* auto-scroll do chat */
+    setTimeout(function(){
+      var cm = byId('npcChatMessages'); if(cm) cm.scrollTop = cm.scrollHeight;
+    }, 80);
+  };
+
+  /* troca de aba */
+  window.npcCardTab = function(tab){
+    ['dados','docs','chat'].forEach(function(t){
+      var panel = byId('npcTabPanel_'+t);
+      var btn   = byId('npcTab_'+t);
+      if(!panel || !btn) return;
+      var isActive = (t === tab);
+      panel.style.display = isActive ? '' : 'none';
+      btn.style.cssText = isActive
+        ? 'display:inline-block;padding:8px 18px;cursor:pointer;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;border:1px solid var(--linha);border-bottom:2px solid var(--amarelo);background:#fff;margin-right:4px;'
+        : 'display:inline-block;padding:8px 18px;cursor:pointer;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;border:1px solid var(--linha);border-bottom:none;background:var(--bg);margin-right:4px;';
+      if(isActive && t==='chat'){
+        setTimeout(function(){ var cm=byId('npcChatMessages'); if(cm) cm.scrollTop=cm.scrollHeight; },50);
+      }
+    });
+  };
+
+  /* toggle checklist */
+  window.npcKanbanToggleCk = function(cardId, ckId, checked){
+    var c = (getDb().kanbanCards||[]).find(function(x){ return String(x.id)===String(cardId); });
+    if(!c) return;
+    var ck = (c.checklist||[]).find(function(x){ return String(x.id)===String(ckId); });
+    if(!ck) return;
+    ck.done = !!checked;
+    if(checked){ ck.doneBy=getCur().id||''; ck.doneByName=getCur().name||getCur().email||'?'; ck.doneAt=new Date().toISOString(); }
+    else { ck.doneBy=''; ck.doneByName=''; ck.doneAt=''; }
+    c.updatedAt=new Date().toISOString(); c.updatedBy=getCur().id||'';
+    saveCard(c);
+    window.openKanbanCardView(cardId);
+  };
+
+  /* upload de anexo */
+  window.npcUploadAttachment = function(cardId){
+    var inp = byId('npcAttachFile'); if(!inp || !inp.files || !inp.files[0]) return;
+    var file = inp.files[0];
+    if(file.size > 4*1024*1024){ if(typeof toast==='function') toast('Arquivo muito grande. Máximo 4 MB.','warn'); return; }
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var c = (getDb().kanbanCards||[]).find(function(x){ return String(x.id)===String(cardId); });
+      if(!c) return;
+      c.attachments = c.attachments || [];
+      c.attachments.push({ name:file.name, data:ev.target.result, uploadedAt:new Date().toISOString(), uploadedBy:getCur().id||'', uploadedByName:getCur().name||getCur().email||'?' });
+      saveCard(c);
+      if(typeof toast==='function') toast('Documento anexado com sucesso.');
+      window.openKanbanCardView(cardId);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /* excluir anexo */
+  window.npcDeleteAttachment = function(cardId, idx){
+    if(!confirm('Excluir este documento?')) return;
+    var c = (getDb().kanbanCards||[]).find(function(x){ return String(x.id)===String(cardId); });
+    if(!c || !c.attachments) return;
+    c.attachments.splice(idx, 1);
+    saveCard(c);
+    if(typeof toast==='function') toast('Documento excluído.');
+    window.openKanbanCardView(cardId);
+  };
+
+  /* ───────────── CHAT: ENVIAR MENSAGEM ───────────── */
+  window.npcSendChatMsg = function(cardId){
+    var inp = byId('npcChatInput');
+    var text = inp ? inp.value.trim() : '';
+    if(!text){ if(typeof toast==='function') toast('Digite uma mensagem.','warn'); return; }
+    var c = (getDb().kanbanCards||[]).find(function(x){ return String(x.id)===String(cardId); });
+    if(!c){ if(typeof toast==='function') toast('Card não encontrado.','warn'); return; }
+    c.messages = c.messages || [];
+    var uid = getCur().id || '';
+    var msg = {
+      id: 'msg_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+      uid: uid,
+      name: getCur().name || getCur().email || 'Usuário',
+      text: text,
+      createdAt: new Date().toISOString(),
+      readBy: {}
+    };
+    msg.readBy[uid] = true;
+    c.messages.push(msg);
+    /* notificação: marcar card como tendo msg não lida para os outros */
+    c.hasUnreadMsg = true;
+    saveCard(c);
+    if(typeof toast==='function') toast('Mensagem enviada.');
+    window.openKanbanCardView(cardId);
+    /* reabrir na aba de chat */
+    setTimeout(function(){ window.npcCardTab('chat'); }, 80);
+  };
+
+  /* ───────────── NOTIFICAÇÕES REESTRUTURADAS ───────────── */
+  function getBdaysToday(){
+    var now = new Date();
+    var day = now.getDate(), month = now.getMonth()+1;
+    return (getDb().birthdays||[]).filter(function(b){
+      var d = parseInt(String(b.day||'').replace(/\D/g,''),10);
+      var m = typeof birthdayMonthNumber==='function' ? birthdayMonthNumber(b.month) : month;
+      return d===day && m===month;
+    });
+  }
+
+  function getUnreadComunicados(){
+    if(typeof unreadComunicados==='function') return unreadComunicados();
+    var reads = getDb().comunicadoReads || {};
+    var uid = getCur().id || '';
+    return (getDb().comunicados||[]).filter(function(c){ return !(reads[uid]||{})[c.id]; });
+  }
+
+  function getUnreadRecognitions(){
+    var reads = getDb().achievementReads || {};
+    var uid = getCur().id || '';
+    return (getDb().recognitions||[]).filter(function(r){ return !(reads[uid]||{})[r.id]; }).slice(0,10);
+  }
+
+  function getCardCitations(){
+    /* cards onde o usuário atual está envolvido e há mensagens não lidas */
+    var uid = getCur().id || '';
+    return (getDb().kanbanCards||[]).filter(function(c){
+      if(!c.messages || !c.messages.length) return false;
+      var isInvolved = c.ownerId===uid || c.createdBy===uid;
+      var hasUnread = c.messages.some(function(m){ return m.uid!==uid && (!m.readBy || !m.readBy[uid]); });
+      return isInvolved && hasUnread;
+    });
+  }
+
+  window.render_notificacoes = function(){
+    if(typeof ensureOpsData==='function') try{ ensureOpsData(); }catch(e){}
+    var content = byId('content'); if(!content) return;
+
+    var bdays = getBdaysToday();
+    var unreadComm = getUnreadComunicados();
+    var unreadRec  = getUnreadRecognitions();
+    var citations  = getCardCitations();
+
+    /* ─── Aniversariantes do dia ─── */
+    var bdayHtml = bdays.length
+      ? '<div class="card pad" style="border:2px solid var(--amarelo);margin-bottom:18px">'
+        +'<div style="display:flex;align-items:center;gap:12px"><div style="font-size:36px">🎉</div><div>'
+        +'<h3 style="margin:0">Aniversariante'+(bdays.length>1?'s':'')+' de hoje!</h3>'
+        +'<p style="color:var(--muted);margin:4px 0 0">'+bdays.map(function(b){ return esc(b.name)+' ('+esc(b.area||'Equipe NPC')+')'; }).join(', ')+'</p></div></div></div>'
+      : '';
+
+    /* ─── Citações / mensagens em cards ─── */
+    var citHtml = citations.length
+      ? '<div class="card pad"><h3>💬 Mensagens não lidas em cards</h3><div class="list">'
+        +citations.map(function(c){
+          var count = (c.messages||[]).filter(function(m){ return m.uid!==(getCur().id||'') && (!m.readBy||!m.readBy[getCur().id||'']); }).length;
+          return '<button class="item shortcut" style="width:100%;text-align:left" onclick="window.openKanbanCardView(\''+esc(String(c.id))+'\');window.npcCardTab(\'chat\')">'
+            +'<div class="bullet">'+count+'</div>'
+            +'<div><h4>'+esc(c.title||'Card')+'</h4><p>'+count+' mensagem'+(count>1?'s':'')+' não lida'+(count>1?'s':'')+'</p></div></button>';
+        }).join('')
+        +'</div></div>'
+      : '<div class="card pad"><h3>💬 Citações em cards</h3><p class="sub">Nenhuma mensagem não lida nos seus cards.</p></div>';
+
+    /* ─── Comunicados não lidos ─── */
+    var commHtml = unreadComm.length
+      ? '<div class="card pad"><h3>📢 Comunicados não lidos</h3><div class="list">'
+        +unreadComm.map(function(c){
+          return '<div class="item"><div class="bullet">!</div><div>'
+            +'<h4>'+esc(c.titulo||'Comunicado')+'</h4>'
+            +'<p>'+esc(c.categoria||'Geral')+'</p>'
+            +'<button class="mini" onclick="go(\'comunicados\')">Abrir</button></div></div>';
+        }).join('')
+        +'</div></div>'
+      : '<div class="card pad"><h3>📢 Comunicados</h3><p class="sub">Nenhum comunicado pendente de ciência. ✓</p></div>';
+
+    /* ─── Reconhecimentos não lidos ─── */
+    var recHtml = unreadRec.length
+      ? '<div class="card pad recognition"><h3>★ Reconhecimentos recentes</h3><div class="list">'
+        +unreadRec.map(function(r){
+          return '<div class="item"><div class="rank-badge">★</div><div>'
+            +'<h4>'+esc(r.title||'Reconhecimento')+'</h4>'
+            +'<p>'+esc(r.person||'Equipe')+' · '+esc(r.reason||'')+'</p></div></div>';
+        }).join('')
+        +'</div><div class="compact-actions"><button class="secondary" onclick="go(\'reconhecimentos\')">Ver todos</button></div></div>'
+      : '<div class="card pad recognition"><h3>★ Reconhecimentos</h3><p class="sub">Nenhum reconhecimento recente não lido.</p><div class="compact-actions"><button class="secondary" onclick="go(\'reconhecimentos\')">Ver mural</button></div></div>';
+
+    content.innerHTML =
+      '<div class="section"><div><h2>Notificações</h2><p>Central de atenção: mensagens em cards, comunicados, reconhecimentos e aniversários.</p></div></div>'
+      + bdayHtml
+      + '<div class="grid cols2">'
+      + citHtml
+      + commHtml
+      + '</div>'
+      + '<div style="margin-top:18px">'
+      + recHtml
+      + '</div>';
+  };
+
+  /* registrar no renders */
+  try{
+    if(window.renders) window.renders.notificacoes = window.render_notificacoes;
+    if(typeof render_notificacoes !== 'undefined') render_notificacoes = window.render_notificacoes;
+  }catch(e){}
+
+  /* cloudToLocal: incluir attachments e messages nos cards (já estão inline no card, mas garantir) */
+  /* O Firebase já salva kanbanCards com tudo; só garantir que save() não descarta attachments */
+  var _origSave = window.save;
+  window.save = function(){
+    /* garante que attachments e messages dos cards são incluídos no save */
+    if(_origSave) _origSave.apply(this, arguments);
+  };
+
+  console.log('[V107] Kanban Chat + Docs + Notificações inicializados.');
+})();
+</script>
+
+<script>
+/* ===== PATCH V108 — CORREÇÕES DO MODAL DE VISUALIZAÇÃO DO CARD =====
+   Fix 1: Campo "Documentos enviados por" → "Usuário responsável" com select de usuários
+   Fix 2: Valor da venda não aparecia (currencyBR falhava com valor já formatado)
+   Fix 3: Itens que permanecerão não apareciam
+   Fix 4: Condições de pagamento não carregavam ao editar
+*/
+(function(){
+  'use strict';
+  if(window.__npcV108) return;
+  window.__npcV108 = true;
+
+  var esc = function(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m];}); };
+  var byId = function(id){ return document.getElementById(id); };
+  var getDb = function(){ return window.db || {}; };
+  var getCur = function(){ return window.current || {}; };
+
+  /* ── Fix 2: currencyBR robusto — aceita "R$ 500.000,00" e também números puros ── */
+  function formatMoney(v){
+    if(!v && v !== 0) return '';
+    var s = String(v).trim();
+    /* Se já está formatado como moeda brasileira, retorna direto */
+    if(/R\$/.test(s)) return s;
+    /* Remove tudo exceto dígitos, vírgula e ponto */
+    var clean = s.replace(/[^0-9,.-]/g, '');
+    /* Converte formato pt-BR para número */
+    var n = Number(clean.replace(/\./g, '').replace(',', '.'));
+    if(Number.isFinite(n) && n > 0) return n.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+    /* Fallback: retorna o valor original se não conseguiu converter */
+    return s || '';
+  }
+
+  /* ── Fix 3: renderizar itens do checklist do card ── */
+  function renderCardItems(c){
+    var items = c.itensChecklist || [];
+    if(!items.length){
+      /* fallback: tentar criar de c.itens */
+      var raw = String(c.itens || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+      if(!raw.length) return '<p style="color:#999">Nenhum item cadastrado.</p>';
+      items = raw.map(function(t, i){ return {id:'it_'+i, title:t, done:false}; });
+    }
+    return '<ul style="margin:0;padding-left:18px">'+items.map(function(it){
+      return '<li style="padding:4px 0;font-size:13.5px">'+esc(it.title||'')+'</li>';
+    }).join('')+'</ul>';
+  }
+
+  /* toggle item do imóvel */
+  window.npcKanbanToggleItem = function(cardId, itemId, checked){
+    var cards = getDb().kanbanCards || [];
+    var c = cards.find(function(x){ return String(x.id)===String(cardId); });
+    if(!c) return;
+    var it = (c.itensChecklist||[]).find(function(x){ return String(x.id)===String(itemId); });
+    if(!it) return;
+    it.done = !!checked;
+    if(checked){ it.doneBy=getCur().id||''; it.doneByName=getCur().name||getCur().email||'?'; it.doneAt=new Date().toISOString(); }
+    else { it.doneBy=''; it.doneByName=''; it.doneAt=''; }
+    c.updatedAt = new Date().toISOString(); c.updatedBy = getCur().id||'';
+    try{ if(typeof save==='function') save(); }catch(e){}
+    window.openKanbanCardView(cardId);
+  };
+
+  /* ── Fix 1: helper — nome do usuário responsável ── */
+  function ownerName(ownerId){
+    if(!ownerId) return 'Não atribuído';
+    var u = (getDb().users||[]).find(function(x){
+      return String(x.id||x.uid||x.email||'') === String(ownerId);
+    });
+    return u ? (u.name || u.email || ownerId) : ownerId;
+  }
+
+  /* ── Fix 1: select de responsável para o modal de edição ── */
+  function ownerSelect(currentOwnerId){
+    var users = (getDb().users||[]).filter(function(u){ return u.active !== false; });
+    var cur = String(currentOwnerId || getCur().id || '');
+    return '<select id="kbOwner" style="width:100%">'
+      + users.map(function(u){
+          var id = String(u.id || u.uid || u.email || '');
+          var sel = id === cur ? 'selected' : '';
+          return '<option value="'+esc(id)+'" '+sel+'>'+esc(u.name||u.email||'Usuário')+'</option>';
+        }).join('')
+      + '</select>';
+  }
+
+  /* ── Substituição completa do openKanbanCardView ── */
+  window.openKanbanCardView = function(cardId){
+    var cards = (Array.isArray(getDb().kanbanCards) ? getDb().kanbanCards : []);
+    var c = cards.find(function(x){ return String(x.id) === String(cardId); });
+    if(!c){ if(typeof toast==='function') toast('Card não encontrado.','warn'); return; }
+
+    /* marcar mensagens como lidas */
+    var uid = getCur().id || '';
+    if(c.messages && c.messages.length){
+      c.messages.forEach(function(m){ if(!m.readBy) m.readBy={}; m.readBy[uid]=true; });
+    }
+
+    /* condições de pagamento */
+    var _pcArr = (function(card){
+      if(Array.isArray(card.paymentConditions) && card.paymentConditions.length) return card.paymentConditions;
+      var legacy = [];
+      ['A','B','C'].forEach(function(l){
+        var v = card['pagamento'+l];
+        if(v && String(v).trim()) legacy.push({label:l, value:String(v).trim(), observation:''});
+      });
+      return legacy;
+    })(c);
+    var _payHtml = _pcArr.length
+      ? _pcArr.map(function(p){ return '<p><b>'+esc(p.label||'')+':</b> '+esc(p.value||'')+(p.observation?' — '+esc(p.observation):'')+'</p>'; }).join('')
+      : '<p style="color:#999">Nenhuma condição cadastrada.</p>';
+
+    /* checklist de responsáveis */
+    var checklistHtml = (c.checklist||[]).map(function(ck, i){
+      var done = ck.done;
+      var canEdit = (typeof canEditCard==='function') ? canEditCard(c) : true;
+      var dis = canEdit ? '' : 'disabled';
+      return '<label class="kanban-check-row">'
+        +'<input type="checkbox" '+(done?'checked':'')+' '+dis
+        +' onchange="window.npcKanbanToggleCk(\''+esc(String(c.id))+'\',\''+esc(String(ck.id||('ck_'+i)))+'\',this.checked)">'
+        +'<span>'+(typeof safeHtml==='function'?safeHtml(ck.title):esc(ck.title))
+        +(done ? '<small>Concluído por '+esc(ck.doneByName||ck.doneBy||'?')+' em '+(ck.doneAt?new Date(ck.doneAt).toLocaleString('pt-BR'):'')+'</small>'
+               : '<small>Pendente</small>')
+        +'</span></label>';
+    }).join('');
+
+    /* itens do imóvel — Fix 3 */
+    var itemsHtml = renderCardItems(c);
+
+    /* obs */
+    var obsHtml = c.obs ? '<div class="kanban-info" style="margin-top:12px"><h4>Observações</h4><p>'+esc(c.obs)+'</p></div>' : '';
+
+    /* valor da venda — Fix 2 */
+    var valorFormatado = formatMoney(c.valorVenda);
+
+    /* responsável — Fix 1 */
+    var ownerDisplay = ownerName(c.ownerId || c.createdBy);
+
+    /* painel de dados */
+    var dadosPanel = '<div class="kanban-detail">'
+      +'<div>'
+      +'<div class="kanban-info">'
+      +'<h4>Dados da negociação</h4>'
+      +(valorFormatado ? '<p><b>Valor da venda:</b> '+esc(valorFormatado)+'</p>' : '')
+      +'<p><b>Comissão:</b> '+esc(c.comissao||'')+'</p>'
+      +'<p><b>Posse:</b> '+esc(c.posse||'')+'</p>'
+      +'<p><b>Usuário responsável:</b> '+esc(ownerDisplay)+'</p>'
+      +'<p><b>Vendedor(a):</b> '+esc(c.vendedora||'')+(c.emailVendedora?' — '+esc(c.emailVendedora):'')+'</p>'
+      +'<p><b>Comprador(a):</b> '+esc(c.compradora||'')+(c.emailCompradora?' — '+esc(c.emailCompradora):'')+'</p>'
+      +'<p><b>Documentos enviados por:</b> '+esc(c.documentos||'')+'</p>'
+      +'</div>'
+      +'<div class="kanban-info" style="margin-top:12px"><h4>Condições de pagamento</h4>'+_payHtml+'</div>'
+      +'<div class="kanban-info" style="margin-top:12px"><h4>Itens que permanecerão no imóvel</h4>'
+      +'<div class="kanban-check">'+itemsHtml+'</div></div>'
+      +obsHtml
+      +'</div>'
+      +'<div><h4 style="margin-top:0">Checklist com responsável</h4><div class="kanban-check">'+checklistHtml+'</div></div>'
+      +'</div>';
+
+    /* painel de documentos */
+    var docs = c.attachments || [];
+    var docList = docs.length ? docs.map(function(d,i){
+      var canDel = !!(getCur().perms && (getCur().perms.performance_kanban_gestao || getCur().perms.view_all_users));
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--linha);border-radius:8px;margin-bottom:6px">'
+        +'<span style="font-size:22px">📎</span>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(d.name)+'</div>'
+        +'<div style="font-size:11px;color:var(--muted)">'+new Date(d.uploadedAt).toLocaleString('pt-BR')+' · '+esc(d.uploadedByName||'?')+'</div></div>'
+        +'<a href="'+d.data+'" download="'+esc(d.name)+'" style="color:var(--amarelo);font-weight:700;text-decoration:none;white-space:nowrap">⬇ Baixar</a>'
+        +(canDel ? ' <button class="danger" style="font-size:11px;padding:4px 8px;margin-left:6px" onclick="window.npcDeleteAttachment(\''+esc(String(c.id))+'\','+i+')">×</button>' : '')
+        +'</div>';
+    }).join('') : '<p style="color:#999;margin:18px 0">Nenhum documento anexado ainda.</p>';
+
+    var docsPanel = '<div style="padding:4px 0">'+docList
+      +'<div style="margin-top:16px;border:2px dashed var(--linha);border-radius:12px;padding:18px;text-align:center">'
+      +'<p style="color:var(--muted);margin:0 0 10px"><b>Anexar documento</b><br><small>PDF, imagem ou arquivo (máx. 4 MB)</small></p>'
+      +'<input type="file" id="npcAttachFile" accept="*/*" style="display:none" onchange="window.npcUploadAttachment(\''+esc(String(c.id))+'\')">'
+      +'<button class="secondary" onclick="document.getElementById(\'npcAttachFile\').click()">📎 Escolher arquivo</button>'
+      +'</div></div>';
+
+    /* painel de chat */
+    var msgs = c.messages || [];
+    var canManageChat = !!(getCur().perms && (getCur().perms.performance_kanban_gestao || getCur().perms.view_all_users));
+    var isOwner = String(c.ownerId||'') === String(uid) || String(c.createdBy||'') === String(uid);
+    var canChat = canManageChat || isOwner;
+
+    var msgsHtml = msgs.length ? msgs.map(function(m){
+      var isMe = String(m.uid||'') === String(uid);
+      return '<div class="npc-chat-msg'+(isMe?'':' other')+'">'
+        +'<div class="npc-chat-author">'+esc(m.name||'Usuário')+'<span>'+new Date(m.createdAt).toLocaleString('pt-BR')+'</span></div>'
+        +'<div>'+esc(m.text)+'</div></div>';
+    }).join('') : '<p style="color:#999;text-align:center;margin:24px 0">Nenhuma mensagem ainda.</p>';
+
+    var chatPanel = '<div class="npc-chat-box" style="margin:0">'
+      +'<div class="npc-chat-messages" id="npcChatMessages">'+msgsHtml+'</div>';
+    if(canChat){
+      chatPanel += '<textarea id="npcChatInput" class="npc-chat-input" placeholder="Digite uma mensagem para o responsável e administradores..."></textarea>'
+        +'<div class="npc-chat-actions">'
+        +'<button class="primary" onclick="window.npcSendChatMsg(\''+esc(String(c.id))+'\')">Enviar mensagem</button>'
+        +'</div>';
+    } else {
+      chatPanel += '<p style="color:var(--muted);font-size:12px;margin:10px 0 0">Apenas o responsável pelo card e administradores podem enviar mensagens.</p>';
+    }
+    chatPanel += '</div>';
+
+    /* abas */
+    var unreadCount = msgs.filter(function(m){ return String(m.uid||'')!==String(uid) && (!m.readBy||!m.readBy[uid]); }).length;
+    var chatBadge = unreadCount > 0 ? ' <span style="background:var(--amarelo);color:#222;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">'+unreadCount+'</span>' : '';
+
+    var tabStyle = 'display:inline-block;padding:8px 18px;cursor:pointer;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;border:1px solid var(--linha);border-bottom:none;background:var(--bg);margin-right:4px;';
+    var tabActiveStyle = 'display:inline-block;padding:8px 18px;cursor:pointer;border-radius:8px 8px 0 0;font-weight:600;font-size:13px;border:1px solid var(--linha);border-bottom:2px solid var(--amarelo);background:#fff;margin-right:4px;';
+
+    var canEdit = (typeof canEditCard==='function') ? canEditCard(c) : true;
+    var editBtn = canEdit ? '<button class="primary" onclick="openKanbanCardModal(\'\', \''+esc(String(c.id))+'\')">Editar venda</button>' : '';
+
+    var modalBody = '<div id="npcCardTabBar" style="margin-bottom:-1px;border-bottom:1px solid var(--linha)">'
+      +'<span id="npcTab_dados" style="'+tabActiveStyle+'" onclick="window.npcCardTab(\'dados\')">📋 Detalhes</span>'
+      +'<span id="npcTab_docs" style="'+tabStyle+'" onclick="window.npcCardTab(\'docs\')">📎 Documentos'+(docs.length?' <b>('+docs.length+')</b>':'')+'</span>'
+      +'<span id="npcTab_chat" style="'+tabStyle+'" onclick="window.npcCardTab(\'chat\')">💬 Chat'+chatBadge+'</span>'
+      +'</div>'
+      +'<div id="npcTabPanel_dados" style="margin-top:14px">'+dadosPanel+'</div>'
+      +'<div id="npcTabPanel_docs" style="margin-top:14px;display:none">'+docsPanel+'</div>'
+      +'<div id="npcTabPanel_chat" style="margin-top:14px;display:none">'+chatPanel+'</div>'
+      +'<div class="actions" style="margin-top:16px">'+editBtn+'<button class="secondary" onclick="closeModal()">Fechar</button></div>';
+
+    if(typeof openModal==='function') openModal(c.title||'Card', modalBody);
+    setTimeout(function(){ var cm=byId('npcChatMessages'); if(cm) cm.scrollTop=cm.scrollHeight; }, 80);
+  };
+
+  /* ── Fix 1: openKanbanCardModal — adiciona campo "Usuário responsável" para admins ── */
+  /* Patch do modal de edição: substituir label "Documentos enviados por" + add campo responsável */
+  var _origEditModal = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(columnId, cardId){
+    /* chama o original */
+    var result = _origEditModal ? _origEditModal.apply(this, arguments) : undefined;
+    /* após o modal abrir, adiciona o campo Usuário Responsável se for admin/gestor */
+    setTimeout(function(){
+      var canManage = !!(getCur().perms && (getCur().perms.performance_kanban_gestao || getCur().perms.view_all_users || getCur().perms.usuarios_gerenciar));
+      if(!canManage) return;
+      /* verifica se já foi adicionado */
+      if(byId('npcOwnerField')) return;
+      /* encontra o label "Documentos enviados por" ou qualquer campo de referência */
+      var modal = document.querySelector('.modal-body');
+      if(!modal) return;
+      /* busca o card atual */
+      var cards = getDb().kanbanCards || [];
+      var cId = String(cardId || '');
+      var c = cId ? cards.find(function(x){ return String(x.id)===cId; }) : null;
+      var currentOwner = c ? (c.ownerId || c.createdBy || getCur().id || '') : (getCur().id || '');
+
+      /* injeta campo de responsável antes das ações */
+      var actions = modal.querySelector('.actions.kanban-form-actions') || modal.querySelector('.actions');
+      if(!actions) return;
+      var div = document.createElement('div');
+      div.id = 'npcOwnerField';
+      div.className = 'field';
+      div.innerHTML = '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Usuário responsável</label>'
+        + ownerSelect(currentOwner);
+      actions.parentNode.insertBefore(div, actions);
+    }, 60);
+    return result;
+  };
+
+  /* ── Fix 4: garantir que condições de pagamento carregam ao editar ── */
+  /* O problema: há duas versões do modal (869 e 4333), cada uma com ID diferente
+     loadPaymentConditions usa 'paymentConditionsEditor', mas a versão 869 usa 'paymentConditionsWrap'
+     Solução: fazer loadPaymentConditions funcionar com qualquer dos dois IDs */
+  var _origLoad = window.loadPaymentConditions;
+  window.loadPaymentConditions = function(card){
+    /* tenta os dois IDs possíveis */
+    var box = byId('paymentConditionsEditor') || byId('paymentConditionsWrap');
+    if(!box){ if(_origLoad) return _origLoad.apply(this, arguments); return; }
+    box.innerHTML = '';
+    var arr = (typeof ensurePaymentConditions==='function') ? ensurePaymentConditions(card||{}) : (card&&card.paymentConditions)||[];
+    if(!arr.length) arr = [{label:'A', value:'', observation:''}];
+    arr.forEach(function(p){ if(typeof window.addPaymentCondition==='function') window.addPaymentCondition(p); });
+  };
+
+  /* também sobrescreve renderPaymentConditions para usar qualquer dos dois IDs */
+  window.renderPaymentConditions = function(c){
+    setTimeout(function(){
+      var box = byId('paymentConditionsWrap') || byId('paymentConditionsEditor');
+      if(!box) return;
+      box.innerHTML = '';
+      var arr = (typeof ensurePaymentConditions==='function') ? ensurePaymentConditions(c||{}) : [];
+      if(!arr.length) arr = [{label:'A', value:'', observation:''}];
+      arr.forEach(function(p){ if(typeof window.addPaymentCondition==='function') window.addPaymentCondition(p); });
+    }, 0);
+  };
+
+  /* collectPaymentConditions também deve funcionar com qualquer dos dois IDs */
+  window.collectPaymentConditions = function(){
+    var box = byId('paymentConditionsEditor') || byId('paymentConditionsWrap');
+    if(!box) return [];
+    return Array.from(box.children).map(function(r, i){
+      var valEl = r.querySelector('.pc-value');
+      var obsEl = r.querySelector('.pc-obs');
+      return {
+        label: String.fromCharCode(65+i),
+        value: valEl ? valEl.value : '',
+        observation: obsEl ? obsEl.value : ''
+      };
+    });
+  };
+
+  /* garante que saveKanbanCard inclui ownerId do campo injetado */
+  var _origSaveCard = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var result = _origSaveCard ? _origSaveCard.apply(this, arguments) : undefined;
+    /* após salvar, aplica o ownerId do select injetado ao card */
+    var ownerEl = byId('kbOwner') || (byId('npcOwnerField') && byId('npcOwnerField').querySelector('select'));
+    if(ownerEl && ownerEl.value){
+      var cId = String(cardId || '');
+      var cards = getDb().kanbanCards || [];
+      var card = cId ? cards.find(function(x){ return String(x.id)===cId; }) : cards[cards.length-1];
+      if(card){
+        card.ownerId = ownerEl.value;
+        try{ if(typeof save==='function') save(); }catch(e){}
+      }
+    }
+    return result;
+  };
+
+  console.log('[V108] Correções do modal de card aplicadas.');
 })();
 </script>
