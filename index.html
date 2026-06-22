@@ -2100,7 +2100,8 @@ function save(){
 const LEAD_QUEUES=[
   {id:'corretores_parceiros',label:'CORRETORES PARCEIROS'},
   {id:'clientes_indicacao',label:'CLIENTES DE INDICAÇÃO'},
-  {id:'dia_a_dia_qualificados',label:'DIA A DIA CLIENTES QUALIFICADOS'}
+  {id:'dia_a_dia_qualificados',label:'DIA A DIA CLIENTES QUALIFICADOS'},
+  {id:'menos_400k',label:'MENOS DE R$ 400.000,00'}
 ];
 function leadQueueLabel(id){return LEAD_QUEUES.find(q=>q.id===id)?.label||id}
 function leadCorretores(){ensureOpsData();return (db.users||[]).filter(u=>u.active!==false && (u.role||'').toLowerCase().includes('corretor')).sort((a,b)=>(a.name||'').localeCompare(b.name||'','pt-BR'))}
