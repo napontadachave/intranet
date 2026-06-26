@@ -13902,3 +13902,61 @@ body:has(#login:not(.hidden)) #app.hidden{
   console.log('[V108] Correções do modal de card aplicadas.');
 })();
 </script>
+
+<!-- PATCH V109: Leads - manter botao de pular corretor dentro da previa final -->
+<script>
+(function(){
+  if(window.__npcV109LeadSkipPreviewFix) return;
+  window.__npcV109LeadSkipPreviewFix = true;
+
+  function byId(id){ return document.getElementById(id); }
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];
+    });
+  }
+  function canSkipLeadQueue(){
+    try{ if(typeof has === 'function' && has('leads_pular_corretor')) return true; }catch(e){}
+    try{
+      var c = window.current || (typeof current !== 'undefined' ? current : null);
+      return !!(c && c.perms && c.perms.leads_pular_corretor === true);
+    }catch(e){ return false; }
+  }
+  function currentQueue(){
+    var select = byId('leadQueue');
+    if(select && select.value) return select.value;
+    try{
+      if(typeof LEAD_QUEUES !== 'undefined' && LEAD_QUEUES && LEAD_QUEUES[0]) return LEAD_QUEUES[0].id;
+    }catch(e){}
+    return '';
+  }
+
+  window.updateLeadNextPreview = function(){
+    var box = byId('leadNextPreview');
+    if(!box) return;
+
+    var n = null;
+    try{ n = typeof leadNextCorretor === 'function' ? leadNextCorretor(currentQueue()) : null; }catch(e){}
+    if(!n || !n.user){
+      box.innerHTML = '<b>Nenhum corretor ativo encontrado.</b>';
+      return;
+    }
+
+    var name = n.user.name || n.user.nome || n.user.email || '';
+    var email = n.user.email || '';
+    var total = n.all && n.all.length ? n.all.length : 1;
+    var skipBtn = canSkipLeadQueue()
+      ? '<button type="button" class="secondary npc-lead-skip-btn" onclick="skipLeadCorretor()">Pular corretor</button>'
+      : '';
+
+    box.innerHTML =
+      '<div class="npc-lead-next-row">' +
+        skipBtn +
+        '<div><b>' + esc(name) + '</b><br><span class="sub">' +
+          esc(email) + ' &middot; posicao ' + ((Number(n.idx) || 0) + 1) + '/' + total +
+        '</span></div>' +
+      '</div>';
+  };
+  try{ updateLeadNextPreview = window.updateLeadNextPreview; }catch(e){}
+})();
+</script>
