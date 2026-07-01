@@ -13960,3 +13960,589 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{ updateLeadNextPreview = window.updateLeadNextPreview; }catch(e){}
 })();
 </script>
+
+<!-- PATCH V110: Comissão em texto livre + campo "Parceria?" (sim/não) e Comissão da parceria -->
+<script>
+(function(){
+  if(window.__npcV110ParceriaComissao) return;
+  window.__npcV110ParceriaComissao = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function cardsRef(){ var d=dbRef(); return Array.isArray(d.kanbanCards) ? d.kanbanCards : []; }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error(e); } }
+  function escAttrSafe(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escSafe(v){ return escAttrSafe(v); }
+
+  /* alterna o bloqueio do campo "Comissão da parceria" (fica sempre visível, mas só edita se Parceria = Sim) */
+  window.__npcToggleComissaoParceria = function(){
+    var sel = document.getElementById('kbParceria');
+    var input = document.getElementById('kbComissaoParceria');
+    if(!sel || !input) return;
+    var liberado = sel.value === 'sim';
+    input.disabled = !liberado;
+    input.style.background = liberado ? '' : '#f2f3f5';
+    input.style.color = liberado ? '' : '#9aa0aa';
+    input.style.cursor = liberado ? '' : 'not-allowed';
+    if(!liberado) input.value = '';
+  };
+
+  /* -- 1) Modal de Nova/Editar venda: Comissao vira texto livre + campo Parceria -- */
+  var _origOpenModalV110 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(columnId, cardId){
+    var result = _origOpenModalV110 ? _origOpenModalV110.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        var c = cardId ? cardsRef().find(function(x){ return String(x.id) === String(cardId); }) : null;
+
+        var comissaoEl = document.getElementById('kbComissao');
+        if(comissaoEl && comissaoEl.tagName === 'SELECT'){
+          var atual = (c && c.comissao) || comissaoEl.value || '';
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.id = 'kbComissao';
+          input.placeholder = 'Ex.: 5% ou R$ 3.000,00';
+          input.value = atual;
+          comissaoEl.parentNode.replaceChild(input, comissaoEl);
+          comissaoEl = input;
+        }
+        if(!comissaoEl) return;
+
+        if(document.getElementById('kbParceria')) return;
+
+        var comissaoFieldDiv = comissaoEl.closest('.field');
+        if(!comissaoFieldDiv) return;
+
+        var parceriaVal = (c && c.parceria === 'sim') ? 'sim' : 'nao';
+        var comissaoParceriaVal = (c && c.comissaoParceria) || '';
+
+        var wrapParceria = document.createElement('div');
+        wrapParceria.className = 'field';
+        wrapParceria.id = 'kbParceriaFieldWrap';
+        wrapParceria.innerHTML =
+          '<label>Parceria?</label>' +
+          '<select id="kbParceria" onchange="window.__npcToggleComissaoParceria()">' +
+            '<option value="nao"' + (parceriaVal !== 'sim' ? ' selected' : '') + '>Não</option>' +
+            '<option value="sim"' + (parceriaVal === 'sim' ? ' selected' : '') + '>Sim</option>' +
+          '</select>';
+
+        var wrapComissaoParceria = document.createElement('div');
+        wrapComissaoParceria.className = 'field';
+        wrapComissaoParceria.id = 'kbComissaoParceriaWrap';
+        var liberadoInicial = (parceriaVal === 'sim');
+        wrapComissaoParceria.innerHTML =
+          '<label>Comissão da parceria</label>' +
+          '<input type="text" id="kbComissaoParceria" placeholder="Ex.: 2% ou R$ 1.000,00" value="' + escAttrSafe(comissaoParceriaVal) + '"' + (liberadoInicial ? '' : ' disabled') + ' style="' + (liberadoInicial ? '' : 'background:#f2f3f5;color:#9aa0aa;cursor:not-allowed;') + '">';
+
+        comissaoFieldDiv.parentNode.insertBefore(wrapParceria, comissaoFieldDiv.nextSibling);
+        wrapParceria.parentNode.insertBefore(wrapComissaoParceria, wrapParceria.nextSibling);
+      }catch(e){ console.error('[V110] Erro ao montar campos de Parceria:', e); }
+    }, 80);
+    return result;
+  };
+
+  /* -- 2) Salvamento: grava parceria e comissaoParceria no card -- */
+  var _origSaveCardV110 = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var parceriaEl = document.getElementById('kbParceria');
+    var comissaoParceriaEl = document.getElementById('kbComissaoParceria');
+    var parceriaVal = (parceriaEl && parceriaEl.value === 'sim') ? 'sim' : 'nao';
+    var comissaoParceriaVal = comissaoParceriaEl ? comissaoParceriaEl.value.trim() : '';
+    var cId = String(cardId || '');
+
+    function aplicar(card){
+      if(!card) return;
+      card.parceria = parceriaVal;
+      card.comissaoParceria = (parceriaVal === 'sim') ? comissaoParceriaVal : '';
+    }
+
+    if(cId){
+      /* edição: grava ANTES do salvamento original, assim tudo sobe junto em uma única gravação no Firebase */
+      try{ aplicar(cardsRef().find(function(x){ return String(x.id) === cId; })); }
+      catch(e){ console.error('[V110] Erro ao preparar Parceria (edição):', e); }
+      return _origSaveCardV110 ? _origSaveCardV110.apply(this, arguments) : undefined;
+    }
+
+    /* card novo: só existe depois do salvamento original.
+       Não chamamos save() aqui de novo — quem finaliza com uma única gravação
+       combinando todos os campos extras é a camada mais externa (V111). */
+    var result = _origSaveCardV110 ? _origSaveCardV110.apply(this, arguments) : undefined;
+    try{
+      var lista = cardsRef();
+      aplicar(lista[lista.length - 1]);
+    }catch(e){ console.error('[V110] Erro ao preparar Parceria (novo):', e); }
+    return result;
+  };
+
+  /* -- 3) Card no quadro (mini-card): exibe "Parceria" quando houver -- */
+  function injetarParceriaNosCards(){
+    try{
+      var lista = cardsRef();
+      var els = document.querySelectorAll('.kanban-card');
+      els.forEach(function(el){
+        if(el.querySelector('.npc-parceria-tag')) return;
+        var botoes = el.querySelectorAll('.mini-line button');
+        var id = '';
+        botoes.forEach(function(b){
+          var on = b.getAttribute('onclick') || '';
+          var m = on.match(/openKanbanCardModal\('',\s*'([^']*)'\)/);
+          if(m) id = m[1];
+        });
+        if(!id) return;
+        var c = lista.find(function(x){ return String(x.id) === id; });
+        if(!c || c.parceria !== 'sim') return;
+        var p = document.createElement('p');
+        p.className = 'npc-parceria-tag';
+        p.innerHTML = '<b>Parceria:</b> Sim' + (c.comissaoParceria ? ' — <b>Comissão parceria:</b> ' + escSafe(c.comissaoParceria) : '');
+        var miniLine = el.querySelector('.mini-line');
+        if(miniLine) el.insertBefore(p, miniLine); else el.appendChild(p);
+      });
+    }catch(e){ console.error('[V110] Erro ao exibir Parceria nos cards:', e); }
+  }
+  var _origRenderKanbanV110 = window.render_perf_kanban;
+  window.render_perf_kanban = function(){
+    var result = _origRenderKanbanV110 ? _origRenderKanbanV110.apply(this, arguments) : undefined;
+    setTimeout(injetarParceriaNosCards, 30);
+    return result;
+  };
+
+  /* -- 4) Modal "Abrir" (visualizacao do card): exibe detalhe de Parceria -- */
+  var _origOpenViewV110 = window.openKanbanCardView;
+  window.openKanbanCardView = function(cardId){
+    var result = _origOpenViewV110 ? _origOpenViewV110.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        var c = cardsRef().find(function(x){ return String(x.id) === String(cardId); });
+        if(!c) return;
+        var paragrafos = document.querySelectorAll('.kanban-info p');
+        var comissaoP = null;
+        paragrafos.forEach(function(p){
+          if(!comissaoP && p.textContent.trim().indexOf('Comissão:') === 0) comissaoP = p;
+        });
+        if(!comissaoP) return;
+        if(comissaoP.nextElementSibling && comissaoP.nextElementSibling.classList && comissaoP.nextElementSibling.classList.contains('npc-parceria-detail')) return;
+        var p2 = document.createElement('p');
+        p2.className = 'npc-parceria-detail';
+        p2.innerHTML = '<b>Parceria:</b> ' + (c.parceria === 'sim' ? 'Sim' : 'Não') +
+          ((c.parceria === 'sim' && c.comissaoParceria) ? ' — <b>Comissão da parceria:</b> ' + escSafe(c.comissaoParceria) : '');
+        comissaoP.parentNode.insertBefore(p2, comissaoP.nextSibling);
+      }catch(e){ console.error('[V110] Erro ao exibir detalhe de Parceria:', e); }
+    }, 60);
+    return result;
+  };
+
+  console.log('[V110] Comissão em texto livre + Parceria aplicados.');
+})();
+</script>
+
+<!-- PATCH V111: Telefone do vendedor/comprador + suporte a múltiplos vendedores e compradores -->
+<script>
+(function(){
+  if(window.__npcV111MultiPessoas) return;
+  window.__npcV111MultiPessoas = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function cardsRef(){ var d=dbRef(); return Array.isArray(d.kanbanCards) ? d.kanbanCards : []; }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error(e); } }
+  function escAttrSafe(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escSafe(v){ return escAttrSafe(v); }
+
+  function personRowHTML(data){
+    data = data || {};
+    return '<div class="npc-person-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px">' +
+      '<input type="text" class="npc-person-nome" placeholder="Nome" value="' + escAttrSafe(data.nome || '') + '">' +
+      '<input type="text" class="npc-person-email" placeholder="E-mail" value="' + escAttrSafe(data.email || '') + '">' +
+      '<input type="text" class="npc-person-telefone" placeholder="Telefone" value="' + escAttrSafe(data.telefone || '') + '">' +
+      '<button type="button" class="danger" style="padding:8px 10px" onclick="window.__npcRemovePersonRow(this)">×</button>' +
+    '</div>';
+  }
+
+  window.__npcAddPersonRow = function(listId, data){
+    var list = document.getElementById(listId);
+    if(!list) return;
+    var holder = document.createElement('div');
+    holder.innerHTML = personRowHTML(data || {});
+    list.appendChild(holder.firstChild);
+  };
+
+  window.__npcRemovePersonRow = function(btn){
+    var row = btn.closest('.npc-person-row');
+    if(row) row.remove();
+  };
+
+  function collectPersons(listId){
+    var list = document.getElementById(listId);
+    if(!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll('.npc-person-row'), function(row){
+      var nomeEl = row.querySelector('.npc-person-nome');
+      var emailEl = row.querySelector('.npc-person-email');
+      var telEl = row.querySelector('.npc-person-telefone');
+      return {
+        nome: nomeEl ? nomeEl.value.trim() : '',
+        email: emailEl ? emailEl.value.trim() : '',
+        telefone: telEl ? telEl.value.trim() : ''
+      };
+    }).filter(function(p){ return p.nome || p.email || p.telefone; });
+  }
+
+  /* -- 1) Modal de Nova/Editar venda: telefone + múltiplos vendedores/compradores -- */
+  var _origOpenModalV111 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(columnId, cardId){
+    var result = _origOpenModalV111 ? _origOpenModalV111.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        if(document.getElementById('kbVendedoresList')) return;
+
+        var c = cardId ? cardsRef().find(function(x){ return String(x.id) === String(cardId); }) : null;
+
+        var vendEl = document.getElementById('kbVendedora');
+        var vendEmailEl = document.getElementById('kbEmailVendedora');
+        var compEl = document.getElementById('kbCompradora');
+        var compEmailEl = document.getElementById('kbEmailCompradora');
+        if(!vendEl || !compEl) return;
+
+        var vendFieldDiv = vendEl.closest('.field');
+        var vendEmailFieldDiv = vendEmailEl ? vendEmailEl.closest('.field') : null;
+        var compFieldDiv = compEl.closest('.field');
+        var compEmailFieldDiv = compEmailEl ? compEmailEl.closest('.field') : null;
+        if(!vendFieldDiv || !compFieldDiv) return;
+
+        /* oculta os campos únicos antigos (permanecem no DOM para compatibilidade com o salvamento original) */
+        [vendFieldDiv, vendEmailFieldDiv, compFieldDiv, compEmailFieldDiv].forEach(function(d){ if(d) d.style.display = 'none'; });
+
+        var vendedoresData = (c && Array.isArray(c.vendedores) && c.vendedores.length) ? c.vendedores :
+          ((c && (c.vendedora || c.emailVendedora || c.telefoneVendedora)) ? [{nome:c.vendedora||'', email:c.emailVendedora||'', telefone:c.telefoneVendedora||''}] : [{nome:'',email:'',telefone:''}]);
+        var compradoresData = (c && Array.isArray(c.compradores) && c.compradores.length) ? c.compradores :
+          ((c && (c.compradora || c.emailCompradora || c.telefoneComprador)) ? [{nome:c.compradora||'', email:c.emailCompradora||'', telefone:c.telefoneComprador||''}] : [{nome:'',email:'',telefone:''}]);
+
+        var vendSection = document.createElement('div');
+        vendSection.className = 'field';
+        vendSection.id = 'kbVendedoresSection';
+        vendSection.innerHTML =
+          '<label>Vendedor(a)(s)</label>' +
+          '<div style="font-size:11px;color:#888;margin-bottom:4px">Nome · E-mail · Telefone</div>' +
+          '<div id="kbVendedoresList">' + vendedoresData.map(personRowHTML).join('') + '</div>' +
+          '<button type="button" class="secondary" onclick="window.__npcAddPersonRow(\'kbVendedoresList\')">+ Adicionar vendedor(a)</button>';
+
+        var compSection = document.createElement('div');
+        compSection.className = 'field';
+        compSection.id = 'kbCompradoresSection';
+        compSection.innerHTML =
+          '<label>Comprador(a)(s)</label>' +
+          '<div style="font-size:11px;color:#888;margin-bottom:4px">Nome · E-mail · Telefone</div>' +
+          '<div id="kbCompradoresList">' + compradoresData.map(personRowHTML).join('') + '</div>' +
+          '<button type="button" class="secondary" onclick="window.__npcAddPersonRow(\'kbCompradoresList\')">+ Adicionar comprador(a)</button>';
+
+        var gridParent = vendFieldDiv.parentElement;
+        var afterGrid = gridParent.nextSibling;
+        gridParent.parentNode.insertBefore(vendSection, afterGrid);
+        gridParent.parentNode.insertBefore(compSection, vendSection.nextSibling);
+      }catch(e){ console.error('[V111] Erro ao montar campos de Vendedor(a)/Comprador(a):', e); }
+    }, 90);
+    return result;
+  };
+
+  /* -- 2) Salvamento: grava telefone + listas completas de vendedores/compradores -- */
+  var _origSaveCardV111 = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var vendedoresData = collectPersons('kbVendedoresList');
+    var compradoresData = collectPersons('kbCompradoresList');
+    var cId = String(cardId || '');
+
+    /* sincroniza os campos únicos (ocultos) para o salvamento original continuar funcionando */
+    var vendEl = document.getElementById('kbVendedora');
+    var vendEmailEl = document.getElementById('kbEmailVendedora');
+    var compEl = document.getElementById('kbCompradora');
+    var compEmailEl = document.getElementById('kbEmailCompradora');
+    if(vendEl) vendEl.value = vendedoresData.map(function(p){ return p.nome; }).filter(Boolean).join('; ');
+    if(vendEmailEl) vendEmailEl.value = vendedoresData.map(function(p){ return p.email; }).filter(Boolean).join('; ');
+    if(compEl) compEl.value = compradoresData.map(function(p){ return p.nome; }).filter(Boolean).join('; ');
+    if(compEmailEl) compEmailEl.value = compradoresData.map(function(p){ return p.email; }).filter(Boolean).join('; ');
+
+    function aplicar(card){
+      if(!card) return;
+      card.vendedores = vendedoresData;
+      card.compradores = compradoresData;
+      card.telefoneVendedora = vendedoresData.map(function(p){ return p.telefone; }).filter(Boolean).join('; ');
+      card.telefoneComprador = compradoresData.map(function(p){ return p.telefone; }).filter(Boolean).join('; ');
+    }
+
+    if(cId){
+      /* edição: grava ANTES do salvamento original, assim tudo sobe junto em uma única gravação no Firebase */
+      try{ aplicar(cardsRef().find(function(x){ return String(x.id) === cId; })); }
+      catch(e){ console.error('[V111] Erro ao preparar Vendedor(a)/Comprador(a) (edição):', e); }
+      return _origSaveCardV111 ? _origSaveCardV111.apply(this, arguments) : undefined;
+    }
+
+    /* card novo: só existe depois do salvamento original */
+    var result = _origSaveCardV111 ? _origSaveCardV111.apply(this, arguments) : undefined;
+    try{
+      var lista = cardsRef();
+      aplicar(lista[lista.length - 1]);
+      doSave();
+    }catch(e){ console.error('[V111] Erro ao salvar Vendedor(a)/Comprador(a) (novo):', e); }
+    return result;
+  };
+
+  /* -- 3) Card no quadro: exibe telefone(s) quando houver -- */
+  function injetarTelefonesNosCards(){
+    try{
+      var lista = cardsRef();
+      var els = document.querySelectorAll('.kanban-card');
+      els.forEach(function(el){
+        if(el.querySelector('.npc-tel-tag')) return;
+        var botoes = el.querySelectorAll('.mini-line button');
+        var id = '';
+        botoes.forEach(function(b){
+          var on = b.getAttribute('onclick') || '';
+          var m = on.match(/openKanbanCardModal\('',\s*'([^']*)'\)/);
+          if(m) id = m[1];
+        });
+        if(!id) return;
+        var c = lista.find(function(x){ return String(x.id) === id; });
+        if(!c) return;
+        var linhas = [];
+        if(Array.isArray(c.vendedores) && c.vendedores.some(function(p){ return p.telefone; })){
+          linhas.push('<b>Tel. vendedor(a):</b> ' + c.vendedores.filter(function(p){ return p.telefone; }).map(function(p){ return escSafe(p.telefone); }).join('; '));
+        }
+        if(Array.isArray(c.compradores) && c.compradores.some(function(p){ return p.telefone; })){
+          linhas.push('<b>Tel. comprador(a):</b> ' + c.compradores.filter(function(p){ return p.telefone; }).map(function(p){ return escSafe(p.telefone); }).join('; '));
+        }
+        if(!linhas.length) return;
+        var p = document.createElement('p');
+        p.className = 'npc-tel-tag';
+        p.innerHTML = linhas.join('<br>');
+        var miniLine = el.querySelector('.mini-line');
+        if(miniLine) el.insertBefore(p, miniLine); else el.appendChild(p);
+      });
+    }catch(e){ console.error('[V111] Erro ao exibir telefones nos cards:', e); }
+  }
+  var _origRenderKanbanV111 = window.render_perf_kanban;
+  window.render_perf_kanban = function(){
+    var result = _origRenderKanbanV111 ? _origRenderKanbanV111.apply(this, arguments) : undefined;
+    setTimeout(injetarTelefonesNosCards, 40);
+    return result;
+  };
+
+  /* -- 4) Modal "Abrir": detalha nome, e-mail e telefone de cada vendedor(a)/comprador(a) -- */
+  var _origOpenViewV111 = window.openKanbanCardView;
+  window.openKanbanCardView = function(cardId){
+    var result = _origOpenViewV111 ? _origOpenViewV111.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        var c = cardsRef().find(function(x){ return String(x.id) === String(cardId); });
+        if(!c) return;
+
+        var paragrafos = document.querySelectorAll('.kanban-info p');
+        var vendP = null, compP = null;
+        paragrafos.forEach(function(p){
+          var t = p.textContent.trim();
+          if(!vendP && t.indexOf('Vendedor(a):') === 0) vendP = p;
+          if(!compP && t.indexOf('Comprador(a):') === 0) compP = p;
+        });
+
+        function detailHTML(list, label){
+          if(!Array.isArray(list) || !list.length) return null;
+          var itens = list.map(function(p){
+            var partes = [escSafe(p.nome || '(sem nome)')];
+            if(p.email) partes.push(escSafe(p.email));
+            if(p.telefone) partes.push('Tel.: ' + escSafe(p.telefone));
+            return partes.join(' — ');
+          });
+          return '<b>' + label + ':</b><br>' + itens.join('<br>');
+        }
+
+        if(vendP && Array.isArray(c.vendedores) && c.vendedores.length){
+          var htmlV = detailHTML(c.vendedores, 'Vendedor(a)(s)');
+          if(htmlV) vendP.innerHTML = htmlV;
+        }
+        if(compP && Array.isArray(c.compradores) && c.compradores.length){
+          var htmlC = detailHTML(c.compradores, 'Comprador(a)(s)');
+          if(htmlC) compP.innerHTML = htmlC;
+        }
+      }catch(e){ console.error('[V111] Erro ao detalhar Vendedor(a)/Comprador(a):', e); }
+    }, 70);
+    return result;
+  };
+
+  console.log('[V111] Telefone e múltiplos vendedores/compradores aplicados.');
+})();
+</script>
+
+<!-- PATCH V112: Layout mais compacto para Valor/Comissão/Parceria/Posse/Documentos -->
+<script>
+(function(){
+  if(window.__npcV112CompactFields) return;
+  window.__npcV112CompactFields = true;
+
+  var _origOpenModalV112 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(){
+    var result = _origOpenModalV112 ? _origOpenModalV112.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        if(document.getElementById('kbCompactRow1')) return;
+
+        var valorEl = document.getElementById('kbValor');
+        var comissaoEl = document.getElementById('kbComissao');
+        var parceriaWrap = document.getElementById('kbParceriaFieldWrap');
+        var comissaoParceriaWrap = document.getElementById('kbComissaoParceriaWrap');
+        var posseEl = document.getElementById('kbPosse');
+        var documentosEl = document.getElementById('kbDocumentos');
+        if(!valorEl || !comissaoEl) return;
+
+        var valorField = valorEl.closest('.field');
+        var comissaoField = comissaoEl.closest('.field');
+        var posseField = posseEl ? posseEl.closest('.field') : null;
+        var documentosField = documentosEl ? documentosEl.closest('.field') : null;
+        if(!valorField || !comissaoField) return;
+
+        var originalGrid = valorField.parentElement;
+
+        /* Linha compacta 1: Valor da venda | Comissão | Parceria? | Comissão da parceria */
+        var row1 = document.createElement('div');
+        row1.className = 'grid';
+        row1.id = 'kbCompactRow1';
+        row1.style.cssText = 'grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:10px 0';
+        [valorField, comissaoField, parceriaWrap, comissaoParceriaWrap].forEach(function(el){
+          if(el) row1.appendChild(el);
+        });
+        originalGrid.parentNode.insertBefore(row1, originalGrid.nextSibling);
+
+        /* Linha compacta 2: Posse | Documentos enviados por */
+        var row2 = null;
+        if(posseField && documentosField){
+          row2 = document.createElement('div');
+          row2.className = 'grid';
+          row2.id = 'kbCompactRow2';
+          row2.style.cssText = 'grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 10px';
+          row2.appendChild(posseField);
+          row2.appendChild(documentosField);
+          row1.parentNode.insertBefore(row2, row1.nextSibling);
+        }
+
+        /* deixa os campos um pouco mais enxutos visualmente */
+        [row1, row2].forEach(function(grid){
+          if(!grid) return;
+          grid.querySelectorAll('.field').forEach(function(f){
+            f.style.setProperty('margin', '0', 'important');
+          });
+          grid.querySelectorAll('label').forEach(function(l){ l.style.fontSize = '10.5px'; });
+        });
+      }catch(e){ console.error('[V112] Erro ao compactar campos:', e); }
+    }, 150);
+    return result;
+  };
+
+  console.log('[V112] Layout compacto de Valor/Comissão/Parceria/Posse/Documentos aplicado.');
+})();
+</script>
+
+<!-- PATCH V113: Posse e Documentos enviados por viram texto livre -->
+<script>
+(function(){
+  if(window.__npcV113PosseDocsTexto) return;
+  window.__npcV113PosseDocsTexto = true;
+
+  function toTextInput(id, placeholder){
+    var el = document.getElementById(id);
+    if(!el || el.tagName !== 'SELECT') return;
+    var atual = el.value || '';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = id;
+    input.placeholder = placeholder;
+    input.value = atual;
+    el.parentNode.replaceChild(input, el);
+  }
+
+  var _origOpenModalV113 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(){
+    var result = _origOpenModalV113 ? _origOpenModalV113.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        toTextInput('kbPosse', 'Ex.: Na entrega das chaves');
+        toTextInput('kbDocumentos', 'Ex.: Comprador(a)');
+      }catch(e){ console.error('[V113] Erro ao converter Posse/Documentos:', e); }
+    }, 50);
+    return result;
+  };
+
+  console.log('[V113] Posse e Documentos enviados por convertidos para texto livre.');
+})();
+</script>
+
+<!-- PATCH V114: Preserva os filtros de data ao atualizar a tela automaticamente -->
+<script>
+(function(){
+  if(window.__npcV114PreserveDateFilters) return;
+  window.__npcV114PreserveDateFilters = true;
+
+  function snapshotFiltros(){
+    var map = {};
+    try{
+      document.querySelectorAll('#content input[type="date"][id], #content input[type="month"][id], #content select[id]').forEach(function(el){
+        if(el.value) map[el.id] = el.value;
+      });
+    }catch(e){}
+    return map;
+  }
+
+  function restoreFiltros(map){
+    var changed = false;
+    try{
+      Object.keys(map).forEach(function(id){
+        var el = document.getElementById(id);
+        if(!el) return;
+        if(el.tagName === 'INPUT' && (el.type === 'date' || el.type === 'month')){
+          if(el.value !== map[id]){
+            el.value = map[id];
+            changed = true;
+          }
+        } else if(el.tagName === 'SELECT'){
+          /* só restaura se o valor anterior ainda existir entre as opções atuais */
+          var existe = Array.prototype.some.call(el.options, function(o){ return o.value === map[id]; });
+          if(existe && el.value !== map[id]){
+            el.value = map[id];
+            changed = true;
+          }
+        }
+      });
+    }catch(e){ console.error('[V114] Erro ao restaurar filtros:', e); }
+    return changed;
+  }
+
+  /* Várias telas, ao serem reconstruídas, já consultam os dados automaticamente
+     usando os campos de filtro recém-criados (com valor padrão), antes de nós
+     restaurarmos o que o usuário havia escolhido. Por isso, quando um filtro
+     precisa ser restaurado, também reexecutamos a função de consulta da tela
+     (os botões "Consultar"/"Atualizar" chamam funções draw...()) para que o
+     resultado exibido reflita o filtro correto. */
+  function reconsultarFiltros(){
+    try{
+      var botoes = document.querySelectorAll('#content button[onclick]');
+      var chamados = {};
+      botoes.forEach(function(btn){
+        var on = btn.getAttribute('onclick') || '';
+        var m = on.match(/^\s*(draw[A-Za-z0-9_]*)\s*\(\s*\)\s*;?\s*$/);
+        if(m && !chamados[m[1]] && typeof window[m[1]] === 'function'){
+          chamados[m[1]] = true;
+          window[m[1]]();
+        }
+      });
+    }catch(e){ console.error('[V114] Erro ao reconsultar filtros:', e); }
+  }
+
+  var _origRenderV114 = window.render;
+  if(typeof _origRenderV114 === 'function'){
+    window.render = function(){
+      var snap = snapshotFiltros();
+      var result = _origRenderV114.apply(this, arguments);
+      var mudou = restoreFiltros(snap);
+      if(mudou) reconsultarFiltros();
+      return result;
+    };
+  }
+
+
+  console.log('[V114] Preservação dos filtros de data ao atualizar a tela aplicada.');
+})();
+</script>
