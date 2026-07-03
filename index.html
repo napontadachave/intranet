@@ -924,7 +924,7 @@ window.saveKanbanCard=function(cardId=''){
   window.deleteKanbanColumn=function(id){ensure();if(db.kanbanCards.some(c=>c.columnId===id)){toast('Não é possível excluir coluna com cards. Mova ou exclua os cards antes.');return}if(!confirm('Excluir esta coluna?'))return;db.kanbanColumns=db.kanbanColumns.filter(c=>c.id!==id);db.kanbanColumns.forEach((c,i)=>c.order=i+1);save();render_perf_kanban_gestao();toast('Coluna excluída.');};
   const oldClose=window.closeModal;window.closeModal=function(){if(oldClose)oldClose();if(window.__kanbanNeedsRefresh){window.__kanbanNeedsRefresh=false;try{render_perf_kanban();}catch(e){}}};
   const oldPayload=window.npcFirebasePayload;window.npcFirebasePayload=function(){const p=oldPayload?oldPayload():{};ensure();p.kanbanColumns=db.kanbanColumns||[];p.kanbanCards=db.kanbanCards||[];p.kanbanOptions=db.kanbanOptions||{};return p;};
-  const oldSave=window.save;window.save=function(){ensure();try{if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}if(window.firebaseDb&&window.firebaseAuth?.currentUser){const up={kanbanCards:db.kanbanCards||[]};if(canManage()){up.kanbanColumns=db.kanbanColumns||[];up.kanbanOptions=db.kanbanOptions||{};up.kanbanComissaoOptions=db.kanbanComissaoOptions||[];up.kanbanPosseOptions=db.kanbanPosseOptions||[];up.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];}firebaseDb.ref('/').update(up).catch(err=>{if(typeof toast==='function')toast('Erro ao salvar Kanban: '+err.message,'warn')});}if(oldSave)oldSave.apply(this,arguments);};
+  const oldSave=window.save;window.save=function(){ensure();safeSaveLocal(db);if(window.firebaseDb&&window.firebaseAuth?.currentUser){const up={kanbanCards:db.kanbanCards||[]};if(canManage()){up.kanbanColumns=db.kanbanColumns||[];up.kanbanOptions=db.kanbanOptions||{};up.kanbanComissaoOptions=db.kanbanComissaoOptions||[];up.kanbanPosseOptions=db.kanbanPosseOptions||[];up.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];}firebaseDb.ref('/').update(up).catch(err=>{if(typeof toast==='function')toast('Erro ao salvar Kanban: '+err.message,'warn')});}if(oldSave)oldSave.apply(this,arguments);};
   ensure();
 })();
 
@@ -952,6 +952,12 @@ const firebaseDb = firebase.database();
 try{ firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION); }catch(e){ console.error('Falha ao definir persistência de sessão:', e); }
 const DEFAULT_PASSWORD = '#Npc123';
 const $=id=>document.getElementById(id); const KEY='npc_intranet_producao_v20'; let current=null, page='dashboard';
+/* Por decisão do cliente, o banco de dados da intranet NÃO é mais persistido
+   no navegador (localStorage) em nenhuma hipótese — a única fonte de dados
+   é o Firebase. Esta função é mantida (em vez de removida) apenas para não
+   quebrar as dezenas de chamadas já existentes no código (save(), saveAll(),
+   loadCloudDb() etc.), mas agora ela não faz nada com o armazenamento local. */
+function safeSaveLocal(){ /* intencionalmente vazio: nada é salvo localmente */ }
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 const IDLE_EVENTS = ['click','mousemove','mousedown','keydown','touchstart','scroll','wheel'];
 const NPC_LAST_ACTIVITY_KEY = 'npc_last_activity_at';
@@ -1039,7 +1045,7 @@ const DEFAULT_COMUNICADOS=[
   {id:'datas-feedback',ativo:true,categoria:'Feedbacks',titulo:'Datas de feedback',conteudo:'Feedback é ferramenta para estimular, corrigir e melhorar comunicação. Maio: 01/05 a 10/05. Agosto: 01/08 a 10/08.',destaque:'Feedback precisa gerar plano de ação e acompanhamento.'}
 ];
 
-function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(dataDefault)}catch(e){return structuredClone(dataDefault)}}
+function load(){ return structuredClone(dataDefault); }
 function firebaseIsAdmin(){return current && (current.role==='Administrador' || current.role==='admin' || current.perms?.admin || current.perms?.usuarios_gerenciar)}
 function cloudUsersToArray(usersObj){
   if(!usersObj) return [];
@@ -1075,11 +1081,11 @@ function localUsersToCloud(usersArr){
 async function loadCloudDb(){
   const snap=await firebaseDb.ref('/').once('value');
   db=cloudToLocal(snap.val()||{});
-  localStorage.setItem(KEY,JSON.stringify(db));
+  safeSaveLocal(db);
   return db;
 }
 function save(){
-  localStorage.setItem(KEY,JSON.stringify(db));
+  safeSaveLocal(db);
   if(!current || !firebaseAuth.currentUser) return;
   if(firebaseIsAdmin()){
     firebaseDb.ref('/').update({users:localUsersToCloud(db.users),birthdays:db.birthdays||[],agenda:db.agenda||[],comunicados:db.comunicados||DEFAULT_COMUNICADOS,performanceRecords:db.performanceRecords||{},progress:db.progress||{}}).catch(e=>toast('Erro ao salvar: '+e.message));
@@ -1175,13 +1181,14 @@ function findBirthdayForCurrentUser(){
     return bDay===day && bMonth===month && nameMatch;
   }) || null;
 }
+const shownBirthdayPopups = new Set();
 function maybeShowBirthdayPopup(){
   const b=findBirthdayForCurrentUser();
   if(!b) return;
   const today=todayISO();
   const key='npc_birthday_popup_'+current.id+'_'+today;
-  if(localStorage.getItem(key)) return;
-  localStorage.setItem(key,'shown');
+  if(shownBirthdayPopups.has(key)) return;
+  shownBirthdayPopups.add(key);
   const nome=escape(current.name||b.name||'');
   openModal('Feliz aniversário, '+nome+'!', `<div style="text-align:center;padding:8px 0 4px"><img src="${LOGO_AMARELO}" alt="Na Ponta da Chave" style="max-width:280px;width:70%;height:auto;margin:0 auto 18px;display:block"><div class="callout" style="text-align:left"><b>Hoje é o seu dia!</b><br>Que este novo ciclo seja marcado por saúde, conquistas, boas histórias e muitos motivos para celebrar. Toda a equipe Na Ponta da Chave deseja um feliz aniversário!</div><div style="font-size:48px;margin:18px 0 8px">🎉</div><p class="sub">${escape(b.day)}/${String(birthdayMonthNumber(b.month)).padStart(2,'0')} · ${escape(b.area||'Equipe NPC')}</p><div class="actions" style="justify-content:center;margin-top:18px"><button class="primary" onclick="closeModal()">Obrigado!</button></div></div>`);
 }
@@ -1560,7 +1567,7 @@ function cloudToLocal(cloud){
 }
 function save(){
   ensureOpsData();
-  localStorage.setItem(KEY,JSON.stringify(db));
+  safeSaveLocal(db);
   if(!current || !firebaseAuth.currentUser) return;
   if(firebaseIsAdmin()){
     firebaseDb.ref('/').update({users:localUsersToCloud(db.users),birthdays:db.birthdays||[],agenda:db.agenda||[],comunicados:db.comunicados||DEFAULT_COMUNICADOS,comunicadoReads:db.comunicadoReads||{},auditLogs:db.auditLogs||[],performanceRecords:db.performanceRecords||{},progress:db.progress||{}}).catch(e=>toast('Erro ao salvar: '+e.message));
@@ -1867,7 +1874,7 @@ function cloudToLocal(cloud){
 }
 function save(){
   ensureOpsData();
-  localStorage.setItem(KEY,JSON.stringify(db));
+  safeSaveLocal(db);
   if(!current || !firebaseAuth.currentUser) return;
   if(firebaseIsAdmin()){
     firebaseDb.ref('/').update({users:localUsersToCloud(db.users),birthdays:db.birthdays||[],agenda:db.agenda||[],comunicados:db.comunicados||DEFAULT_COMUNICADOS,comunicadoReads:db.comunicadoReads||{},auditLogs:db.auditLogs||[],performanceRecords:db.performanceRecords||{},progress:db.progress||{},dailyCheckins:db.dailyCheckins||{},recognitions:db.recognitions||[],achievementReads:db.achievementReads||{}}).catch(e=>toast('Erro ao salvar: '+e.message));
@@ -2084,7 +2091,7 @@ function cloudToLocal(cloud){
 }
 function save(){
   ensureOpsData();
-  localStorage.setItem(KEY,JSON.stringify(db));
+  safeSaveLocal(db);
   if(!current || !firebaseAuth.currentUser) return;
   if(firebaseIsAdmin()){
     firebaseDb.ref('/').update({
@@ -2749,7 +2756,7 @@ cloudToLocal = function(cloud){
 const __oldSave_v38 = save;
 save = function(){
   ensureOpsData();
-  localStorage.setItem(KEY,JSON.stringify(db));
+  safeSaveLocal(db);
   if(!current || !firebaseAuth.currentUser) return;
   if(firebaseIsAdmin()){
     firebaseDb.ref('/').update({
@@ -2789,10 +2796,7 @@ save = function(){
 
 function applyLoginSettings(){
   try{
-    let localDb = db;
-    if((!localDb || !localDb.loginSettings) && localStorage.getItem(KEY)){
-      localDb = JSON.parse(localStorage.getItem(KEY)||'{}');
-    }
+    const localDb = db;
     const s={...DEFAULT_LOGIN_SETTINGS,...(localDb?.loginSettings||{})};
     const left=document.querySelector('.login-left');
     if(!left) return;
@@ -2945,7 +2949,7 @@ function resetLoginAppearance(){
   const __origSaveTickets = save;
   save = function(){
     ensureOpsData();
-    localStorage.setItem(KEY,JSON.stringify(db));
+    safeSaveLocal(db);
     if(!current || !firebaseAuth.currentUser) return;
     if(firebaseIsAdmin() || ticketIsManager()){
       const payload = {
@@ -3367,7 +3371,7 @@ ensureOpsData();
   function addAudit(tipo,descricao,t){ db.auditLogs=db.auditLogs||[]; db.auditLogs.unshift({id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo,descricao,ticketId:t?.id||'',targetNome:t?.title||'',criadoPorUid:current?.id||'',criadoPorNome:current?.name||current?.email||'Usuário',criadoEm:new Date().toISOString()}); }
   function saveTickets(){
     ensureTickets();
-    try{ localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser){
       const updates={tickets:db.tickets||[],auditLogs:db.auditLogs||[]};
       firebaseDb.ref('/').update(updates).catch(e=>{ if(typeof toast==='function') toast('Erro ao salvar chamados: '+e.message,'warn'); });
@@ -3518,7 +3522,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function addAudit(tipo,descricao,t){db.auditLogs=db.auditLogs||[];db.auditLogs.unshift({id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo,descricao,ticketId:t?.id||'',targetNome:t?.title||'',criadoPorUid:current?.id||'',criadoPorNome:current?.name||current?.email||'Usuário',criadoEm:new Date().toISOString()});}
   function saveAll(){
     ensure();
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(err){}
+    safeSaveLocal(db);
     if(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser){
       firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[],ticketAreaResponsibles:db.ticketAreaResponsibles||{}}).catch(err=>{ if(typeof toast==='function') toast('Erro ao salvar chamados: '+err.message,'warn'); });
     }
@@ -3661,7 +3665,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function statusTag(s){ return tag(statusLabel(s), s==='resolvido'?'ok':s==='cancelado'?'muted':s==='aberto'?'warn':''); }
   function priorityTag(p){ const c=String(p||'').toLowerCase(); return tag(p||'-', c.includes('urg')||c.includes('alta')?'danger':c.includes('média')||c.includes('media')?'warn':'muted'); }
   function addAudit(tipo,descricao,t){ ensure(); db.auditLogs.unshift({id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo,descricao,ticketId:t?.id||'',targetNome:t?.title||'',criadoPorUid:current?.id||'',criadoPorNome:current?.name||current?.nome||current?.email||'Usuário',criadoEm:new Date().toISOString()}); }
-  function saveAll(){ ensure(); try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){} if(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser){ firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[],ticketAreaResponsibles:db.ticketAreaResponsibles||{}}).catch(err=>{ if(typeof toast==='function') toast('Erro ao salvar chamados: '+err.message,'warn'); }); } }
+  function saveAll(){ ensure(); safeSaveLocal(db); if(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser){ firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[],ticketAreaResponsibles:db.ticketAreaResponsibles||{}}).catch(err=>{ if(typeof toast==='function') toast('Erro ao salvar chamados: '+err.message,'warn'); }); } }
   function visible(includeInactive=false){ ensure(); let arr=(db.tickets||[]).filter(t=>includeInactive||t.ativo!==false); if(canAll()) return arr; return arr.filter(t=>t.createdById===current?.id||t.createdByUid===current?.id||t.assignedToId===current?.id||t.assignedToUid===current?.id); }
   function filterHtml(prefix){ return `<div class="npc-ticket-filter-grid"><div class="field"><label>Status</label><select id="${prefix}Status"><option value="ativos">Ativos</option><option value="todos">Todos</option><option value="aberto">Aberto</option><option value="analise">Em análise</option><option value="andamento">Em andamento</option><option value="aguardando">Aguardando</option><option value="resolvido">Resolvido</option>${canCancel()?'<option value="cancelado">Cancelado</option>':''}</select></div><div class="field"><label>Área</label><select id="${prefix}Cat"><option value="">Todas</option>${CATEGORIES.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><div class="field"><label>Prioridade</label><select id="${prefix}Pri"><option value="">Todas</option>${PRIORITIES.map(p=>`<option>${esc(p)}</option>`).join('')}</select></div><div class="field"><label>Responsável</label><select id="${prefix}Resp"><option value="">Todos</option>${userOptions()}</select></div><div class="field"><label>Buscar</label><input id="${prefix}Busca" placeholder="Título, solicitante..."></div><button class="secondary" onclick="npcRenderTickets()">Filtrar</button></div>`; }
   function apply(prefix,arr){ const st=document.getElementById(prefix+'Status')?.value||'ativos', cat=document.getElementById(prefix+'Cat')?.value||'', pri=document.getElementById(prefix+'Pri')?.value||'', resp=document.getElementById(prefix+'Resp')?.value||'', busca=(document.getElementById(prefix+'Busca')?.value||'').toLowerCase(); return arr.filter(t=>{ if(st==='ativos'&&t.ativo===false)return false; if(st!=='ativos'&&st!=='todos'&&t.status!==st)return false; if(cat&&t.category!==cat)return false; if(pri&&t.priority!==pri)return false; if(resp&&t.assignedToId!==resp)return false; if(busca){ const hay=[t.title,t.description,t.createdByName,t.assignedToName,t.category,t.priority,statusLabel(t.status)].join(' ').toLowerCase(); if(!hay.includes(busca))return false;} return true; }); }
@@ -3784,7 +3788,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function addAudit(tipo,descricao,t){ensure();db.auditLogs.unshift({id:'log_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),tipo,descricao,ticketId:t?.id||'',targetNome:t?.title||'',criadoPorUid:cur()?.id||'',criadoPorNome:cur()?.name||cur()?.nome||cur()?.email||'Usuário',criadoEm:new Date().toISOString()})}
   function saveTickets(){
     ensure();
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(window.firebaseDb&&window.firebaseAuth&&firebaseAuth.currentUser){
       firebaseDb.ref('/').update({tickets:db.tickets||[],auditLogs:db.auditLogs||[],ticketAreaResponsibles:db.ticketAreaResponsibles||{}}).catch(err=>{ if(typeof toast==='function') toast('Erro ao salvar chamados: '+err.message,'warn'); });
     }
@@ -4118,7 +4122,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   const oldSaveV50=typeof save==='function'?save:null;
   window.save=function(){
     ensureV50Data();
-    try{if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}
+    safeSaveLocal(db);
     if(!window.firebaseDb || !window.firebaseAuth?.currentUser || !window.current) return;
     const isAdmin=(typeof firebaseIsAdmin==='function'&&firebaseIsAdmin())||(typeof npcIsAdministrator==='function'&&npcIsAdministrator(current));
     if(isAdmin){
@@ -4433,10 +4437,10 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.npcFirebasePayload=function(){const payload=oldPayload?oldPayload():{};ensureKanbanData();payload.kanbanColumns=db.kanbanColumns||[];payload.kanbanCards=db.kanbanCards||[];payload.kanbanComissaoOptions=db.kanbanComissaoOptions||[];payload.kanbanPosseOptions=db.kanbanPosseOptions||[];payload.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];return payload;};
   const oldLoad=window.loadCloudDb;
   if(typeof oldLoad==='function'){
-    window.loadCloudDb=async function(){await oldLoad.apply(this,arguments);try{const snap=await firebaseDb.ref('/').once('value');const cloud=snap.val()||{};db.kanbanColumns=Array.isArray(cloud.kanbanColumns)?cloud.kanbanColumns:(cloud.kanbanColumns?Object.values(cloud.kanbanColumns):(db.kanbanColumns||[]));db.kanbanCards=Array.isArray(cloud.kanbanCards)?cloud.kanbanCards:(cloud.kanbanCards?Object.values(cloud.kanbanCards):(db.kanbanCards||[]));db.kanbanComissaoOptions=Array.isArray(cloud.kanbanComissaoOptions)?cloud.kanbanComissaoOptions:(Array.isArray(cloud.kanbanOptions?.comissao)?cloud.kanbanOptions.comissao:(db.kanbanComissaoOptions||[]));db.kanbanPosseOptions=Array.isArray(cloud.kanbanPosseOptions)?cloud.kanbanPosseOptions:(Array.isArray(cloud.kanbanOptions?.posse)?cloud.kanbanOptions.posse:(db.kanbanPosseOptions||[]));db.kanbanDocumentosOptions=Array.isArray(cloud.kanbanDocumentosOptions)?cloud.kanbanDocumentosOptions:(Array.isArray(cloud.kanbanOptions?.documentos)?cloud.kanbanOptions.documentos:(db.kanbanDocumentosOptions||[]));}catch(e){console.warn('Falha ao carregar dados do Kanban:',e);}ensureKanbanData();try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}};
+    window.loadCloudDb=async function(){await oldLoad.apply(this,arguments);try{const snap=await firebaseDb.ref('/').once('value');const cloud=snap.val()||{};db.kanbanColumns=Array.isArray(cloud.kanbanColumns)?cloud.kanbanColumns:(cloud.kanbanColumns?Object.values(cloud.kanbanColumns):(db.kanbanColumns||[]));db.kanbanCards=Array.isArray(cloud.kanbanCards)?cloud.kanbanCards:(cloud.kanbanCards?Object.values(cloud.kanbanCards):(db.kanbanCards||[]));db.kanbanComissaoOptions=Array.isArray(cloud.kanbanComissaoOptions)?cloud.kanbanComissaoOptions:(Array.isArray(cloud.kanbanOptions?.comissao)?cloud.kanbanOptions.comissao:(db.kanbanComissaoOptions||[]));db.kanbanPosseOptions=Array.isArray(cloud.kanbanPosseOptions)?cloud.kanbanPosseOptions:(Array.isArray(cloud.kanbanOptions?.posse)?cloud.kanbanOptions.posse:(db.kanbanPosseOptions||[]));db.kanbanDocumentosOptions=Array.isArray(cloud.kanbanDocumentosOptions)?cloud.kanbanDocumentosOptions:(Array.isArray(cloud.kanbanOptions?.documentos)?cloud.kanbanOptions.documentos:(db.kanbanDocumentosOptions||[]));}catch(e){console.warn('Falha ao carregar dados do Kanban:',e);}ensureKanbanData();safeSaveLocal(db);};
   }
   const oldSave=window.save;
-  window.save=function(){ensureKanbanData();try{if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db));}catch(e){} if(window.firebaseDb&&window.firebaseAuth?.currentUser){const isAdmin=kanbanCanManage();const updates={};if(isAdmin){updates.kanbanCards=db.kanbanCards||[];updates.kanbanColumns=db.kanbanColumns||[];updates.kanbanComissaoOptions=db.kanbanComissaoOptions||[];updates.kanbanPosseOptions=db.kanbanPosseOptions||[];updates.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];}else{updates.kanbanCards=db.kanbanCards||[];}firebaseDb.ref('/').update(updates).catch(e=>{if(typeof toast==='function')toast('Erro ao salvar Kanban: '+e.message,'warn');});} if(oldSave)oldSave.apply(this,arguments);};
+  window.save=function(){ensureKanbanData();safeSaveLocal(db); if(window.firebaseDb&&window.firebaseAuth?.currentUser){const isAdmin=kanbanCanManage();const updates={};if(isAdmin){updates.kanbanCards=db.kanbanCards||[];updates.kanbanColumns=db.kanbanColumns||[];updates.kanbanComissaoOptions=db.kanbanComissaoOptions||[];updates.kanbanPosseOptions=db.kanbanPosseOptions||[];updates.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];}else{updates.kanbanCards=db.kanbanCards||[];}firebaseDb.ref('/').update(updates).catch(e=>{if(typeof toast==='function')toast('Erro ao salvar Kanban: '+e.message,'warn');});} if(oldSave)oldSave.apply(this,arguments);};
 
   if(typeof PERMS==='object'){PERMS.performance_kanban='Performance: Kanban';PERMS.performance_kanban_gestao='Performance: Gestão Kanban';}
   if(typeof permissionGroups==='function'&&!window.__npcKanbanPermissionGroups){
@@ -4595,7 +4599,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.save=function(){
     tryExposeGlobals();
     ensureFirebaseBackedData();
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     try{
       if(typeof firebaseDb==='undefined' || typeof firebaseAuth==='undefined' || !firebaseAuth.currentUser) return;
       const payload=isAdminUser() ? fullFirebasePayload() : partialFirebaseUpdates();
@@ -4614,7 +4618,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         const cloud=snap.val()||{};
         db=typeof cloudToLocal==='function' ? cloudToLocal(cloud) : {...db,...cloud};
         ensureFirebaseBackedData();
-        try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+        safeSaveLocal(db);
       }catch(e){ console.warn('Falha ao sincronizar Firebase:',e); }
     };
   }
@@ -4768,7 +4772,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function filteredKanbanCards(){return (db.kanbanCards||[]).filter(c=>window.npcCanAccessKanbanCard(c));}
   const oldSave=window.save;
   window.save=function(){
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(!window.firebaseDb || !window.firebaseAuth?.currentUser) return oldSave?oldSave.apply(this,arguments):undefined;
     const updates={};
     if(isTrueAdministrator(current)){
@@ -5148,7 +5152,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         firebaseDb.ref('/').update({visitAnalysis:db.visitAnalysis||[]}).catch(function(e){ if(typeof toast==='function') toast('Erro ao salvar visitas no Firebase: '+e.message,'warn'); });
       }
     }catch(e){console.error('Erro ao salvar visitas no Firebase',e);}
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     return r;
   };
   try{ save=window.save; }catch(e){}
@@ -5162,7 +5166,7 @@ body:has(#login:not(.hidden)) #app.hidden{
           const snap=await firebaseDb.ref('/visitAnalysis').once('value');
           const val=snap.val();
           db.visitAnalysis=Array.isArray(val)?val:(val?Object.values(val):[]);
-          try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+          safeSaveLocal(db);
         }
       }catch(e){console.warn('Falha ao carregar Análise de Visitas:',e)}
       ensureVisitData();
@@ -5288,7 +5292,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function localUsersObj(){return (typeof localUsersToCloud==='function')?localUsersToCloud(db.users||[]):Object.fromEntries((db.users||[]).map(u=>[u.id,u]));}
   function saveUsersToFirebase(){
-    try{ if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(window.firebaseDb&&window.firebaseAuth?.currentUser){
       return firebaseDb.ref('/users').set(localUsersObj()).catch(e=>{if(typeof toast==='function')toast('Erro ao salvar usuários no Firebase: '+e.message,'warn');});
     }
@@ -5297,7 +5301,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   // Save consolidado: gerenciar usuários salva /users completo; visão total não é mais função/cargo.
   const oldSave=window.save;
   window.save=function(){
-    try{ if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(!window.firebaseDb||!window.firebaseAuth?.currentUser||!window.current){return oldSave?oldSave.apply(this,arguments):undefined;}
     if(canManageUsers()){
       const payload=typeof npcFirebasePayload==='function'?npcFirebasePayload():{};
@@ -5349,7 +5353,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     try{
       firebaseDb.ref('/users').on('value',snap=>{
         const arr=cloudUsersToArray(snap.val());
-        if(arr.length){db.users=arr;try{if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db));}catch(e){} syncCurrentAfterUsersChange(); if((window.page||page)==='usuarios')try{render_usuarios();}catch(e){} }
+        if(arr.length){db.users=arr;safeSaveLocal(db); syncCurrentAfterUsersChange(); if((window.page||page)==='usuarios')try{render_usuarios();}catch(e){} }
       });
     }catch(e){console.warn('Realtime de usuários indisponível',e);}
   }
@@ -5446,7 +5450,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(!ok)return;
     db.users=(db.users||[]).filter(x=>String(x.id)!==String(id));
     try{db.birthdays=(db.birthdays||[]).filter(b=>String(b.userId||b.uid||'')!==String(id)&&norm(b.name)!==norm(u.name));}catch(e){}
-    try{ if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     const after=()=>{try{if(typeof addAudit==='function')addAudit('Usuário excluído',u.name||u.email||id);}catch(e){};try{closeModal();}catch(e){};render_usuarios();if(typeof toast==='function')toast('Usuário excluído da intranet.');};
     if(window.firebaseDb&&window.firebaseAuth?.currentUser){
       firebaseDb.ref('/users/'+id).remove().then(()=>firebaseDb.ref('/users').set(localUsersObj())).then(after).catch(e=>{if(typeof toast==='function')toast('Erro ao excluir no Firebase: '+e.message,'warn');});
@@ -5572,7 +5576,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function saveUsersOnly(){
     (db.users||[]).forEach(u=>{u.perms=sanitizeSavedPerms(u.perms||u.permissoes||{}); u.permissoes=u.perms;});
-    try{ if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(window.firebaseDb&&window.firebaseAuth?.currentUser){
       const obj=(typeof localUsersToCloud==='function')?localUsersToCloud(db.users||[]):Object.fromEntries((db.users||[]).map(u=>[u.id,u]));
       return firebaseDb.ref('/users').set(obj).catch(e=>{if(typeof toast==='function')toast('Erro ao salvar usuários no Firebase: '+e.message,'warn');});
@@ -5699,7 +5703,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
   function saveUsersOnly(){
     (db.users||[]).forEach(u=>{u.perms=sanitizePerms(u.perms||u.permissoes||{});u.permissoes={...u.perms};u.perfil=u.role||u.perfil||'Colaborador';});
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(window.firebaseDb&&window.firebaseAuth?.currentUser){
       return firebaseDb.ref('/users').set(cloudUsers()).catch(err=>{console.error(err); if(typeof toast==='function')toast('Erro ao salvar permissões no Firebase: '+(err.message||err),'warn');});
     }
@@ -6176,7 +6180,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   const findUser=id=>(getDb().users||[]).find(u=>String(u.id)===String(id));
   function setDraft(id,p){draftStore()[id]=cleanPerms(p||{});try{if(typeof __permDrafts!=='undefined')__permDrafts[id]={...draftStore()[id]};}catch(e){}return draftStore()[id];}
   function getDraft(id){return draftStore()[id]||setDraft(id,id==='new'?{}:rawPerms(findUser(id)||{}));}
-  function saveUsersOnly(){sanitizeAllUsers();try{if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(getDb()));}catch(e){};try{if(window.firebaseDb&&window.firebaseAuth?.currentUser){const users={};(getDb().users||[]).forEach(u=>{applyCleanUser(u);users[u.id]={...u,permissoes:{...u.perms}};});firebaseDb.ref('/users').set(users);}}catch(e){console.error(e);}}
+  function saveUsersOnly(){sanitizeAllUsers();safeSaveLocal(getDb());;try{if(window.firebaseDb&&window.firebaseAuth?.currentUser){const users={};(getDb().users||[]).forEach(u=>{applyCleanUser(u);users[u.id]={...u,permissoes:{...u.perms}};});firebaseDb.ref('/users').set(users);}}catch(e){console.error(e);}}
   window.initPermDraft=function(id,perms){return setDraft(id,perms||{});};
   window.permToggle=function(id,key,val){const d={...getDraft(id)};if(key!=='admin'){if(val===true)d[key]=true;else delete d[key];}setDraft(id,d); if(id!=='new'){const u=findUser(id); if(u){u.perms={...d};u.permissoes={...d};saveUsersOnly(); if(cur()&&String(cur().id)===String(id)){window.current={...u};try{current=window.current;}catch(e){};buildNav();}}} refreshPermCounters(id);};
   window.permSetAll=function(id,val){const d={}; if(val===true)permGroups().flatMap(g=>g.items).forEach(i=>{if(i[0]!=='admin')d[i[0]]=true;}); setDraft(id,d); if(id!=='new'){const u=findUser(id); if(u){u.perms={...d};u.permissoes={...d};saveUsersOnly();}} window.openPermissionSelector(id,id==='new'?'new':'edit');};
@@ -6220,7 +6224,7 @@ body:has(#login:not(.hidden)) #app.hidden{
                 applyCleanUser(local);
                 window.current={...local};
                 try{current=window.current;}catch(e){}
-                try{localStorage.setItem(KEY,JSON.stringify(getDb()));}catch(e){}
+                safeSaveLocal(getDb());
                 buildNav();
                 const perm=modulePermForPage(window.page||page);
                 if(perm&&!has(perm)) go(firstAllowedPage());
@@ -7802,7 +7806,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   async function persistSingleUser(u){
     setUserPerms(u, userPerms(u));
-    try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(getDb())); }catch(e){}
+    try{ if(typeof KEY !== 'undefined') safeSaveLocal(getDb()); }catch(e){}
     if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
       await window.firebaseDb.ref('/users/' + u.id).set(cloudUserPayload(u));
     }
@@ -7917,7 +7921,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         local.permissoes = Object.assign({}, local.perms);
         if(!d.users.some(function(u){return String(u.id)===String(uid);})) d.users.push(local);
         window.current = Object.assign({}, local);
-        try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){}
+        try{ if(typeof KEY !== 'undefined') safeSaveLocal(d); }catch(e){}
         syncGlobalPermissionApi(); rebuildNavAndProtect();
       });
     }catch(e){ console.warn('Falha ao iniciar listener V61 de permissões', e); }
@@ -8008,7 +8012,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   async function persistUser(u){
     if(!u)return;
     setPerms(u,rawPerms(u));
-    try{if(typeof KEY!=='undefined')localStorage.setItem(KEY,JSON.stringify(dbObj()));}catch(e){}
+    safeSaveLocal(dbObj());
     if(window.firebaseDb&&window.firebaseAuth&&window.firebaseAuth.currentUser){
       var payload={
         nome:u.name||u.nome||u.email||u.user||'',name:u.name||u.nome||u.email||u.user||'',email:u.email||u.user||'',user:u.email||u.user||'',
@@ -8905,8 +8909,8 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function seedAdminOnce(){
     try{
-      var flag='npc_v76_cap_areas_seeded';
-      if(localStorage.getItem(flag)==='1') return;
+      var d0=getDb();
+      if(d0.menuSettings && d0.menuSettings.capAreasSeeded) return;
       var u=getCurrent();
       if(!u || !isAdminLike(u)) return;
       u.perms=u.perms||{};
@@ -8922,8 +8926,9 @@ body:has(#login:not(.hidden)) #app.hidden{
           }
         });
       }
+      d.menuSettings=d.menuSettings||{};
+      d.menuSettings.capAreasSeeded=true;
       setDb(d);
-      localStorage.setItem(flag,'1');
       try{ if(typeof save==='function') save(); }catch(e){}
     }catch(e){console.warn('v76 seedAdminOnce',e)}
   }
@@ -9129,7 +9134,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     db.recognitionReads = db.recognitionReads || {};
     db.recognitionReads[id] = db.recognitionReads[id] || {};
     db.recognitionReads[id][r.id] = true;
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     try{
       if(window.firebaseDb && window.firebaseAuth?.currentUser){
         const up={};
@@ -9140,7 +9145,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     }catch(e){}
   }
   function saveRecognitionsDirect(){
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     try{
       if(window.firebaseDb && window.firebaseAuth?.currentUser){
         firebaseDb.ref('/').update({recognitions:db.recognitions||[],recognitionReads:db.recognitionReads||{}}).catch(function(e){ if(typeof toast==='function') toast('Erro ao salvar reconhecimento: '+e.message,'warn'); });
@@ -9258,7 +9263,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         const before=(db.recognitions||[]).map(r=>r.id).join('|');
         ensureRecData();
         db.recognitions=arr.filter(Boolean).sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
-        try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+        safeSaveLocal(db);
         const after=(db.recognitions||[]).map(r=>r.id).join('|');
         if(!first && before!==after){
           setTimeout(function(){ try{ window.maybeShowManualRecognitionPopups(); }catch(e){} },500);
@@ -9324,7 +9329,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     }catch(e){ return []; }
   }
   function saveRecognitionDataV82(){
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     try{
       if(window.firebaseDb && window.firebaseAuth?.currentUser){
         firebaseDb.ref('/').update({recognitions:db.recognitions||[], recognitionReads:db.recognitionReads||{}}).catch(function(e){ if(typeof toast==='function') toast('Erro ao salvar reconhecimento: '+e.message,'warn'); });
@@ -10177,7 +10182,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function saveAreaContents(){
     ensureAreaContents();
-    try{localStorage.setItem(typeof KEY!=='undefined'?KEY:'npc_intranet_v5', JSON.stringify(getDb()));}catch(e){}
+    safeSaveLocal(getDb());
     try{
       if(typeof firebaseDb!=='undefined' && firebaseDb && (!firebaseAuth || firebaseAuth.currentUser) && canManageAreas()){
         firebaseDb.ref('/areaContents').set(getDb().areaContents||{}).catch(function(e){try{toast('Erro ao salvar Áreas: '+e.message,'warn');}catch(_){}});
@@ -10394,7 +10399,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function visibleTrainings(){return ensureTrainings().filter(canSeeTraining);}
   function saveTrainings(){
     ensureTrainings();
-    try{localStorage.setItem(typeof KEY!=='undefined'?KEY:'npc_intranet_v5',JSON.stringify(dbObj()));}catch(e){}
+    safeSaveLocal(dbObj());
     try{
       if(window.firebaseDb && window.firebaseAuth && firebaseAuth.currentUser && isManager()){
         firebaseDb.ref('/areaTrainings').set(dbObj().areaTrainings||[]).catch(function(e){try{toast('Erro ao salvar Capacitação de Áreas: '+e.message,'warn');}catch(_){}});
@@ -11166,7 +11171,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
   function saveRecognitionChanges(){
     try{ if(typeof save === 'function'){ save(); return; } }catch(e){}
-    try{ localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     try{
       if(typeof firebaseDb !== 'undefined' && firebaseDb && typeof firebaseDb.ref === 'function'){
         firebaseDb.ref('/').update({recognitions:(db.recognitions||[]), recognitionReads:(db.recognitionReads||{})}).catch(function(e){
@@ -11353,7 +11358,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function saveVisits(){
     try{ if(typeof window.save==='function') window.save(); }
     catch(e){ console.error(e); if(typeof toast==='function') toast('Erro ao salvar visitas: '+(e.message||e),'warn'); }
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(data())); }catch(e){}
+    safeSaveLocal(data());
   }
   function userLabel(id){
     const users=Array.isArray(data().users)?data().users:[];
@@ -11499,7 +11504,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function getDb(){ try{return db;}catch(e){return window.db||{};} }
   function persist(){
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY, JSON.stringify(getDb())); }catch(e){}
+    safeSaveLocal(getDb());
   }
   function currentPage(){ try{return window.page || page || '';}catch(e){return window.page || '';} }
   function rerenderLeads(){
@@ -11615,7 +11620,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     r.seenBy[id] = new Date().toISOString();
     db.recognitionReads[id] = db.recognitionReads[id] || {};
     db.recognitionReads[id][r.id] = true;
-    try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+    try{ if(typeof KEY !== 'undefined') safeSaveLocal(db); }catch(e){}
     try{
       if(window.firebaseDb && (!window.firebaseAuth || window.firebaseAuth.currentUser)){
         var updates = {};
@@ -11688,7 +11693,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         if(window.firebaseDb){
           var snap = await firebaseDb.ref('/recognitionReads').once('value');
           db.recognitionReads = snap.val() || db.recognitionReads || {};
-          if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db));
+          if(typeof KEY !== 'undefined') safeSaveLocal(db);
         }
       }catch(e){}
       return result;
@@ -11790,7 +11795,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
   function persistSync(extraUsers){
     var db=ensure();
-    try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+    try{ if(typeof KEY !== 'undefined') safeSaveLocal(db); }catch(e){}
     try{
       if(!window.firebaseDb || !window.firebaseAuth || !window.firebaseAuth.currentUser) return;
       var updates={ visitAnalysis: db.visitAnalysis || [] };
@@ -11850,7 +11855,7 @@ body:has(#login:not(.hidden)) #app.hidden{
           var val = snap.val();
           db.visitAnalysis = Array.isArray(val) ? val : (val ? Object.values(val) : []);
           ensure();
-          try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(db)); }catch(e){}
+          try{ if(typeof KEY !== 'undefined') safeSaveLocal(db); }catch(e){}
         }
       }catch(e){ console.warn('Falha ao carregar Análise de Visitas:', e); }
       return r;
@@ -12048,7 +12053,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(st.currentIndex < 0) st.currentIndex += arr.length;
     return st;
   }
-  function localPersist(){ try{ if(typeof KEY !== 'undefined') localStorage.setItem(KEY, JSON.stringify(getDb())); }catch(e){} }
+  function localPersist(){ try{ if(typeof KEY !== 'undefined') safeSaveLocal(getDb()); }catch(e){} }
   function firebasePersistLeadQueue(){
     var d=getDb();
     if(!(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser)) return Promise.resolve();
@@ -12326,7 +12331,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       try{ changed = changed || JSON.stringify(db.ticketAreaResponsibles||{}) !== JSON.stringify(nextAreaResponsibles||{}); }catch(e){ changed=true; }
       db.ticketAreaResponsibles=nextAreaResponsibles||{};
     }
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(db)); }catch(e){}
+    safeSaveLocal(db);
     if(changed) refreshTicketsView();
   }
   function installRealtime(){
@@ -12401,42 +12406,9 @@ body:has(#login:not(.hidden)) #app.hidden{
 </script>
 
 <script>
-/* PATCH V100 — não persistir responsáveis de chamados no navegador */
-(function(){
-  function mainKey(){ try{ return typeof KEY !== 'undefined' ? KEY : 'npc_intranet_v5'; }catch(e){ return 'npc_intranet_v5'; } }
-  function scrub(){
-    try{
-      var k=mainKey();
-      var raw=localStorage.getItem(k);
-      if(!raw) return;
-      var obj=JSON.parse(raw);
-      if(obj && Object.prototype.hasOwnProperty.call(obj,'ticketAreaResponsibles')){
-        delete obj.ticketAreaResponsibles;
-        Storage.prototype.setItem.call(localStorage,k,JSON.stringify(obj));
-      }
-    }catch(e){}
-  }
-  window.__npcScrubTicketAreaResponsiblesLocal=scrub;
-  try{
-    if(!window.__npcNoLocalTicketAreaRespPatch){
-      window.__npcNoLocalTicketAreaRespPatch=true;
-      var nativeSetItem=Storage.prototype.setItem;
-      Storage.prototype.setItem=function(key,value){
-        try{
-          if(String(key)===String(mainKey())){
-            var obj=JSON.parse(String(value));
-            if(obj && Object.prototype.hasOwnProperty.call(obj,'ticketAreaResponsibles')){
-              delete obj.ticketAreaResponsibles;
-              value=JSON.stringify(obj);
-            }
-          }
-        }catch(e){}
-        return nativeSetItem.call(this,key,value);
-      };
-    }
-  }catch(e){}
-  scrub();
-})();
+/* PATCH V100 removido — deixou de fazer sentido: o banco de dados não é
+   mais gravado no localStorage em nenhuma hipótese, então não há mais
+   nada para "limpar" do armazenamento local. */
 </script>
 
 
@@ -12969,7 +12941,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
 
   function saveTypes(){
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(getDb())); }catch(e){}
+    safeSaveLocal(getDb());
     try{
       if(window.firebaseDb&&window.firebaseAuth&&window.firebaseAuth.currentUser)
         window.firebaseDb.ref('/userRoleTemplates').set(getDb().userRoleTemplates||{});
@@ -13154,7 +13126,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     var badge=byId('typeCount_'+typeName.replace(/[^a-z0-9]/gi,'_'));
     if(badge) badge.textContent=count+' permissões ativas';
     /* salva localmente e no Firebase sem disparar re-render */
-    try{ if(typeof KEY!=='undefined') localStorage.setItem(KEY,JSON.stringify(getDb())); }catch(e){}
+    safeSaveLocal(getDb());
     try{
       if(window.firebaseDb&&window.firebaseAuth&&window.firebaseAuth.currentUser)
         window.firebaseDb.ref('/userRoleTemplates').set(getDb().userRoleTemplates||{});
