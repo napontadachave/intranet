@@ -4225,10 +4225,16 @@ body:has(#login:not(.hidden)) #app.hidden{
     .kanban-actions-row .primary,.kanban-actions-row .secondary{height:40px!important;min-height:40px!important;margin:0!important;white-space:nowrap!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
     .kanban-mini{border:1px solid var(--linha);background:#fff;border-radius:10px;padding:6px 8px;font-size:12px;font-weight:850}.kanban-mini.danger{background:#ffe8e5;color:#a61b12}
     .kanban-drop{outline:3px dashed rgba(255,199,27,.75);outline-offset:-6px}
-    .kanban-detail{display:grid;grid-template-columns:1fr 1fr;gap:14px}.kanban-info{border:1px solid var(--linha);border-radius:16px;padding:14px;background:#fff}.kanban-info h4{margin:0 0 8px}.kanban-info p{margin:0 0 6px;color:#444}
-    .kanban-check{display:grid;gap:8px;max-height:460px;overflow:auto;padding-right:4px}.kanban-check-row{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start;border:1px solid var(--linha);border-radius:13px;padding:10px;background:white}.kanban-check-row input{width:auto;margin-top:2px}.kanban-check-row small{display:block;color:#777;margin-top:3px}.kanban-manage-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--linha);border-radius:14px;padding:12px;margin-bottom:8px;background:#fff}
+    .kanban-detail{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.kanban-detail>div{display:flex;flex-direction:column;min-height:0}.kanban-info{border:1px solid var(--linha);border-radius:16px;padding:14px;background:#fff}.kanban-info h4{margin:0 0 8px}.kanban-info p{margin:0 0 6px;color:#444}
+    .kanban-check{display:grid;gap:8px;align-content:start;align-items:start;flex:1 1 auto;min-height:0;overflow:auto;padding-right:4px}.kanban-check-row{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start;border:1px solid var(--linha);border-radius:13px;padding:10px;background:white}.kanban-check-row input{width:auto;margin-top:2px}.kanban-check-row small{display:block;color:#777;margin-top:3px}.kanban-manage-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;border:1px solid var(--linha);border-radius:14px;padding:12px;margin-bottom:8px;background:#fff}
     .kanban-pay-grid{display:grid;grid-template-columns:48px 1fr;gap:8px;align-items:center}.kanban-pay-grid b{font-weight:950;text-align:center;background:#f4f5f7;border:1px solid var(--linha);border-radius:12px;padding:12px 0}.kanban-items-editor{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:stretch}.kanban-item-edit{display:grid;grid-template-columns:auto minmax(0,1fr) 30px;gap:6px;align-items:center;border:1px solid var(--linha);border-radius:12px;padding:7px;background:#fff}.kanban-item-edit input[type=checkbox]{width:16px!important;height:16px!important;min-height:16px!important;margin:0!important}.kanban-item-edit .kbItemTitle{height:34px!important;min-height:34px!important;padding:8px!important;font-size:12px!important;border-radius:10px!important}.kanban-item-edit .danger{width:30px!important;height:30px!important;min-width:30px!important;padding:0!important;border-radius:9px!important;font-size:16px!important;line-height:1!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}.kanban-items-help{font-size:12px;color:#667085;margin:0 0 8px;line-height:1.35}.kanban-item-add-row{display:flex;justify-content:flex-start;margin-top:8px}.kanban-observacoes label{display:block!important;white-space:normal!important;overflow:visible!important;line-height:1.35!important;margin-bottom:6px!important}.kanban-observacoes textarea{min-height:92px!important;height:92px!important;line-height:1.45!important}.kanban-option-list{display:grid;gap:8px;margin-top:10px}.kanban-option-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--linha);border-radius:13px;padding:9px;background:#fff}
     @media(max-width:1100px){.kanban-items-editor{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:760px){.kanban-items-editor{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.kanban-items-editor{grid-template-columns:1fr}}@media(max-width:900px){.kanban-detail{grid-template-columns:1fr}.kanban-col{min-width:290px;max-width:290px}.kanban-manage-row{grid-template-columns:1fr}.kanban-item-edit{grid-template-columns:auto minmax(0,1fr) 30px}.kanban-header-row{align-items:stretch!important;flex-wrap:wrap!important}.kanban-actions-row{width:100%;justify-content:flex-start!important;flex-wrap:wrap!important}.kanban-filter-box{flex:1 1 220px;width:auto;min-width:180px}.kanban-filter-box select{width:100%;min-width:180px}}
+    /* Move a barra de rolagem horizontal do Kanban para cima das colunas
+       (só aparência: inverte o quadro verticalmente e inverte cada coluna
+       de volta, então o navegador desenha a barra de rolagem no topo em vez
+       de embaixo. Não altera arrastar/soltar, cliques ou qualquer lógica). */
+    .kanban-wrap{transform:scaleY(-1);align-items:flex-end!important}
+    .kanban-wrap>.kanban-col{transform:scaleY(-1)}
   `;
   const st=document.createElement('style');st.textContent=KANBAN_CSS;document.head.appendChild(st);
 
@@ -4350,7 +4356,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     const done=(c.checklist||[]).filter(x=>x.done).length,total=(c.checklist||[]).length||KANBAN_CHECKLIST.length;
     const itensDone=(c.itensChecklist||[]).filter(x=>x.done).length,itensTotal=(c.itensChecklist||[]).length;
     const pay=[['A',c.pagamentoA],['B',c.pagamentoB],['C',c.pagamentoC]].filter(x=>String(x[1]||'').trim()).map(x=>`<p><b>${x[0]}:</b> ${safeHtml(x[1])}</p>`).join('');
-    return `<div class="kanban-card" draggable="${canEditCard(c)?'true':'false'}" ondragstart="kanbanDragStart(event,'${escAttr(c.id)}')"><h4>${safeHtml(c.title||'Negociação')}</h4><p><b>Venda:</b> ${safeHtml(currencyBR(c.valorVenda||''))}</p>${c.comissao?`<p><b>Comissão:</b> ${safeHtml(c.comissao)}</p>`:''}${c.posse?`<p><b>Posse:</b> ${safeHtml(c.posse)}</p>`:''}<p><b>Vendedor(a):</b> ${safeHtml(c.vendedora||'')}</p><p><b>Comprador(a):</b> ${safeHtml(c.compradora||'')}</p><p class="kanban-meta">${cardCreatedInfo(c)}</p>${pay}<p><b>Checklist:</b> ${done}/${total}</p>${itensTotal?`<p><b>Itens:</b> ${itensDone}/${itensTotal}</p>`:''}<div class="progress" title="${done}/${total}"><span style="width:${total?Math.round((done/total)*100):0}%"></span></div><div class="mini-line"><button class="kanban-mini" onclick="openKanbanCardView('${escAttr(c.id)}')">Abrir</button><button class="kanban-mini" onclick="openKanbanCardModal('', '${escAttr(c.id)}')">Editar</button><button class="kanban-mini danger" onclick="deleteKanbanCard('${escAttr(c.id)}')" class="cond-remove-btn">×</button></div></div>`;
+    return `<div class="kanban-card" draggable="${canEditCard(c)?'true':'false'}" ondragstart="kanbanDragStart(event,'${escAttr(c.id)}')"><h4>${safeHtml(c.title||'Negociação')}</h4><p><b>Venda:</b> ${safeHtml(currencyBR(c.valorVenda||''))}</p>${c.comissao?`<p><b>Comissão:</b> ${safeHtml(c.comissao)}</p>`:''}${c.posse?`<p><b>Posse:</b> ${safeHtml(c.posse)}</p>`:''}<p><b>Vendedor(a):</b> ${safeHtml(c.vendedora||'')}</p><p><b>Comprador(a):</b> ${safeHtml(c.compradora||'')}</p>${pay}<p><b>Checklist:</b> ${done}/${total}</p><div class="progress" title="${done}/${total}"><span style="width:${total?Math.round((done/total)*100):0}%"></span></div><p class="kanban-meta">${cardCreatedInfo(c)}</p><div class="mini-line"><button class="kanban-mini" onclick="openKanbanCardView('${escAttr(c.id)}')">Abrir</button><button class="kanban-mini" onclick="openKanbanCardModal('', '${escAttr(c.id)}')">Editar</button><button class="kanban-mini danger" onclick="deleteKanbanCard('${escAttr(c.id)}')" class="cond-remove-btn">×</button></div></div>`;
   }
 
   window.openKanbanCardModal=function(columnId='',cardId=''){
@@ -6410,7 +6416,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     const checklist = Array.isArray(c.checklist) ? c.checklist : [];
     const done = checklist.filter(x=>x.done).length;
     const total = checklist.length || 30;
-    const pay=(ensurePaymentConditions(c)||[]).map(x=>`<p><b>${x.label}:</b> ${esc(x.value||'')} ${esc(x.observation||'')}</p>`).join('');
+    const pay=((typeof window.ensurePaymentConditions==='function'?window.ensurePaymentConditions(c):[])||[]).map(x=>`<p><b>${x.label}:</b> ${esc(x.value||'')} ${esc(x.observation||'')}</p>`).join('');
     return `<div class="kanban-card" draggable="true" ondragstart="kanbanDragStart(event,'${attr(c.id)}')">
       <h4>${esc(c.title || 'Venda')}</h4>
       <p><b>Venda:</b> ${esc(money(c.valorVenda || ''))}</p>
@@ -6418,10 +6424,10 @@ body:has(#login:not(.hidden)) #app.hidden{
       ${c.posse ? `<p><b>Posse:</b> ${esc(c.posse)}</p>` : ''}
       <p><b>Vendedor(a):</b> ${esc(c.vendedora || '')}</p>
       <p><b>Comprador(a):</b> ${esc(c.compradora || '')}</p>
-      <p class="kanban-meta">Cadastrado por ${esc(kanbanCreatorLabel(c))}${c.createdAt ? ' em ' + esc(new Date(c.createdAt).toLocaleString('pt-BR')) : ''}</p>
       ${pay}
       <p><b>Checklist:</b> ${done}/${total}</p>
       <div class="progress" title="${done}/${total}"><span style="width:${total ? Math.round((done/total)*100) : 0}%"></span></div>
+      <p class="kanban-meta">Cadastrado por ${esc(kanbanCreatorLabel(c))}${c.createdAt ? ' em ' + esc(new Date(c.createdAt).toLocaleString('pt-BR')) : ''}</p>
       <div class="mini-line"><button class="kanban-mini" onclick="openKanbanCardView('${attr(c.id)}')">Abrir</button><button class="kanban-mini" onclick="openKanbanCardModal('', '${attr(c.id)}')">Editar</button><button class="kanban-mini danger" onclick="deleteKanbanCard('${attr(c.id)}')" class="cond-remove-btn">×</button></div>
     </div>`;
   }
@@ -9070,7 +9076,23 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.savePermissionSelector=function(id,mode){
     mode=mode||'edit'; var d=cleanPerms(getDraft(id)); setDraft(id,d);
     if(id!=='new'){
-      var u=findUser(id); if(u){u.perms=Object.assign({},d);u.permissoes=Object.assign({},d);try{if(typeof saveUsersOnly==='function')saveUsersOnly(); else if(typeof save==='function')save();}catch(e){}
+      var u=findUser(id);
+      if(u){
+        u.perms=Object.assign({},d);u.permissoes=Object.assign({},d);
+        /* Grava direto no Firebase pelo UID do usuário, sem depender de
+           saveUsersOnly()/save() (que nesta parte do código podem não
+           estar acessíveis e falhavam silenciosamente, deixando a
+           permissão só na memória local até um F5). */
+        try{
+          if(typeof saveUsersOnly==='function') saveUsersOnly();
+          else if(typeof save==='function') save();
+        }catch(e){ console.warn('savePermissionSelector: saveUsersOnly/save falharam', e); }
+        try{
+          if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
+            window.firebaseDb.ref('/users/'+id).update({perms:Object.assign({},d),permissoes:Object.assign({},d)})
+              .catch(function(err){ try{ toast('Erro ao salvar permissões no Firebase: '+(err&&err.message||err),'warn'); }catch(e){} });
+          }
+        }catch(e){ console.warn('savePermissionSelector: gravação direta no Firebase falhou', e); }
         if(cur()&&String((cur()||{}).id)===String(id)){window.current=Object.assign({},u);try{current=window.current;}catch(e){};try{buildNav();}catch(e){}}
       }
     }
@@ -9759,7 +9781,14 @@ body:has(#login:not(.hidden)) #app.hidden{
 
 <script id="global-realtime-sync">
 (function(){
+  /* DESATIVADO: este mecanismo duplicava a função do "global-realtime-sync-v2"
+     logo abaixo. Os dois ficavam ouvindo o Firebase e recarregando/redesenhando
+     a tela ao mesmo tempo, sem coordenação entre si — isso causava telas
+     (como o quadro de Vendas) piscarem e mostrarem dados incompletos por um
+     instante, mesmo com os dados corretos já carregados. Mantido só o v2,
+     que já tem proteção contra rodar duas vezes ao mesmo tempo. */
   function init(){
+    return;
     try{
       if(!window.firebaseDb || window.__globalRealtimeSyncInstalled) return;
       window.__globalRealtimeSyncInstalled=true;
@@ -13821,7 +13850,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     var box = byId('paymentConditionsEditor') || byId('paymentConditionsWrap');
     if(!box){ if(_origLoad) return _origLoad.apply(this, arguments); return; }
     box.innerHTML = '';
-    var arr = (typeof ensurePaymentConditions==='function') ? ensurePaymentConditions(card||{}) : (card&&card.paymentConditions)||[];
+    var arr = (typeof window.ensurePaymentConditions==='function') ? window.ensurePaymentConditions(card||{}) : (card&&card.paymentConditions)||[];
     if(!arr.length) arr = [{label:'A', value:'', observation:''}];
     arr.forEach(function(p){ if(typeof window.addPaymentCondition==='function') window.addPaymentCondition(p); });
   };
@@ -13832,7 +13861,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       var box = byId('paymentConditionsWrap') || byId('paymentConditionsEditor');
       if(!box) return;
       box.innerHTML = '';
-      var arr = (typeof ensurePaymentConditions==='function') ? ensurePaymentConditions(c||{}) : [];
+      var arr = (typeof window.ensurePaymentConditions==='function') ? window.ensurePaymentConditions(c||{}) : [];
       if(!arr.length) arr = [{label:'A', value:'', observation:''}];
       arr.forEach(function(p){ if(typeof window.addPaymentCondition==='function') window.addPaymentCondition(p); });
     }, 0);
@@ -14120,13 +14149,36 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function personRowHTML(data){
     data = data || {};
-    return '<div class="npc-person-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px">' +
+    var mesmoEndereco = (data.mesmoEndereco === 'nao') ? 'nao' : 'sim';
+    var enderecoDisabled = mesmoEndereco === 'sim';
+    return '<div class="npc-person-block" style="border:1px solid var(--linha);border-radius:12px;padding:10px;margin-bottom:8px">' +
+      '<div class="npc-person-row" style="display:grid;grid-template-columns:1fr 1fr 1fr 0.5fr auto;gap:8px;align-items:center;margin-bottom:8px">' +
       '<input type="text" class="npc-person-nome" placeholder="Nome" value="' + escAttrSafe(data.nome || '') + '">' +
       '<input type="text" class="npc-person-email" placeholder="E-mail" value="' + escAttrSafe(data.email || '') + '">' +
+      '<input type="text" class="npc-person-profissao" placeholder="Profissão" value="' + escAttrSafe(data.profissao || '') + '">' +
       '<input type="text" class="npc-person-telefone" placeholder="Telefone" value="' + escAttrSafe(data.telefone || '') + '">' +
       '<button type="button" class="danger" style="padding:8px 10px" onclick="window.__npcRemovePersonRow(this)">×</button>' +
+      '</div>' +
+      '<div class="npc-person-row2" style="display:flex;align-items:center;gap:8px">' +
+      '<label style="font-size:12px;color:#555;white-space:nowrap;flex:0 0 auto;margin:0">Reside no endereço do imóvel negociado?</label>' +
+      '<select class="npc-person-mesmo-endereco" style="flex:0 0 90px;width:90px" onchange="window.__npcTogglePersonEndereco(this)">' +
+      '<option value="sim"' + (mesmoEndereco === 'sim' ? ' selected' : '') + '>Sim</option>' +
+      '<option value="nao"' + (mesmoEndereco === 'nao' ? ' selected' : '') + '>Não</option>' +
+      '</select>' +
+      '<input type="text" class="npc-person-endereco" placeholder="Endereço de residência" style="flex:1 1 auto" value="' + escAttrSafe(data.endereco || '') + '" ' + (enderecoDisabled ? 'disabled' : '') + '>' +
+      '</div>' +
     '</div>';
   }
+
+  window.__npcTogglePersonEndereco = function(selectEl){
+    try{
+      var row2 = selectEl.closest('.npc-person-row2');
+      var input = row2 ? row2.querySelector('.npc-person-endereco') : null;
+      if(!input) return;
+      if(selectEl.value === 'sim'){ input.value=''; input.disabled = true; }
+      else { input.disabled = false; }
+    }catch(e){}
+  };
 
   window.__npcAddPersonRow = function(listId, data){
     var list = document.getElementById(listId);
@@ -14137,23 +14189,30 @@ body:has(#login:not(.hidden)) #app.hidden{
   };
 
   window.__npcRemovePersonRow = function(btn){
-    var row = btn.closest('.npc-person-row');
+    var row = btn.closest('.npc-person-block') || btn.closest('.npc-person-row');
     if(row) row.remove();
   };
 
   function collectPersons(listId){
     var list = document.getElementById(listId);
     if(!list) return [];
-    return Array.prototype.map.call(list.querySelectorAll('.npc-person-row'), function(row){
+    return Array.prototype.map.call(list.querySelectorAll('.npc-person-block'), function(row){
       var nomeEl = row.querySelector('.npc-person-nome');
       var emailEl = row.querySelector('.npc-person-email');
+      var profissaoEl = row.querySelector('.npc-person-profissao');
       var telEl = row.querySelector('.npc-person-telefone');
+      var mesmoEnderecoEl = row.querySelector('.npc-person-mesmo-endereco');
+      var enderecoEl = row.querySelector('.npc-person-endereco');
+      var mesmoEndereco = mesmoEnderecoEl ? mesmoEnderecoEl.value : 'sim';
       return {
         nome: nomeEl ? nomeEl.value.trim() : '',
         email: emailEl ? emailEl.value.trim() : '',
-        telefone: telEl ? telEl.value.trim() : ''
+        profissao: profissaoEl ? profissaoEl.value.trim() : '',
+        telefone: telEl ? telEl.value.trim() : '',
+        mesmoEndereco: mesmoEndereco,
+        endereco: (mesmoEndereco === 'nao' && enderecoEl) ? enderecoEl.value.trim() : ''
       };
-    }).filter(function(p){ return p.nome || p.email || p.telefone; });
+    }).filter(function(p){ return p.nome || p.email || p.telefone || p.profissao || p.endereco; });
   }
 
   /* -- 1) Modal de Nova/Editar venda: telefone + múltiplos vendedores/compradores -- */
@@ -14315,21 +14374,24 @@ body:has(#login:not(.hidden)) #app.hidden{
         function detailHTML(list, label){
           if(!Array.isArray(list) || !list.length) return null;
           var itens = list.map(function(p){
-            var partes = [escSafe(p.nome || '(sem nome)')];
-            if(p.email) partes.push(escSafe(p.email));
-            if(p.telefone) partes.push('Tel.: ' + escSafe(p.telefone));
-            return partes.join(' — ');
+            var linhas = [];
+            linhas.push('<b>Nome:</b> ' + escSafe(p.nome || '(sem nome)'));
+            linhas.push('<b>E-mail:</b> ' + (p.email ? escSafe(p.email) : '—'));
+            linhas.push('<b>Profissão:</b> ' + (p.profissao ? escSafe(p.profissao) : '—'));
+            linhas.push('<b>Telefone:</b> ' + (p.telefone ? escSafe(p.telefone) : '—'));
+            linhas.push('<b>Residência:</b> ' + ((p.mesmoEndereco === 'nao' && p.endereco) ? escSafe(p.endereco) : 'Mesmo endereço do imóvel negociado'));
+            return linhas.join('<br>');
           });
-          return '<b>' + label + ':</b><br>' + itens.join('<br>');
+          return '<b>' + label + ':</b><br>' + itens.join('<br><br>');
         }
 
         if(vendP && Array.isArray(c.vendedores) && c.vendedores.length){
           var htmlV = detailHTML(c.vendedores, 'Vendedor(a)(s)');
-          if(htmlV) vendP.innerHTML = htmlV;
+          if(htmlV){ vendP.innerHTML = htmlV; vendP.style.marginTop = '18px'; }
         }
         if(compP && Array.isArray(c.compradores) && c.compradores.length){
           var htmlC = detailHTML(c.compradores, 'Comprador(a)(s)');
-          if(htmlC) compP.innerHTML = htmlC;
+          if(htmlC){ compP.innerHTML = htmlC; compP.style.marginTop = '18px'; }
         }
       }catch(e){ console.error('[V111] Erro ao detalhar Vendedor(a)/Comprador(a):', e); }
     }, 70);
@@ -14516,5 +14578,1112 @@ body:has(#login:not(.hidden)) #app.hidden{
 
 
   console.log('[V114] Preservação dos filtros de data ao atualizar a tela aplicada.');
+})();
+</script>
+
+
+<!-- PATCH V115: Análise 360° (upload diário de planilhas + painel consolidado) -->
+<script>
+(function(){
+  if(window.__npcV115Analise360) return;
+  window.__npcV115Analise360 = true;
+
+  function diag(){ /* diagnóstico desativado */ }
+
+  /* ---- integração com menu e permissões (duas telas, duas permissões separadas) ---- */
+  try{
+    if(typeof PERMS !== 'undefined'){
+      PERMS['analise360_ver'] = 'Análise 360° (visualizar)';
+      PERMS['analise360_upload'] = 'Análise 360° (enviar arquivos)';
+    }
+  }catch(e){}
+  try{
+    if(typeof pages !== 'undefined'){
+      if(!pages.some(function(p){ return p[1] === 'analise360'; })){
+        pages.push(['Geral','analise360','Análise 360°','◈','analise360_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'analise360_upload'; })){
+        pages.push(['Geral','analise360_upload','Importar Análise 360°','⇪','analise360_upload']);
+      }
+    }
+    if(typeof window.pages !== 'undefined') window.pages = pages;
+  }catch(e){ console.error('[V115] Erro ao registrar páginas:', e); }
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function dbRef(){ return (typeof db !== 'undefined' && db) ? db : (window.db = window.db || {}); }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error(e); } }
+  function moneyCompact(v){
+    var n = Number(v) || 0;
+    return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function pct(a,b){ if(!b) return null; return ((a-b)/Math.abs(b))*100; }
+  function pctLabel(a,b){
+    var p = pct(a,b);
+    if(p===null) return '<p class="sub">Sem dado anterior</p>';
+    var seta = p >= 0 ? '▲' : '▼';
+    return '<p class="sub" style="color:'+(p>=0?'#136b3a':'#a61b12')+';font-weight:900;font-size:11.5px">'+seta+' '+Math.abs(p).toFixed(1)+'% vs. período anterior</p>';
+  }
+
+  function ensureStore(){
+    var d = dbRef();
+    d.analise360 = d.analise360 || {};
+    var s = d.analise360;
+    if(!Array.isArray(s.negociacoes)) s.negociacoes = [];
+    if(!Array.isArray(s.atendimentosVendas)) s.atendimentosVendas = [];
+    if(!Array.isArray(s.atendimentosLocacao)) s.atendimentosLocacao = [];
+    return s;
+  }
+
+  /* guarda uma cópia do que foi salvo localmente; usada para não perder dados
+     recém-enviados caso a tela seja atualizada automaticamente antes da gravação
+     no Firebase se confirmar por completo */
+  function atualizarCacheLocal(){
+    try{ window.__npcA360Cache = JSON.parse(JSON.stringify(ensureStore())); }catch(e){}
+  }
+
+  /* ---------- registra "analise360" no mecanismo padrão de sincronização do Firebase ----------
+     Mesmo mecanismo usado por Kanban, Chamados e Leads: o que é enviado ao Firebase passa por
+     npcFirebasePayload(), e o que volta da nuvem é reconstruído por cloudToLocal(). */
+  try{
+    var oldCloudToLocalV115 = window.cloudToLocal || (typeof cloudToLocal === 'function' ? cloudToLocal : null);
+    if(oldCloudToLocalV115 && !window.__npcV115CloudToLocalWrapped){
+      window.__npcV115CloudToLocalWrapped = true;
+      window.cloudToLocal = function(cloud){
+        var base = oldCloudToLocalV115.apply(this, arguments);
+        base.analise360 = (cloud && cloud.analise360) ? cloud.analise360 : (base.analise360 || {});
+        if(!Array.isArray(base.analise360.negociacoes)) base.analise360.negociacoes = [];
+        if(!Array.isArray(base.analise360.atendimentosVendas)) base.analise360.atendimentosVendas = [];
+        if(!Array.isArray(base.analise360.atendimentosLocacao)) base.analise360.atendimentosLocacao = [];
+        /* preserva localmente o que acabou de ser salvo, caso essa leitura da nuvem
+           ainda esteja desatualizada em relação à última gravação feita por este navegador */
+        if(window.__npcA360Cache){
+          ['negociacoes','atendimentosVendas','atendimentosLocacao','imoveisAtivos','imoveisInativos'].forEach(function(campo){
+            var cacheTemDados = Array.isArray(window.__npcA360Cache[campo]) ? window.__npcA360Cache[campo].length : !!window.__npcA360Cache[campo];
+            var novoTemDados = Array.isArray(base.analise360[campo]) ? base.analise360[campo].length : !!base.analise360[campo];
+            if(cacheTemDados && !novoTemDados) base.analise360[campo] = window.__npcA360Cache[campo];
+          });
+        }
+        return base;
+      };
+      try{ cloudToLocal = window.cloudToLocal; }catch(e){}
+    }
+  }catch(e){ console.error('[V115] Erro ao estender cloudToLocal:', e); }
+
+  try{
+    var oldPayloadV115 = window.npcFirebasePayload;
+    if(typeof oldPayloadV115 === 'function' && !window.__npcV115PayloadWrapped){
+      window.__npcV115PayloadWrapped = true;
+      window.npcFirebasePayload = function(){
+        var payload = oldPayloadV115.apply(this, arguments) || {};
+        payload.analise360 = (typeof db !== 'undefined' && db && db.analise360) ? db.analise360 : {};
+        diag('[V115][npcFirebasePayload] incluindo analise360 no payload de gravação: ' + JSON.stringify(payload.analise360).slice(0,300));
+        return payload;
+      };
+    } else if(!oldPayloadV115){
+      diag('[V115] ATENÇÃO: window.npcFirebasePayload não existe — analise360 não será incluído nos salvamentos!');
+    }
+  }catch(e){ console.error('[V115] Erro ao estender payload do Firebase:', e); }
+
+  /* ---------- carregamento resiliente da biblioteca de planilhas (tenta mais de um CDN) ---------- */
+  var XLSX_CDNS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+  ];
+  var xlsxLoadPromise = null;
+  function carregarXLSX(){
+    if(typeof XLSX !== 'undefined') return Promise.resolve();
+    if(xlsxLoadPromise) return xlsxLoadPromise;
+    xlsxLoadPromise = XLSX_CDNS.reduce(function(prev, url){
+      return prev.catch(function(){
+        return new Promise(function(resolve, reject){
+          var s = document.createElement('script');
+          s.src = url;
+          s.onload = function(){ if(typeof XLSX !== 'undefined') resolve(); else reject(new Error('XLSX indisponível após carregar ' + url)); };
+          s.onerror = function(){ reject(new Error('Falha ao carregar ' + url)); };
+          document.head.appendChild(s);
+        });
+      });
+    }, Promise.reject());
+    return xlsxLoadPromise;
+  }
+
+  /* ---------- leitura de planilha (SheetJS) ---------- */
+  function lerPlanilha(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        try{
+          var wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true});
+          var sheet = wb.Sheets[wb.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_json(sheet, {defval:''}));
+        }catch(err){ reject(err); }
+      };
+      reader.onerror = function(){ reject(new Error('Falha ao ler arquivo')); };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function paraNumero(v){
+    if(v==null || v==='') return 0;
+    if(typeof v === 'number') return v;
+    var s = String(v).replace(/[R$\s]/g,'').replace(/\./g,'').replace(',', '.');
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+
+  function paraMesISO(v){
+    if(!v) return '';
+    var d = paraData(v);
+    if(!d) return '';
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  }
+
+  function paraData(v){
+    if(!v) return null;
+    var d;
+    if(v instanceof Date) d = v;
+    else{
+      var s = String(v).trim();
+      var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if(m) d = new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
+      else{ var parsed = new Date(s); if(!isNaN(parsed)) d = parsed; }
+    }
+    return (d && !isNaN(d)) ? d : null;
+  }
+
+  function paraDataISO(v){
+    var d = paraData(v);
+    if(!d) return '';
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  var PREPOSICOES = {de:1,da:1,do:1,das:1,dos:1,e:1};
+  function normalizarChave(v){
+    var s = String(v||'').trim().replace(/\s+/g,' ');
+    if(!s) return '';
+    s = s.toLowerCase().split(' ').map(function(w,i){
+      if(i>0 && PREPOSICOES[w]) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+    /* o Firebase Realtime Database proíbe estes caracteres em chaves de objeto:
+       . # $ / [ ]  — se qualquer chave (em qualquer lugar do objeto) for inválida,
+       o Firebase rejeita a gravação inteira. Por isso sanitizamos aqui, na origem. */
+    return s.replace(/[.#$/\[\]]/g, '-');
+  }
+
+  function contarPor(rows, campo){
+    var out = {};
+    rows.forEach(function(r){
+      var k = normalizarChave(r[campo]) || '(Em branco)';
+      out[k] = (out[k]||0) + 1;
+    });
+    return out;
+  }
+
+  /* ---------- "achata" a planilha crua para um formato compacto, guardando só o essencial de cada linha ---------- */
+  function trimNegociacoes(rows){
+    return rows.map(function(r){
+      return {
+        data: paraDataISO(r['Data Fechamento']) || paraDataISO(r['Data Status']),
+        valorNegociado: paraNumero(r['Valor Negociado']),
+        valorComissao: paraNumero(r['Valor Comissão']),
+        responsavel: String(r['Responsável pelo Negócio']||'').trim(),
+        tipo: String(r['Tipo da Negociação']||'').trim()
+      };
+    });
+  }
+
+  function trimAtendimentos(rows){
+    return rows.map(function(r){
+      return {
+        data: paraDataISO(r['Data atendimento']),
+        corretor: String(r['Corretor']||'').trim(),
+        midia: String(r['Mídia']||'').trim(),
+        etapa: String(r['Etapa']||'').trim()
+      };
+    });
+  }
+
+  /* ---------- agregações — recebem as linhas já filtradas pelo período escolhido ---------- */
+  function agregarNegociacoes(rows){
+    var vgvTotal=0, comissaoTotal=0, porMes={}, comissaoPorMes={}, porCorretor={}, comissaoPorCorretor={}, contagemPorCorretor={}, porTipo={};
+    rows.forEach(function(r){
+      var vn = r.valorNegociado||0, vc = r.valorComissao||0;
+      vgvTotal += vn; comissaoTotal += vc;
+      var mes = r.data ? r.data.slice(0,7) : '';
+      if(mes){ porMes[mes] = (porMes[mes]||0) + vn; comissaoPorMes[mes] = (comissaoPorMes[mes]||0) + vc; }
+      var corretor = normalizarChave(r.responsavel) || '(Em branco)';
+      porCorretor[corretor] = (porCorretor[corretor]||0) + vn;
+      comissaoPorCorretor[corretor] = (comissaoPorCorretor[corretor]||0) + vc;
+      contagemPorCorretor[corretor] = (contagemPorCorretor[corretor]||0) + 1;
+      var tipo = normalizarChave(r.tipo) || '(Não informado)';
+      porTipo[tipo] = (porTipo[tipo]||0) + 1;
+    });
+    return { total: rows.length, vgvTotal: vgvTotal, comissaoTotal: comissaoTotal,
+      ticketMedio: rows.length ? vgvTotal/rows.length : 0, porMes: porMes, comissaoPorMes: comissaoPorMes,
+      porCorretor: porCorretor, comissaoPorCorretor: comissaoPorCorretor, contagemPorCorretor: contagemPorCorretor, porTipo: porTipo };
+  }
+
+  function agregarAtendimentos(rows){
+    var porCorretor={}, porMidia={}, porEtapa={}, porMes={};
+    rows.forEach(function(r){
+      var c = normalizarChave(r.corretor) || '(Em branco)'; porCorretor[c] = (porCorretor[c]||0) + 1;
+      var m = normalizarChave(r.midia) || '(Em branco)'; porMidia[m] = (porMidia[m]||0) + 1;
+      var e = normalizarChave(r.etapa) || '(Em branco)'; porEtapa[e] = (porEtapa[e]||0) + 1;
+      var mes = r.data ? r.data.slice(0,7) : '';
+      if(mes) porMes[mes] = (porMes[mes]||0) + 1;
+    });
+    return { total: rows.length, porCorretor: porCorretor, porMidia: porMidia, porEtapa: porEtapa, porMes: porMes };
+  }
+
+  function agregarImoveis(rows){
+    var valoresVenda=[], valoresLocacao=[];
+    rows.forEach(function(r){
+      var vv = paraNumero(r['Valor Venda']); if(vv>0) valoresVenda.push(vv);
+      var vl = paraNumero(r['Valor Locação']); if(vl>0) valoresLocacao.push(vl);
+    });
+    var soma = function(arr){ return arr.reduce(function(a,b){ return a+b; },0); };
+    return {
+      total: rows.length,
+      porTipo: contarPor(rows,'Tipo'),
+      porCidade: contarPor(rows,'Cidade'),
+      porFinalidade: contarPor(rows,'Finalidade'),
+      ticketMedioVenda: valoresVenda.length ? soma(valoresVenda)/valoresVenda.length : 0,
+      ticketMedioLocacao: valoresLocacao.length ? soma(valoresLocacao)/valoresLocacao.length : 0
+    };
+  }
+
+  function topN(obj, n){
+    return Object.entries(obj||{}).sort(function(a,b){ return b[1]-a[1]; }).slice(0, n||10);
+  }
+
+  /* ---------- componentes visuais (reaproveitando o padrão visual do app) ---------- */
+  function barraLista(titulo, entradas, formatador, destacar){
+    formatador = formatador || function(v){ return v; };
+    var max = Math.max.apply(null, entradas.map(function(e){ return e[1]; }).concat([1]));
+    var linhas = entradas.map(function(e){
+      var largura = Math.max(4, (e[1]/max)*100);
+      var ativo = destacar && e[0] === destacar;
+      return '<div class="lead-bar"'+(ativo?' style="background:#fff7de;border-radius:8px;padding:3px 6px;margin:2px -6px"':'')+'><b title="'+esc(e[0])+'"'+(ativo?' style="color:#8a6b00"':'')+'>'+esc(e[0])+(ativo?' ★':'')+'</b><div class="track"><div class="fill" style="width:'+largura+'%'+(ativo?';background:#8a6b00':'')+'"></div></div><span>'+esc(formatador(e[1]))+'</span></div>';
+    }).join('');
+    return '<div class="card pad"><h3>'+esc(titulo)+'</h3>'+(entradas.length?linhas:'<p class="sub">Sem dados para o período.</p>')+'</div>';
+  }
+
+  function graficoLinha(titulo, serieObj, formatador){
+    formatador = formatador || function(v){ return v; };
+    var meses = Object.keys(serieObj||{}).sort();
+    if(!meses.length) return '<div class="card pad"><h3>'+esc(titulo)+'</h3><p class="sub">Sem dados para o período.</p></div>';
+    var vals = meses.map(function(m){ return serieObj[m]; });
+    var max = Math.max.apply(null, vals.concat([0])), min = Math.min.apply(null, vals.concat([0]));
+    var range = (max-min) || 1;
+    var W=560, H=190, padL=14, padR=14, padT=20, padB=26;
+    var stepX = meses.length>1 ? (W-padL-padR)/(meses.length-1) : 0;
+    var pontos = vals.map(function(v,i){
+      var x = padL + stepX*i;
+      var y = padT + (H-padT-padB) * (1-((v-min)/range));
+      return [x,y];
+    });
+    var pathD = pontos.map(function(p,i){ return (i===0?'M':'L')+p[0].toFixed(1)+' '+p[1].toFixed(1); }).join(' ');
+    var areaD = pathD + ' L'+pontos[pontos.length-1][0].toFixed(1)+' '+(H-padB)+' L'+pontos[0][0].toFixed(1)+' '+(H-padB)+' Z';
+    var nomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    var labelMes = function(m){ var partes = m.split('-'); return nomes[Number(partes[1])-1] + '/' + partes[0].slice(2); };
+    var labels = pontos.map(function(p,i){ return '<text x="'+p[0].toFixed(1)+'" y="'+(H-8)+'" font-size="10" fill="#8a8f99" text-anchor="middle">'+labelMes(meses[i])+'</text>'; }).join('');
+    var valLabels = pontos.map(function(p,i){ return '<text x="'+p[0].toFixed(1)+'" y="'+Math.max(11,p[1]-8).toFixed(1)+'" font-size="10" font-weight="900" fill="#111" text-anchor="middle">'+esc(formatador(vals[i]))+'</text>'; }).join('');
+    var dots = pontos.map(function(p){ return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.2" fill="#111"/>'; }).join('');
+    var svg = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:200px">'
+      + '<path d="'+areaD+'" fill="rgba(255,199,27,.22)" stroke="none"/>'
+      + '<path d="'+pathD+'" fill="none" stroke="#ffc71b" stroke-width="2.4"/>'
+      + dots + valLabels + labels + '</svg>';
+    return '<div class="card pad"><h3>'+esc(titulo)+'</h3>'+svg+'</div>';
+  }
+
+  function graficoBarrasAno(titulo, serieAnoObj, formatador){
+    formatador = formatador || function(v){ return v; };
+    var anos = Object.keys(serieAnoObj||{}).sort();
+    if(!anos.length) return '<div class="card pad"><h3>'+esc(titulo)+'</h3><p class="sub">Sem dados para o período.</p></div>';
+    var vals = anos.map(function(a){ return serieAnoObj[a]; });
+    var max = Math.max.apply(null, vals.concat([1]));
+    var W=560, H=190, padL=20, padR=20, padT=24, padB=26;
+    var largura = (W-padL-padR)/anos.length;
+    var barW = Math.min(90, largura*0.5);
+    var barras = anos.map(function(a,i){
+      var altura = max ? (vals[i]/max) * (H-padT-padB) : 0;
+      var x = padL + largura*i + (largura-barW)/2;
+      var y = (H-padB) - altura;
+      return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+altura.toFixed(1)+'" rx="4" fill="#ffc71b"/>'
+        + '<text x="'+(x+barW/2).toFixed(1)+'" y="'+Math.max(11,y-8).toFixed(1)+'" font-size="11" font-weight="900" fill="#111" text-anchor="middle">'+esc(formatador(vals[i]))+'</text>'
+        + '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(H-8)+'" font-size="11" fill="#8a8f99" text-anchor="middle">'+esc(a)+'</text>';
+    }).join('');
+    var svg = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:200px">'+barras+'</svg>';
+    return '<div class="card pad"><h3>'+esc(titulo)+'</h3>'+svg+'</div>';
+  }
+
+  /* funil de conversão: etapas em ordem decrescente [[rótulo, valor], ...] */
+  function graficoFunil(titulo, etapas){
+    etapas = (etapas||[]).filter(function(e){ return e[1] != null; });
+    if(!etapas.length) return '<div class="card pad"><h3>'+esc(titulo)+'</h3><p class="sub">Sem dados para o período.</p></div>';
+    var max = Math.max.apply(null, etapas.map(function(e){ return e[1]; }).concat([1]));
+    var cores = ['#111','#3a3f4b','#6b7280','#ffc71b'];
+    var linhas = etapas.map(function(e,i){
+      var pct = max ? (e[1]/max)*100 : 0;
+      var conv = i>0 && etapas[i-1][1] ? ((e[1]/etapas[i-1][1])*100) : null;
+      return '<div style="margin-bottom:14px">'
+        + '<div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:800;margin-bottom:5px"><span>'+esc(e[0])+'</span><span>'+e[1].toLocaleString('pt-BR')+(conv!=null?' <span style="color:#8a8f99;font-weight:700">('+conv.toFixed(0)+'% do anterior)</span>':'')+'</span></div>'
+        + '<div style="background:#f0f1f3;border-radius:8px;height:26px;overflow:hidden"><div style="width:'+Math.max(4,pct)+'%;height:100%;background:'+cores[i%cores.length]+';border-radius:8px"></div></div>'
+        + '</div>';
+    }).join('');
+    return '<div class="card pad"><h3>'+esc(titulo)+'</h3>'+linhas+'</div>';
+  }
+
+  /* gráfico de rosca (donut) com legenda ao lado */
+  function graficoRosca(titulo, dadosObj, formatador){
+    formatador = formatador || function(v){ return v; };
+    var entradas = Object.entries(dadosObj||{}).filter(function(e){ return e[1]>0; }).sort(function(a,b){ return b[1]-a[1]; });
+    if(!entradas.length) return '<div class="card pad"><h3>'+esc(titulo)+'</h3><p class="sub">Sem dados para o período.</p></div>';
+    var total = entradas.reduce(function(s,e){ return s+e[1]; },0);
+    var cores = ['#ffc71b','#111','#6b7280','#f4a300','#3a3f4b','#d1a300','#9aa0aa','#8a6b00'];
+    var R = 60, CX = 74, CY = 74, circunf = 2*Math.PI*R;
+    var acc = 0;
+    var arcos = entradas.map(function(e,i){
+      var frac = e[1]/total;
+      var comp = frac*circunf;
+      var offset = -acc*circunf;
+      acc += frac;
+      return '<circle cx="'+CX+'" cy="'+CY+'" r="'+R+'" fill="none" stroke="'+cores[i%cores.length]+'" stroke-width="26" stroke-dasharray="'+comp.toFixed(1)+' '+(circunf-comp).toFixed(1)+'" stroke-dashoffset="'+offset.toFixed(1)+'" transform="rotate(-90 '+CX+' '+CY+')"/>';
+    }).join('');
+    var svg = '<svg viewBox="0 0 148 148" style="width:150px;height:150px;flex:0 0 auto">'+arcos+'<text x="74" y="70" font-size="12" fill="#8a8f99" text-anchor="middle">Total</text><text x="74" y="88" font-size="15" font-weight="900" fill="#111" text-anchor="middle">'+esc(formatador(total))+'</text></svg>';
+    var legenda = '<div style="display:flex;flex-direction:column;gap:8px;justify-content:center">' + entradas.map(function(e,i){
+      var pct = total ? ((e[1]/total)*100).toFixed(0) : 0;
+      return '<div style="display:flex;align-items:center;gap:8px;font-size:12.5px"><span style="width:11px;height:11px;border-radius:3px;background:'+cores[i%cores.length]+';flex:0 0 auto"></span><b style="flex:1">'+esc(e[0])+'</b><span style="color:#8a8f99">'+pct+'% · '+esc(formatador(e[1]))+'</span></div>';
+    }).join('') + '</div>';
+    return '<div class="card pad"><h3>'+esc(titulo)+'</h3><div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">'+svg+legenda+'</div></div>';
+  }
+
+  /* ---------- processar upload ---------- */
+  window.analise360Processar = async function(){
+    try{ await carregarXLSX(); }catch(e){}
+    if(typeof XLSX === 'undefined'){ if(typeof toast==='function') toast('Não foi possível carregar a biblioteca de planilhas (verifique a conexão com a internet) e tente novamente.','err'); return; }
+    var arquivos = {
+      negociacoes: document.getElementById('a360FileNegociacoes'),
+      atendVendas: document.getElementById('a360FileAtendVendas'),
+      atendLocacao: document.getElementById('a360FileAtendLocacao'),
+      imoveisAtivos: document.getElementById('a360FileImoveisAtivos'),
+      imoveisInativos: document.getElementById('a360FileImoveisInativos')
+    };
+    var algumArquivo = Object.keys(arquivos).some(function(k){ var el = arquivos[k]; return el && el.files && el.files.length; });
+    if(!algumArquivo){ if(typeof toast==='function') toast('Selecione pelo menos um arquivo para enviar.','warn'); return; }
+
+    var btn = document.getElementById('a360BtnProcessar');
+    if(btn){ btn.disabled = true; btn.textContent = 'Processando...'; }
+
+    function mostrarStatus(html){
+      try{ var el = document.getElementById('a360Status'); if(el) el.innerHTML = html; }catch(e){}
+    }
+
+    try{
+      /* lê e processa cada arquivo enviado (cada um substitui os dados anteriores
+         desse mesmo tipo — os relatórios exportados já trazem o histórico completo,
+         então cada envio novo é a versão mais atual e completa daquele arquivo) */
+      var negRows = null, avRows = null, alRows = null, iaObj = null, iiObj = null;
+      if(arquivos.negociacoes && arquivos.negociacoes.files[0]) negRows = trimNegociacoes(await lerPlanilha(arquivos.negociacoes.files[0]));
+      if(arquivos.atendVendas && arquivos.atendVendas.files[0]) avRows = trimAtendimentos(await lerPlanilha(arquivos.atendVendas.files[0]));
+      if(arquivos.atendLocacao && arquivos.atendLocacao.files[0]) alRows = trimAtendimentos(await lerPlanilha(arquivos.atendLocacao.files[0]));
+      if(arquivos.imoveisAtivos && arquivos.imoveisAtivos.files[0]) iaObj = agregarImoveis(await lerPlanilha(arquivos.imoveisAtivos.files[0]));
+      if(arquivos.imoveisInativos && arquivos.imoveisInativos.files[0]) iiObj = agregarImoveis(await lerPlanilha(arquivos.imoveisInativos.files[0]));
+
+      /* IMPORTANTE: buscar a "loja" de dados AGORA, depois de todos os awaits acima —
+         o db pode ter sido substituído por inteiro em segundo plano enquanto os
+         arquivos eram lidos, e gravar na referência antiga faria os dados irem
+         parar num objeto órfão que ninguém mais lê. */
+      var store = ensureStore();
+      if(negRows) store.negociacoes = negRows;
+      if(avRows) store.atendimentosVendas = avRows;
+      if(alRows) store.atendimentosLocacao = alRows;
+      if(iaObj) store.imoveisAtivos = iaObj;
+      if(iiObj) store.imoveisInativos = iiObj;
+      store.atualizadoEm = new Date().toISOString();
+      store.atualizadoPor = (typeof current !== 'undefined' && current && current.name) || '';
+
+      atualizarCacheLocal();
+      doSave();
+      /* reforço: grava só este campo, isoladamente, para garantir que chegue ao
+         Firebase mesmo se o save() padrão tomar um caminho interno que não inclua
+         a Análise 360° para este usuário */
+      mostrarStatus('<p class="sub">Confirmando gravação no Firebase...</p>');
+      try{
+        if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
+          window.firebaseDb.ref('/').update({ analise360: store }).then(function(){
+            /* confirmação: relê direto do Firebase (não da memória local) pra ter
+               certeza absoluta de que os dados realmente ficaram gravados lá */
+            return window.firebaseDb.ref('/analise360').once('value');
+          }).then(function(snap){
+            var val = snap.val();
+            var temDados = val && ((val.negociacoes&&val.negociacoes.length) || (val.atendimentosVendas&&val.atendimentosVendas.length) || (val.atendimentosLocacao&&val.atendimentosLocacao.length) || val.imoveisAtivos || val.imoveisInativos);
+            if(temDados){
+              mostrarStatus('<p style="color:#136b3a;font-weight:800">✓ Confirmado: gravado no Firebase.</p>');
+              if(typeof toast==='function') toast('Confirmado: gravado no Firebase.','ok');
+            } else {
+              mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ ATENÇÃO: a gravação não persistiu no Firebase — os dados podem sumir ao atualizar a página. Tente novamente ou avise o suporte.</p>');
+              if(typeof toast==='function') toast('ATENÇÃO: a gravação não persistiu no Firebase.','err');
+            }
+          }).catch(function(e){
+            mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ ERRO ao gravar/confirmar no Firebase: '+esc(e.code||e.message)+'</p>');
+            if(typeof toast==='function') toast('ERRO ao gravar no Firebase: ' + (e.code||e.message),'err');
+            console.error('[V115] Falha na gravação/confirmação de reforço:', e);
+          });
+        } else {
+          mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ Sem conexão com o Firebase no momento do envio — os dados só ficaram salvos localmente neste navegador (vão sumir ao atualizar a página).</p>');
+        }
+      }catch(e){ console.error('[V115] Erro na gravação de reforço:', e); }
+
+      if(typeof toast==='function') toast('Dados salvos. Confira em "Análise 360°".','ok');
+      Object.keys(arquivos).forEach(function(k){ if(arquivos[k]) arquivos[k].value=''; });
+    }catch(err){
+      console.error('[V115] Erro ao processar arquivos da Análise 360°:', err);
+      if(typeof toast==='function') toast('Erro ao processar um dos arquivos. Confira o formato e tente novamente.','err');
+    }finally{
+      if(btn){ btn.disabled = false; btn.textContent = 'Processar e salvar'; }
+    }
+  };
+
+  function analise360CapturarEstado(){
+    return {
+      aba: window.__npcA360Aba,
+      de: (document.getElementById('a360De')||{}).value || '',
+      ate: (document.getElementById('a360Ate')||{}).value || '',
+      corretor: (document.getElementById('a360Corretor')||{}).value || ''
+    };
+  }
+
+  function analise360AplicarEstado(estado){
+    try{
+      if(estado.aba) window.__npcA360Aba = estado.aba;
+      var selD = document.getElementById('a360De');
+      var selA = document.getElementById('a360Ate');
+      var selC = document.getElementById('a360Corretor');
+      if(selD && estado.de) selD.value = estado.de;
+      if(selA && estado.ate) selA.value = estado.ate;
+      if(selC && estado.corretor){
+        var existe = Array.prototype.some.call(selC.options, function(o){ return o.value === estado.corretor; });
+        if(existe) selC.value = estado.corretor;
+      }
+    }catch(e){ console.error('[V115] Erro ao aplicar estado dos filtros:', e); }
+  }
+
+  /* guarda a última escolha explícita do usuário (aba, período, corretor) e fica
+     de olho continuamente — a tela deste sistema se reconstrói sozinha em segundo
+     plano de tempos em tempos e, sem essa vigilância, voltaria a mostrar tudo sem
+     filtro cada vez que isso acontecesse. */
+  window.__npcA360UltimoFiltro = null;
+
+  function analise360SalvarUltimoFiltro(){
+    window.__npcA360UltimoFiltro = analise360CapturarEstado();
+  }
+
+  function analise360Vigiar(){
+    try{
+      var alvo = window.__npcA360UltimoFiltro;
+      var selC = document.getElementById('a360Corretor');
+      if(!alvo || !selC) return; /* não estamos na tela da Análise 360° agora */
+      var atual = analise360CapturarEstado();
+      var divergiu = (alvo.aba && atual.aba !== alvo.aba)
+        || (alvo.de && atual.de !== alvo.de)
+        || (alvo.ate && atual.ate !== alvo.ate)
+        || (alvo.corretor && atual.corretor !== alvo.corretor);
+      if(divergiu){
+        analise360AplicarEstado(alvo);
+        analise360Render();
+      }
+    }catch(e){ console.error('[V115] Erro na vigilância de filtros:', e); }
+  }
+  if(!window.__npcA360VigiaTimer){
+    window.__npcA360VigiaTimer = setInterval(analise360Vigiar, 700);
+  }
+
+  window.analise360Trocar = function(){
+    analise360Render();
+    analise360SalvarUltimoFiltro();
+  };
+
+  window.analise360FiltrarCorretor = function(){
+    analise360Render();
+    analise360SalvarUltimoFiltro();
+  };
+
+  window.analise360TrocarAba = function(aba){
+    window.__npcA360Aba = aba;
+    analise360Render();
+    analise360SalvarUltimoFiltro();
+  };
+
+  function agruparPorAno(porMesObj){
+    var out = {};
+    Object.keys(porMesObj||{}).forEach(function(m){
+      var ano = m.split('-')[0];
+      out[ano] = (out[ano]||0) + porMesObj[m];
+    });
+    return out;
+  }
+
+  function somarDuasChaves(a, b){
+    var out = {};
+    Object.keys(a||{}).forEach(function(k){ out[k] = (out[k]||0) + a[k]; });
+    Object.keys(b||{}).forEach(function(k){ out[k] = (out[k]||0) + b[k]; });
+    return out;
+  }
+
+  var ABAS_A360 = [
+    ['geral','Visão Geral'],
+    ['vgv','VGV'],
+    ['comissoes','Comissões'],
+    ['ranking','Ranking'],
+    ['atendimentos','Atendimentos'],
+    ['carteira','Carteira de Imóveis']
+  ];
+
+  function analise360Render(){
+    var store = ensureStore();
+    var box = document.getElementById('a360Resultados');
+    var semNadaAinda = !store.negociacoes.length && !store.atendimentosVendas.length && !store.atendimentosLocacao.length && !store.imoveisAtivos;
+    if(semNadaAinda){
+      if(box) box.innerHTML = '<div class="empty">Nenhum dado enviado ainda. Envie os arquivos na tela "Importar Análise 360°" para começar.</div>';
+      return;
+    }
+
+    /* datas reais disponíveis nos dados (não a data de importação) */
+    var todasDatas = store.negociacoes.map(function(r){ return r.data; })
+      .concat(store.atendimentosVendas.map(function(r){ return r.data; }))
+      .concat(store.atendimentosLocacao.map(function(r){ return r.data; }))
+      .filter(Boolean).sort();
+    var hoje = new Date().toISOString().slice(0,10);
+
+    var deEl = document.getElementById('a360De');
+    var ateEl = document.getElementById('a360Ate');
+    var ultimoFiltro = window.__npcA360UltimoFiltro;
+    if(deEl && !deEl.value) deEl.value = (ultimoFiltro && ultimoFiltro.de) || (todasDatas.length ? todasDatas[0] : hoje);
+    if(ateEl && !ateEl.value) ateEl.value = (ultimoFiltro && ultimoFiltro.ate) || (todasDatas.length ? todasDatas[todasDatas.length-1] : hoje);
+    var de = deEl ? deEl.value : (todasDatas.length ? todasDatas[0] : hoje);
+    var ate = ateEl ? ateEl.value : (todasDatas.length ? todasDatas[todasDatas.length-1] : hoje);
+    if(de && ate && de > ate){
+      var tmp = de; de = ate; ate = tmp;
+      if(deEl) deEl.value = de;
+      if(ateEl) ateEl.value = ate;
+    }
+
+    function noPeriodo(r){ return r.data && (!de || r.data >= de) && (!ate || r.data <= ate); }
+    var negLinhasPeriodo = store.negociacoes.filter(noPeriodo);
+    var avLinhasPeriodo = store.atendimentosVendas.filter(noPeriodo);
+    var alLinhasPeriodo = store.atendimentosLocacao.filter(noPeriodo);
+
+    if(!negLinhasPeriodo.length && !avLinhasPeriodo.length && !alLinhasPeriodo.length && !store.imoveisAtivos){
+      if(box) box.innerHTML = '<div class="empty">Nenhum dado entre '+(de?de.split('-').reverse().join('/'):'—')+' e '+(ate?ate.split('-').reverse().join('/'):'—')+'.</div>';
+      return;
+    }
+
+    /* -- lista de corretores disponíveis no período (antes de aplicar o filtro) -- */
+    var negAgregadoPeriodo = agregarNegociacoes(negLinhasPeriodo);
+    var atendPorCorretorPeriodo = somarDuasChaves(agregarAtendimentos(avLinhasPeriodo).porCorretor, agregarAtendimentos(alLinhasPeriodo).porCorretor);
+    var corretores = Object.keys(somarDuasChaves(negAgregadoPeriodo.porCorretor, atendPorCorretorPeriodo)).sort();
+
+    var selCorretor = document.getElementById('a360Corretor');
+    var corretorAtivo = '';
+    if(selCorretor){
+      var reconstruidoAgora = selCorretor.options.length <= 1;
+      var valorAnterior = reconstruidoAgora ? (selCorretor.value || (ultimoFiltro && ultimoFiltro.corretor) || '') : selCorretor.value;
+      selCorretor.innerHTML = '<option value="">Todos os corretores</option>' + corretores.map(function(c){
+        return '<option value="'+esc(c)+'"'+(c===valorAnterior?' selected':'')+'>'+esc(c)+'</option>';
+      }).join('');
+      corretorAtivo = selCorretor.value || '';
+    }
+
+    /* -- aplica o filtro de corretor a TODAS as linhas usadas na tela: KPIs,
+       gráficos e tabelas passam a refletir só aquele corretor, do início ao fim -- */
+    function ehDoCorretor(campo){
+      return function(r){ return normalizarChave(r[campo]) === corretorAtivo; };
+    }
+    var negLinhas = corretorAtivo ? negLinhasPeriodo.filter(ehDoCorretor('responsavel')) : negLinhasPeriodo;
+    var avLinhas = corretorAtivo ? avLinhasPeriodo.filter(ehDoCorretor('corretor')) : avLinhasPeriodo;
+    var alLinhas = corretorAtivo ? alLinhasPeriodo.filter(ehDoCorretor('corretor')) : alLinhasPeriodo;
+
+    var neg = agregarNegociacoes(negLinhas);
+    var av = agregarAtendimentos(avLinhas);
+    var al = agregarAtendimentos(alLinhas);
+    var ia = store.imoveisAtivos || {total:0,porTipo:{},porCidade:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
+    var totalAtendimentos = (av.total||0) + (al.total||0);
+    var vendasFechadas = (neg.porTipo && neg.porTipo['Venda']) || 0;
+    var atendimentosPorCorretor = somarDuasChaves(av.porCorretor, al.porCorretor);
+
+    /* -- período anterior: mesma duração, imediatamente antes de "De" (já considerando o corretor filtrado) -- */
+    var negAnt = null, totalAtendimentosAnt = null;
+    if(de && ate){
+      var msDia = 86400000;
+      var msDe = new Date(de+'T00:00:00').getTime(), msAte = new Date(ate+'T00:00:00').getTime();
+      var duracao = Math.max(msAte - msDe, msDia);
+      var anteAte = new Date(msDe - msDia).toISOString().slice(0,10);
+      var anteDe = new Date(msDe - msDia - duracao).toISOString().slice(0,10);
+      function noPeriodoAnterior(r){ return r.data && r.data >= anteDe && r.data <= anteAte; }
+      var negLinhasAnt = store.negociacoes.filter(noPeriodoAnterior);
+      var avLinhasAnt = store.atendimentosVendas.filter(noPeriodoAnterior);
+      var alLinhasAnt = store.atendimentosLocacao.filter(noPeriodoAnterior);
+      if(corretorAtivo){
+        negLinhasAnt = negLinhasAnt.filter(ehDoCorretor('responsavel'));
+        avLinhasAnt = avLinhasAnt.filter(ehDoCorretor('corretor'));
+        alLinhasAnt = alLinhasAnt.filter(ehDoCorretor('corretor'));
+      }
+      if(negLinhasAnt.length) negAnt = agregarNegociacoes(negLinhasAnt);
+      if(avLinhasAnt.length || alLinhasAnt.length) totalAtendimentosAnt = avLinhasAnt.length + alLinhasAnt.length;
+    }
+
+    var aba = window.__npcA360Aba || 'geral';
+
+    var abasHtml = '<div class="card pad" style="margin-bottom:18px;display:flex;gap:6px;overflow-x:auto">' + ABAS_A360.map(function(a){
+      var ativa = a[0] === aba;
+      return '<button type="button" onclick="analise360TrocarAba(\''+a[0]+'\')" style="white-space:nowrap;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:13px;cursor:pointer;background:'+(ativa?'#ffc71b':'transparent')+';color:'+(ativa?'#111':'#666')+'">'+esc(a[1])+'</button>';
+    }).join('') + '</div>';
+
+    var conteudo = '';
+    if(aba === 'vgv'){
+      var kpisVgv = ''
+        + '<div class="card kpi" style="text-align:center"><div class="l">VGV Bruto Total</div><div class="v">'+moneyCompact(neg.vgvTotal)+'</div>'+(negAnt?pctLabel(neg.vgvTotal, negAnt.vgvTotal):'<p class="sub">&nbsp;</p>')+'</div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Negócios Fechados</div><div class="v">'+neg.total+'</div><p class="sub">&nbsp;</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis Vendidos</div><div class="v">'+vendasFechadas+'</div><p class="sub">Do total de negócios</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio</div><div class="v">'+moneyCompact(neg.ticketMedio)+'</div><p class="sub">Por negócio fechado</p></div>';
+      conteudo = '<div class="grid cols4" style="margin-bottom:18px">'+kpisVgv+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+graficoBarrasAno('VGV Comparativo Anual', agruparPorAno(neg.porMes), moneyCompact)+graficoLinha('VGV Mês a Mês', neg.porMes, moneyCompact)+'</div>'
+        + '<div class="grid cols2">'+barraLista('Ranking de Corretores — VGV', topN(neg.porCorretor,10), moneyCompact, corretorAtivo)+barraLista('Negociações por Tipo', topN(neg.porTipo,8))+'</div>';
+    } else if(aba === 'comissoes'){
+      conteudo = '<div class="empty" style="padding:60px 20px"><h3 style="margin:0 0 8px">🚧 Em Construção</h3><p class="sub" style="margin:0">Esta tela ainda está sendo preparada.</p></div>';
+    } else if(aba === 'ranking'){
+      conteudo = '<div class="grid cols2">'
+        + barraLista('Corretores — VGV', topN(neg.porCorretor,12), moneyCompact, corretorAtivo)
+        + barraLista('Corretores — Comissão', topN(neg.comissaoPorCorretor,12), moneyCompact, corretorAtivo)
+        + barraLista('Corretores — Negócios Fechados', topN(neg.contagemPorCorretor,12), null, corretorAtivo)
+        + barraLista('Corretores — Atendimentos', topN(atendimentosPorCorretor,12), null, corretorAtivo)
+        + '</div>';
+    } else if(aba === 'atendimentos'){
+      var kpisAt = ''
+        + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos — Vendas</div><div class="v">'+av.total+'</div><p class="sub">&nbsp;</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos — Locação</div><div class="v">'+al.total+'</div><p class="sub">&nbsp;</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Total no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">&nbsp;</p>')+'</div>';
+      conteudo = '<div class="grid cols3" style="margin-bottom:18px">'+kpisAt+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+graficoLinha('Atendimentos por Mês (Vendas)', av.porMes)+barraLista('Atendimentos por Corretor', topN(atendimentosPorCorretor,10), null, corretorAtivo)+'</div>'
+        + '<div class="grid cols2">'+barraLista('Atendimentos por Mídia (Vendas)', topN(av.porMidia,10))+barraLista('Funil — Atendimentos por Etapa (Vendas)', topN(av.porEtapa,12))+'</div>';
+    } else if(aba === 'carteira'){
+      var kpisCa = ''
+        + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis na Carteira</div><div class="v">'+ia.total+'</div><p class="sub">Portfólio ativo</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Venda</div><div class="v">'+moneyCompact(ia.ticketMedioVenda)+'</div><p class="sub">&nbsp;</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Locação</div><div class="v">'+moneyCompact(ia.ticketMedioLocacao)+'</div><p class="sub">&nbsp;</p></div>';
+      conteudo = '<div class="grid cols3" style="margin-bottom:18px">'+kpisCa+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10))+barraLista('Carteira por Cidade', topN(ia.porCidade,10))+'</div>'
+        + '<div class="grid cols1">'+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6))+'</div>'
+        + (corretorAtivo ? '<p class="sub" style="margin-top:10px">A carteira de imóveis não é filtrada por corretor (não há essa relação nos dados de origem).</p>' : '');
+    } else {
+      var kpis = ''
+        + '<div class="card kpi" style="text-align:center;grid-column:span 2"><div class="l">VGV Bruto Total</div><div class="v">'+moneyCompact(neg.vgvTotal)+'</div>'+(negAnt?pctLabel(neg.vgvTotal, negAnt.vgvTotal):'<p class="sub">Sem dado anterior</p>')+'</div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Negócios Fechados</div><div class="v">'+neg.total+'</div>'+(negAnt?pctLabel(neg.total, negAnt.total):'<p class="sub">Sem dado anterior</p>')+'</div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Imóveis Vendidos</div><div class="v">'+vendasFechadas+'</div><p class="sub">Do total de negócios</p></div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 2"><div class="l">Ticket Médio</div><div class="v">'+moneyCompact(neg.ticketMedio)+'</div><p class="sub">Por negócio fechado</p></div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Atendimentos no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">Sem dado anterior</p>')+'</div>';
+
+      var linha1 = ''
+        + graficoFunil('Funil de Conversão', [['Atendimentos', totalAtendimentos], ['Negócios Fechados', neg.total], ['Imóveis Vendidos', vendasFechadas]])
+        + graficoRosca('Negociações por Tipo', neg.porTipo)
+        + (corretorAtivo ? barraLista('Atendimentos por Mídia', topN(av.porMidia,8)) : graficoRosca('Carteira por Finalidade', ia.porFinalidade));
+
+      var conteudoLinha2;
+      if(corretorAtivo){
+        conteudoLinha2 = '<div class="card pad"><h3>Resumo — '+esc(corretorAtivo)+'</h3>'
+          + '<table class="table"><tbody>'
+          + '<tr><td>VGV Total</td><td><b>'+moneyCompact(neg.vgvTotal)+'</b></td></tr>'
+          + '<tr><td>Comissão Total</td><td><b>'+moneyCompact(neg.comissaoTotal)+'</b></td></tr>'
+          + '<tr><td>Negócios Fechados</td><td><b>'+neg.total+'</b></td></tr>'
+          + '<tr><td>Atendimentos — Vendas</td><td><b>'+av.total+'</b></td></tr>'
+          + '<tr><td>Atendimentos — Locação</td><td><b>'+al.total+'</b></td></tr>'
+          + '<tr><td>Ticket Médio</td><td><b>'+moneyCompact(neg.ticketMedio)+'</b></td></tr>'
+          + '</tbody></table></div>';
+      } else {
+        var topCorretoresGeral = topN(neg.porCorretor, 6);
+        var linhasTabela = topCorretoresGeral.map(function(e){
+          var nome = e[0];
+          return '<tr><td>'+esc(nome)+'</td>'
+            + '<td>'+moneyCompact(neg.porCorretor[nome]||0)+'</td>'
+            + '<td>'+moneyCompact(neg.comissaoPorCorretor[nome]||0)+'</td>'
+            + '<td>'+(neg.contagemPorCorretor[nome]||0)+'</td>'
+            + '<td>'+(atendimentosPorCorretor[nome]||0)+'</td></tr>';
+        }).join('');
+        var tabela = topCorretoresGeral.length
+          ? '<table class="table"><thead><tr><th>Corretor</th><th>VGV</th><th>Comissão</th><th>Negócios</th><th>Atendimentos</th></tr></thead><tbody>'+linhasTabela+'</tbody></table>'
+          : '<p class="sub">Sem dados para o período.</p>';
+        conteudoLinha2 = '<div class="card pad"><h3>Panorama por Corretor</h3>'+tabela+'</div>';
+      }
+
+      conteudo = '<div class="grid" style="grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:18px">'+kpis+'</div>'
+        + '<div class="grid cols3" style="margin-bottom:18px">'+linha1+'</div>'
+        + conteudoLinha2;
+    }
+
+    if(box){
+      box.innerHTML = abasHtml + conteudo
+        + '<p class="sub" style="margin-top:14px">Período: '+de.split('-').reverse().join('/')+' a '+ate.split('-').reverse().join('/')+(corretorAtivo?' — filtrado por '+esc(corretorAtivo):'')+' — dados atualizados em '+(store.atualizadoEm?new Date(store.atualizadoEm).toLocaleString('pt-BR'):'—')+(store.atualizadoPor?' por '+esc(store.atualizadoPor):'')+'.</p>';
+    }
+    atualizarCacheLocal();
+  }
+  window.analise360Render = analise360Render;
+
+  /* ---------- render da página ---------- */
+  window.render_analise360 = function(){
+    var c = document.getElementById('content');
+    if(!c) return;
+    if(typeof has === 'function' && !has('analise360_ver')){
+      c.innerHTML = '<div class="empty">Você não possui permissão para acessar a Análise 360°.</div>';
+      return;
+    }
+    c.innerHTML =
+      '<div class="card pad" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'
+      + '<div><h2 style="margin:0 0 4px">Análise 360°</h2><p class="sub" style="margin:0">Consolidado de VGV, comissões, atendimentos e carteira de imóveis.</p></div>'
+      + '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+      + '<div style="display:flex;align-items:center;gap:8px"><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">De</label>'
+      + '<input type="date" id="a360De" onchange="analise360Trocar()" style="border-radius:10px;padding:8px 10px;font-weight:800">'
+      + '<label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">Até</label>'
+      + '<input type="date" id="a360Ate" onchange="analise360Trocar()" style="border-radius:10px;padding:8px 10px;font-weight:800"></div>'
+      + '<div style="display:flex;align-items:center;gap:10px"><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">Corretor</label>'
+      + '<select id="a360Corretor" onchange="analise360FiltrarCorretor()" style="border-radius:10px;padding:9px 12px;font-weight:800;max-width:220px"><option value="">Todos os corretores</option></select></div>'
+      + '</div></div>'
+
+      + '<div id="a360Resultados"></div>';
+
+    analise360Render();
+    /* só define a linha de base na PRIMEIRA vez que a tela abre nesta sessão —
+       se já existe um filtro salvo (mesmo que a tela tenha acabado de se
+       reconstruir sozinha em segundo plano), não sobrescreve a escolha real
+       do usuário com o estado recém-resetado */
+    if(!window.__npcA360UltimoFiltro) analise360SalvarUltimoFiltro();
+  };
+
+  /* A tela se reconstrói sozinha em segundo plano (sincronização em tempo real
+     do sistema). Isso recriava os filtros de Data e Corretor com os valores
+     padrão — e, mesmo quando o valor do campo era restaurado por outro mecanismo,
+     os NÚMEROS já tinham sido calculados sem o filtro. Aqui guardamos os filtros
+     ativos antes da reconstrução e, se algo mudou, reaplicamos e recalculamos. */
+  try{
+    var _origRenderV115 = window.render;
+    if(typeof _origRenderV115 === 'function' && !window.__npcV115RenderWrapped){
+      window.__npcV115RenderWrapped = true;
+      window.render = function(){
+        var filtrosAntes = {};
+        try{
+          ['a360De','a360Ate','a360Corretor'].forEach(function(id){
+            var el = document.getElementById(id);
+            if(el && el.value) filtrosAntes[id] = el.value;
+          });
+        }catch(e){}
+
+        var result = _origRenderV115.apply(this, arguments);
+
+        try{
+          var paginaAtual = window.page || (typeof page !== 'undefined' && page) || '';
+          if(paginaAtual === 'analise360' && Object.keys(filtrosAntes).length){
+            var mudouAlgo = false;
+            ['a360De','a360Ate'].forEach(function(id){
+              var el = document.getElementById(id);
+              if(el && filtrosAntes[id] && el.value !== filtrosAntes[id]){ el.value = filtrosAntes[id]; mudouAlgo = true; }
+            });
+            var selC = document.getElementById('a360Corretor');
+            if(selC && filtrosAntes['a360Corretor']){
+              var existeOpcao = Array.prototype.some.call(selC.options, function(o){ return o.value === filtrosAntes['a360Corretor']; });
+              if(existeOpcao && selC.value !== filtrosAntes['a360Corretor']){ selC.value = filtrosAntes['a360Corretor']; mudouAlgo = true; }
+            }
+            if(mudouAlgo && typeof analise360Render === 'function') analise360Render();
+          }
+        }catch(e){ console.error('[V115] Erro ao restaurar filtros da Análise 360°:', e); }
+
+        return result;
+      };
+    }
+  }catch(e){ console.error('[V115] Erro ao proteger filtros contra atualização automática:', e); }
+
+  window.render_analise360_upload = function(){
+    var c = document.getElementById('content');
+    if(!c) return;
+    if(typeof has === 'function' && !has('analise360_upload')){
+      c.innerHTML = '<div class="empty">Você não possui permissão para enviar arquivos da Análise 360°.</div>';
+      return;
+    }
+    c.innerHTML =
+      '<div class="card pad" style="margin-bottom:18px">'
+      + '<h2 style="margin:0 0 4px">Importar Análise 360°</h2>'
+      + '<p class="sub" style="margin:0">Envie os relatórios exportados (.xlsx). Cada arquivo novo substitui a versão anterior desse mesmo tipo — os relatórios já trazem o histórico completo até a data da exportação. Na tela "Análise 360°" você filtra por qualquer período usando a data real de cada venda/atendimento.</p>'
+      + '</div>'
+      + '<div class="card pad">'
+      + '<div class="grid cols3">'
+      + '<div class="field"><label>Negociações fechadas</label><input type="file" id="a360FileNegociacoes" accept=".xlsx,.xls"></div>'
+      + '<div class="field"><label>Atendimentos — Vendas</label><input type="file" id="a360FileAtendVendas" accept=".xlsx,.xls"></div>'
+      + '<div class="field"><label>Atendimentos — Locação</label><input type="file" id="a360FileAtendLocacao" accept=".xlsx,.xls"></div>'
+      + '<div class="field"><label>Imóveis ativos</label><input type="file" id="a360FileImoveisAtivos" accept=".xlsx,.xls"></div>'
+      + '<div class="field"><label>Imóveis inativos</label><input type="file" id="a360FileImoveisInativos" accept=".xlsx,.xls"></div>'
+      + '</div>'
+      + '<div class="actions" style="margin-top:14px"><button class="primary" id="a360BtnProcessar" onclick="analise360Processar()">Processar e salvar</button></div>'
+      + '<div id="a360Status" style="margin-top:14px"></div>'
+      + '</div>';
+
+    carregarXLSX().catch(function(){ /* falha silenciosa aqui; o botão tentará de novo e avisará o usuário */ });
+  };
+
+  try{
+    if(typeof renders !== 'undefined'){
+      renders['analise360'] = window.render_analise360;
+      renders['analise360_upload'] = window.render_analise360_upload;
+      window.renders = renders;
+    }
+  }catch(e){}
+  try{
+    if(typeof window.renders !== 'undefined'){
+      window.renders['analise360'] = window.render_analise360;
+      window.renders['analise360_upload'] = window.render_analise360_upload;
+    }
+  }catch(e){}
+
+  console.log('[V115] Análise 360° instalada.');
+})();
+</script>
+
+
+<!-- PATCH V116: "Documentos enviados por" vira "Comprador Possui Saldo para Financiamento?" -->
+<script>
+(function(){
+  if(window.__npcV116SaldoFin) return;
+  window.__npcV116SaldoFin = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function cardsRef(){ var d=dbRef(); return Array.isArray(d.kanbanCards) ? d.kanbanCards : []; }
+
+  function maskMoedaInput(el){
+    var digits = el.value.replace(/\D/g,'');
+    if(!digits){ el.value=''; return; }
+    var n = parseInt(digits,10)/100;
+    el.value = n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  }
+  window.__npcMaskMoedaSaldoFin = maskMoedaInput;
+
+  window.__npcToggleSaldoFin = function(selectEl){
+    try{
+      var wrap = selectEl.closest('.npc-saldo-fin-wrap');
+      var input = wrap ? wrap.querySelector('#kbValorSaldoFin') : document.getElementById('kbValorSaldoFin');
+      if(!input) return;
+      if(selectEl.value === 'sim'){ input.disabled = false; }
+      else { input.value = ''; input.disabled = true; }
+    }catch(e){}
+  };
+
+  /* -- 1) Modal de Nova/Editar venda: substitui "Documentos enviados por" -- */
+  var _origOpenModalV116 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(columnId, cardId){
+    var result = _origOpenModalV116 ? _origOpenModalV116.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        if(document.getElementById('kbPossuiSaldoFin')) return;
+        var docEl = document.getElementById('kbDocumentos');
+        if(!docEl) return;
+        var docField = docEl.closest('.field');
+        if(!docField) return;
+
+        var c = cardId ? cardsRef().find(function(x){ return String(x.id) === String(cardId); }) : null;
+        var possui = (c && c.possuiSaldoFinanciamento === 'sim') ? 'sim' : 'nao';
+        var valor = (c && c.valorSaldoFinanciamento) || '';
+
+        var novo = document.createElement('div');
+        novo.className = 'field npc-saldo-fin-wrap';
+        novo.innerHTML =
+          '<label>Comprador Possui Saldo para Financiamento?</label>' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+          '<select id="kbPossuiSaldoFin" style="flex:0 0 90px;width:90px" onchange="window.__npcToggleSaldoFin(this)">' +
+          '<option value="nao"' + (possui === 'nao' ? ' selected' : '') + '>Não</option>' +
+          '<option value="sim"' + (possui === 'sim' ? ' selected' : '') + '>Sim</option>' +
+          '</select>' +
+          '<input type="text" id="kbValorSaldoFin" placeholder="R$ 0,00" style="flex:1 1 auto" value="' + String(valor).replace(/"/g,'&quot;') + '" ' + (possui === 'sim' ? '' : 'disabled') + ' oninput="window.__npcMaskMoedaSaldoFin(this)">' +
+          '</div>';
+
+        /* coloca o novo campo exatamente no lugar de "Documentos enviados por"
+           (que já ficava ao lado de Posse), em vez de acrescentar como um 3º
+           item numa grade de 2 colunas — assim o alinhamento com Posse é mantido */
+        docField.parentNode.replaceChild(novo, docField);
+        docField.style.display = 'none';
+        novo.appendChild(docField); /* mantém no DOM (oculto) para não quebrar o salvamento original */
+      }catch(e){ console.error('[V116] Erro ao montar campo de saldo para financiamento:', e); }
+    }, 200);
+    return result;
+  };
+
+  /* -- 2) Salvamento: grava possuiSaldoFinanciamento + valorSaldoFinanciamento no card -- */
+  var _origSaveCardV116 = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var possuiEl = document.getElementById('kbPossuiSaldoFin');
+    var valorEl = document.getElementById('kbValorSaldoFin');
+    var possui = possuiEl ? possuiEl.value : 'nao';
+    var valor = (possui === 'sim' && valorEl) ? valorEl.value.trim() : '';
+    var cId = String(cardId || '');
+
+    function aplicar(card){
+      if(!card) return;
+      card.possuiSaldoFinanciamento = possui;
+      card.valorSaldoFinanciamento = valor;
+    }
+
+    if(cId){
+      try{ aplicar(cardsRef().find(function(x){ return String(x.id) === cId; })); }
+      catch(e){ console.error('[V116] Erro ao preparar saldo para financiamento (edição):', e); }
+      return _origSaveCardV116 ? _origSaveCardV116.apply(this, arguments) : undefined;
+    }
+
+    var result = _origSaveCardV116 ? _origSaveCardV116.apply(this, arguments) : undefined;
+    try{
+      var lista = cardsRef();
+      aplicar(lista[lista.length - 1]);
+      if(typeof save === 'function') save(); else if(typeof window.save === 'function') window.save();
+    }catch(e){ console.error('[V116] Erro ao salvar saldo para financiamento (novo):', e); }
+    return result;
+  };
+
+  /* -- 3) Tela "Abrir": troca a linha "Documentos enviados por" pela pergunta -- */
+  function textoSaldoFin(c){
+    if(c && c.possuiSaldoFinanciamento === 'sim'){
+      return 'Sim' + (c.valorSaldoFinanciamento ? ' — ' + c.valorSaldoFinanciamento : '');
+    }
+    return 'Não';
+  }
+
+  var _origOpenViewV116 = window.openKanbanCardView;
+  window.openKanbanCardView = function(cardId){
+    var result = _origOpenViewV116 ? _origOpenViewV116.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        var c = cardsRef().find(function(x){ return String(x.id) === String(cardId); });
+        if(!c) return;
+        var paragrafos = document.querySelectorAll('.kanban-info p');
+        paragrafos.forEach(function(p){
+          if(p.textContent.trim().indexOf('Documentos enviados por:') === 0){
+            p.innerHTML = '<b>Comprador possui saldo para financiamento?</b> ' + textoSaldoFin(c);
+          }
+        });
+      }catch(e){ console.error('[V116] Erro ao exibir saldo para financiamento:', e); }
+    }, 80);
+    return result;
+  };
+
+  console.log('[V116] Documentos enviados por convertido em Comprador Possui Saldo para Financiamento.');
+})();
+</script>
+
+
+<!-- PATCH V117: Checklist com responsável acompanha exatamente a altura do lado esquerdo do card -->
+<script>
+(function(){
+  if(window.__npcV117ChecklistAltura) return;
+  window.__npcV117ChecklistAltura = true;
+
+  function ajustarAlturaChecklist(){
+    try{
+      var detail = document.querySelector('.kanban-detail');
+      if(!detail || detail.children.length < 2) return;
+      var esquerda = detail.children[0];
+      var direita = detail.children[1];
+      var check = direita.querySelector('.kanban-check');
+      if(!check) return;
+
+      var ultimaAltura = -1;
+      function sincronizar(){
+        var altura = esquerda.getBoundingClientRect().height;
+        if(altura > 0 && Math.abs(altura - ultimaAltura) > 1){
+          ultimaAltura = altura;
+          check.style.setProperty('max-height', altura + 'px', 'important');
+          check.style.setProperty('height', altura + 'px', 'important');
+          check.style.setProperty('overflow', 'auto', 'important');
+          check.style.setProperty('align-content', 'start', 'important');
+          check.style.setProperty('align-items', 'start', 'important');
+        }
+      }
+
+      sincronizar();
+      if(typeof ResizeObserver === 'function'){
+        var obs = new ResizeObserver(sincronizar);
+        obs.observe(esquerda);
+        var vigia = setInterval(function(){
+          if(!document.body.contains(esquerda)){ obs.disconnect(); clearInterval(vigia); }
+        }, 1000);
+      } else {
+        [150, 300, 600, 1000].forEach(function(ms){ setTimeout(sincronizar, ms); });
+      }
+    }catch(e){ console.error('[V117] Erro ao ajustar altura do checklist:', e); }
+  }
+
+  var _origOpenViewV117 = window.openKanbanCardView;
+  window.openKanbanCardView = function(){
+    var result = _origOpenViewV117 ? _origOpenViewV117.apply(this, arguments) : undefined;
+    setTimeout(ajustarAlturaChecklist, 120);
+    return result;
+  };
+
+  console.log('[V117] Altura do checklist ajustada para acompanhar o card.');
+})();
+</script>
+
+
+<!-- PATCH V118: Remove a linha "Itens: X/Y" e reposiciona "Cadastrado por" na capa dos cards do Kanban -->
+<script>
+(function(){
+  if(window.__npcV118LimpezaCards) return;
+  window.__npcV118LimpezaCards = true;
+
+  function removerLinhaItens(){
+    try{
+      document.querySelectorAll('.kanban-card p').forEach(function(p){
+        if(p.textContent.trim().indexOf('Itens:') === 0) p.remove();
+      });
+    }catch(e){}
+  }
+
+  function moverCadastradoPorParaBaixo(){
+    try{
+      document.querySelectorAll('.kanban-card').forEach(function(card){
+        var meta = card.querySelector('.kanban-meta');
+        var progress = card.querySelector('.progress');
+        if(meta && progress && meta.previousElementSibling !== progress){
+          progress.parentNode.insertBefore(meta, progress.nextSibling);
+        }
+      });
+    }catch(e){}
+  }
+
+  var ajustando = false;
+  function limparCards(){
+    if(ajustando) return; /* evita reagir às próprias alterações que fazemos abaixo */
+    ajustando = true;
+    try{ removerLinhaItens(); moverCadastradoPorParaBaixo(); }
+    finally{ setTimeout(function(){ ajustando = false; }, 0); }
+  }
+
+  /* Em vez de depender de qual função específica desenha o quadro (existem
+     várias camadas diferentes no código que podem ser chamadas dependendo de
+     como a tela é aberta), observamos qualquer mudança no conteúdo da página
+     e aplicamos a limpeza sempre que algo mudar — funciona independente do
+     caminho usado para renderizar. */
+  function iniciarObservador(){
+    var alvo = document.getElementById('content') || document.body;
+    if(!alvo || window.__npcV118Observer) return;
+    window.__npcV118Observer = new MutationObserver(function(){ limparCards(); });
+    window.__npcV118Observer.observe(alvo, {childList:true, subtree:true});
+    limparCards();
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', iniciarObservador);
+  } else {
+    iniciarObservador();
+  }
+  setInterval(iniciarObservador, 1000); /* garante que o observador seja instalado assim que #content existir */
+
+
+  console.log('[V118] Linha "Itens" removida da capa dos cards.');
 })();
 </script>
