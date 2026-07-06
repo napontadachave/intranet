@@ -4238,7 +4238,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   `;
   const st=document.createElement('style');st.textContent=KANBAN_CSS;document.head.appendChild(st);
 
-  function kanbanIsAdmin(){return !!(current&&(current.perms?.admin===true||current.role==='Administrador'||current.role==='admin'||current.perms?.performance_admin===true||current.perms?.usuarios_gerenciar===true));}
+  function kanbanIsAdmin(){return !!(current&&(current.perms?.view_all_users===true||current.permissoes?.view_all_users===true||current.perms?.admin===true||current.role==='Administrador'||current.role==='admin'||current.perms?.performance_admin===true||current.perms?.usuarios_gerenciar===true));}
   function kanbanCanManage(){return !!(current&&(current.perms?.performance_kanban_gestao===true||current.perms?.admin===true));}
   function kanbanCanUse(){return !!(current&&(kanbanCanManage()||current.perms?.performance_kanban===true||current.perms?.performance_base===true||current.perms?.performance_dashboard===true||current.perms?.performance_ranking===true));}
   function userKeys(){return [current?.id,current?.email,current?.user].filter(Boolean).map(String);}
