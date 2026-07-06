@@ -2038,7 +2038,7 @@ function savePerfForm(){
     const style=document.createElement('style');
     style.id='npc-v23-style';
     style.textContent=`
-      .lead-status{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#eef0f3;color:#454953}.lead-status.off{background:#ffe8e5;color:#a61b12}.lead-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.lead-toolbar .field{min-width:180px;margin:0}.lead-grid-small{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.lead-bar{display:grid;grid-template-columns:170px 1fr 55px;gap:10px;align-items:center;margin:10px 0}.lead-bar .track{height:14px;background:#eef0f3;border-radius:999px;overflow:hidden}.lead-bar .fill{height:100%;background:var(--amarelo);border-radius:999px}.queue-card{border:1px solid var(--linha);border-radius:18px;padding:16px;background:white}.queue-order{display:flex;flex-direction:column;gap:8px;margin-top:12px}.queue-person{border:1px solid #e1e4ea;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:850;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.queue-person.next{background:#111;color:#fff;border-color:#111}.queue-person-actions{display:flex;gap:5px;align-items:center}.queue-person.next .mini{background:#fff;color:#111;border-color:#fff}.queue-add-row{display:flex;gap:8px;align-items:end;margin-top:14px}.queue-add-row select{min-width:0;flex:1}.menu-config-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border:1px solid var(--linha);border-radius:12px;padding:10px;margin-bottom:8px}.color-input{height:44px;padding:4px}.nav-sub{border-left:2px solid rgba(255,199,27,.25);margin-left:13px;padding-left:8px}.nav-sub .nav-title{margin-left:0}.mini{border:1px solid var(--linha);background:white;border-radius:9px;padding:5px 8px;font-weight:850}.mini.dark{background:#111;color:white;border-color:#111}`;
+      .lead-status{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#eef0f3;color:#454953}.lead-status.off{background:#ffe8e5;color:#a61b12}.lead-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.lead-toolbar .field{min-width:180px;margin:0}.lead-grid-small{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.lead-bar{display:grid;grid-template-columns:170px 1fr auto;gap:10px;align-items:center;margin:10px 0}.lead-bar .track{height:14px;background:#eef0f3;border-radius:999px;overflow:hidden}.lead-bar .fill{height:100%;background:var(--amarelo);border-radius:999px}.lead-bar span{white-space:nowrap}.queue-card{border:1px solid var(--linha);border-radius:18px;padding:16px;background:white}.queue-order{display:flex;flex-direction:column;gap:8px;margin-top:12px}.queue-person{border:1px solid #e1e4ea;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:850;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.queue-person.next{background:#111;color:#fff;border-color:#111}.queue-person-actions{display:flex;gap:5px;align-items:center}.queue-person.next .mini{background:#fff;color:#111;border-color:#fff}.queue-add-row{display:flex;gap:8px;align-items:end;margin-top:14px}.queue-add-row select{min-width:0;flex:1}.menu-config-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border:1px solid var(--linha);border-radius:12px;padding:10px;margin-bottom:8px}.color-input{height:44px;padding:4px}.nav-sub{border-left:2px solid rgba(255,199,27,.25);margin-left:13px;padding-left:8px}.nav-sub .nav-title{margin-left:0}.mini{border:1px solid var(--linha);background:white;border-radius:9px;padding:5px 8px;font-weight:850}.mini.dark{background:#111;color:white;border-color:#111}`;
     document.head.appendChild(style);
   }catch(e){console.warn('Patch V23 init',e)}
 })();
@@ -15186,15 +15186,29 @@ body:has(#login:not(.hidden)) #app.hidden{
     var atendPorCorretorPeriodo = somarDuasChaves(agregarAtendimentos(avLinhasPeriodo).porCorretor, agregarAtendimentos(alLinhasPeriodo).porCorretor);
     var corretores = Object.keys(somarDuasChaves(negAgregadoPeriodo.porCorretor, atendPorCorretorPeriodo)).sort();
 
+    var podeVerTodos = (typeof window.canViewAllUsers === 'function') ? window.canViewAllUsers()
+      : (typeof window.npcCanViewAllUsers === 'function') ? window.npcCanViewAllUsers()
+      : (typeof has === 'function') ? has('view_all_users') : false;
+    var meuNomeCorretor = normalizarChave((window.current && (window.current.name || window.current.nome)) || '');
+
     var selCorretor = document.getElementById('a360Corretor');
     var corretorAtivo = '';
     if(selCorretor){
-      var reconstruidoAgora = selCorretor.options.length <= 1;
-      var valorAnterior = reconstruidoAgora ? (selCorretor.value || (ultimoFiltro && ultimoFiltro.corretor) || '') : selCorretor.value;
-      selCorretor.innerHTML = '<option value="">Todos os corretores</option>' + corretores.map(function(c){
-        return '<option value="'+esc(c)+'"'+(c===valorAnterior?' selected':'')+'>'+esc(c)+'</option>';
-      }).join('');
-      corretorAtivo = selCorretor.value || '';
+      if(!podeVerTodos){
+        /* usuário sem a permissão "Ver informações de todos os usuários":
+           trava a tela para mostrar apenas os dados dele mesmo */
+        selCorretor.innerHTML = '<option value="'+esc(meuNomeCorretor)+'" selected>'+esc(meuNomeCorretor || 'Meus dados')+'</option>';
+        selCorretor.disabled = true;
+        corretorAtivo = meuNomeCorretor;
+      } else {
+        var reconstruidoAgora = selCorretor.options.length <= 1;
+        var valorAnterior = reconstruidoAgora ? (selCorretor.value || (ultimoFiltro && ultimoFiltro.corretor) || '') : selCorretor.value;
+        selCorretor.disabled = false;
+        selCorretor.innerHTML = '<option value="">Todos os corretores</option>' + corretores.map(function(c){
+          return '<option value="'+esc(c)+'"'+(c===valorAnterior?' selected':'')+'>'+esc(c)+'</option>';
+        }).join('');
+        corretorAtivo = selCorretor.value || '';
+      }
     }
 
     /* -- aplica o filtro de corretor a TODAS as linhas usadas na tela: KPIs,
