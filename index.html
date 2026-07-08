@@ -4356,7 +4356,13 @@ body:has(#login:not(.hidden)) #app.hidden{
     const done=(c.checklist||[]).filter(x=>x.done).length,total=(c.checklist||[]).length||KANBAN_CHECKLIST.length;
     const itensDone=(c.itensChecklist||[]).filter(x=>x.done).length,itensTotal=(c.itensChecklist||[]).length;
     const pay=[['A',c.pagamentoA],['B',c.pagamentoB],['C',c.pagamentoC]].filter(x=>String(x[1]||'').trim()).map(x=>`<p><b>${x[0]}:</b> ${safeHtml(x[1])}</p>`).join('');
-    return `<div class="kanban-card" draggable="${canEditCard(c)?'true':'false'}" ondragstart="kanbanDragStart(event,'${escAttr(c.id)}')"><h4>${safeHtml(c.title||'Negociação')}</h4><p><b>Venda:</b> ${safeHtml(currencyBR(c.valorVenda||''))}</p>${c.comissao?`<p><b>Comissão:</b> ${safeHtml(c.comissao)}</p>`:''}${c.posse?`<p><b>Posse:</b> ${safeHtml(c.posse)}</p>`:''}<p><b>Vendedor(a):</b> ${safeHtml(c.vendedora||'')}</p><p><b>Comprador(a):</b> ${safeHtml(c.compradora||'')}</p>${pay}<p><b>Checklist:</b> ${done}/${total}</p><div class="progress" title="${done}/${total}"><span style="width:${total?Math.round((done/total)*100):0}%"></span></div><p class="kanban-meta">${cardCreatedInfo(c)}</p><div class="mini-line"><button class="kanban-mini" onclick="openKanbanCardView('${escAttr(c.id)}')">Abrir</button><button class="kanban-mini" onclick="openKanbanCardModal('', '${escAttr(c.id)}')">Editar</button><button class="kanban-mini danger" onclick="deleteKanbanCard('${escAttr(c.id)}')" class="cond-remove-btn">×</button></div></div>`;
+    var comissaoTotalCard = (Array.isArray(c.comissionamento) ? c.comissionamento : []).reduce(function(soma,item){
+      var n = Number(String((item&&item.valor)||'').replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+      return soma + (Number.isFinite(n) ? n : 0);
+    }, 0);
+    var comissaoTotalHtml = comissaoTotalCard ? `<p><b>Comissão Prestadores:</b> ${safeHtml(comissaoTotalCard.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}))}</p>` : '';
+    var comissaoImobHtml = c.comissaoImobiliariaValor ? `<p><b>Comissão Bruta:</b> ${safeHtml(c.comissaoImobiliariaValor)}</p>` : '';
+    return `<div class="kanban-card" draggable="${canEditCard(c)?'true':'false'}" ondragstart="kanbanDragStart(event,'${escAttr(c.id)}')"><h4>${safeHtml(c.title||'Negociação')}</h4><p><b>Venda:</b> ${safeHtml(currencyBR(c.valorVenda||''))}</p>${comissaoImobHtml}${comissaoTotalHtml}${c.posse?`<p><b>Posse:</b> ${safeHtml(c.posse)}</p>`:''}<p><b>Vendedor(a):</b> ${safeHtml(c.vendedora||'')}</p><p><b>Comprador(a):</b> ${safeHtml(c.compradora||'')}</p>${pay}<p><b>Checklist:</b> ${done}/${total}</p><div class="progress" title="${done}/${total}"><span style="width:${total?Math.round((done/total)*100):0}%"></span></div><p class="kanban-meta">${cardCreatedInfo(c)}</p><div class="mini-line"><button class="kanban-mini" onclick="openKanbanCardView('${escAttr(c.id)}')">Abrir</button><button class="kanban-mini" onclick="openKanbanCardModal('', '${escAttr(c.id)}')">Editar</button><button class="kanban-mini danger" onclick="deleteKanbanCard('${escAttr(c.id)}')" class="cond-remove-btn">×</button></div></div>`;
   }
 
   window.openKanbanCardModal=function(columnId='',cardId=''){
@@ -4367,11 +4373,12 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(cardId&&(!c||!canEditCard(c))){toast('Sem permissão para editar este card.');return;}
     const selected=columnId||c?.columnId||cols[0]?.id||'';
     const title=cardId?'Editar card':'Novo card';
-    openModal(title,`<div class="grid cols2"><div class="field"><label>Título do card</label><input id="kbTitle" value="${escAttr(c?.title||'')}"></div><div class="field"><label>Coluna</label><select id="kbColumn">${cols.map(col=>`<option value="${escAttr(col.id)}" ${col.id===selected?'selected':''}>${safeHtml(col.title)}</option>`).join('')}</select></div><div class="field"><label>Valor da venda</label><input id="kbValor" value="${escAttr(c?.valorVenda||'')}"></div><div class="field"><label>Comissão</label><select id="kbComissao">${selectOptions(db.kanbanComissaoOptions,c?.comissao||'')}</select></div></div><div class="grid cols3"><div class="field"><label>Vendedor(a)</label><input id="kbVendedora" value="${escAttr(c?.vendedora||'')}"></div><div class="field"><label>E-mail vendedor(a)</label><input id="kbEmailVendedora" value="${escAttr(c?.emailVendedora||'')}"></div><div class="field"><label>Comprador(a)</label><input id="kbCompradora" value="${escAttr(c?.compradora||'')}"></div><div class="field"><label>E-mail comprador(a)</label><input id="kbEmailCompradora" value="${escAttr(c?.emailCompradora||'')}"></div><div class="field"><label>Posse</label><select id="kbPosse">${selectOptions(db.kanbanPosseOptions,c?.posse||'')}</select></div><div class="field"><label>Documentos enviados por</label><select id="kbDocumentos">${selectOptions(db.kanbanDocumentosOptions,c?.documentos||'')}</select></div></div><div class="field"><label>Condições de pagamento</label>
+    openModal(title,`<div class="grid" style="grid-template-columns:2fr 1fr 1.3fr;gap:14px"><div class="field"><label>Título do card</label><input id="kbTitle" value="${escAttr(c?.title||'')}"></div><div class="field"><label>Coluna</label><select id="kbColumn">${cols.map(col=>`<option value="${escAttr(col.id)}" ${col.id===selected?'selected':''}>${safeHtml(col.title)}</option>`).join('')}</select></div><div class="field"><label>Valor da venda</label><input id="kbValor" value="${escAttr(c?.valorVenda||'')}" onchange="window.__npcRecalcComissaoImob&&window.__npcRecalcComissaoImob()"></div></div><div class="field" id="kbComissionamentoField"><label>Rateio da Comissão Bruta</label><div id="kbComissionamentoList"></div><button type="button" class="secondary" onclick="window.__npcAddComissaoRow()">+ Adicionar comissão</button></div><div class="grid cols3"><div class="field"><label>Vendedor(a)</label><input id="kbVendedora" value="${escAttr(c?.vendedora||'')}"></div><div class="field"><label>E-mail vendedor(a)</label><input id="kbEmailVendedora" value="${escAttr(c?.emailVendedora||'')}"></div><div class="field"><label>Comprador(a)</label><input id="kbCompradora" value="${escAttr(c?.compradora||'')}"></div><div class="field"><label>E-mail comprador(a)</label><input id="kbEmailCompradora" value="${escAttr(c?.emailCompradora||'')}"></div><div class="field"><label>Posse</label><select id="kbPosse">${selectOptions(db.kanbanPosseOptions,c?.posse||'')}</select></div><div class="field"><label>Documentos enviados por</label><select id="kbDocumentos">${selectOptions(db.kanbanDocumentosOptions,c?.documentos||'')}</select></div></div><div class="field"><label>Condições de pagamento</label>
 <div id="paymentConditionsEditor"></div>
 <button type="button" class="secondary" onclick="window.addPaymentCondition()">Adicionar condição</button>
 </div><div class="field"><label>Itens que permanecerão no imóvel</label>${renderItemsEditor(c)}</div><div class="field kanban-observacoes"><label>Observações</label><textarea id="kbObs" rows="4">${safeHtml(c?.obs||'')}</textarea></div><div class="actions kanban-form-actions"><button class="primary" onclick="saveKanbanCard('${escAttr(cardId||'')}')">Salvar venda</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>`);
     setTimeout(function(){ if(typeof window.loadPaymentConditions==='function') window.loadPaymentConditions(c||{}); },0);
+    setTimeout(function(){ if(typeof window.__npcInitComissoes==='function') window.__npcInitComissoes(c||{}); },0);
   };
   window.saveKanbanCard=function(cardId=''){
     ensureKanbanData();
@@ -4381,7 +4388,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     /* Lê ownerId ANTES do closeModal() — closeModal limpa o DOM e kbOwner deixa de existir */
     const _ownerEl=document.getElementById('kbOwner')||(document.getElementById('npcOwnerField')&&document.getElementById('npcOwnerField').querySelector('select'));
     const _resolvedOwnerId=(_ownerEl&&_ownerEl.value)?_ownerEl.value:(existing?existing.ownerId:(current?.id||''));
-    const payload={title,columnId:$('kbColumn').value,ownerId:_resolvedOwnerId,valorVenda:$('kbValor').value.trim(),comissao:$('kbComissao').value.trim(),vendedora:$('kbVendedora').value.trim(),emailVendedora:$('kbEmailVendedora').value.trim(),compradora:$('kbCompradora').value.trim(),emailCompradora:$('kbEmailCompradora').value.trim(),posse:$('kbPosse').value.trim(),documentos:$('kbDocumentos').value.trim(),paymentConditions:(window.collectPaymentConditions?window.collectPaymentConditions():[]),obs:$('kbObs').value.trim(),updatedAt:new Date().toISOString(),updatedBy:current?.id||''};
+    const payload={title,columnId:$('kbColumn').value,ownerId:_resolvedOwnerId,valorVenda:$('kbValor').value.trim(),vendedora:$('kbVendedora').value.trim(),emailVendedora:$('kbEmailVendedora').value.trim(),compradora:$('kbCompradora').value.trim(),emailCompradora:$('kbEmailCompradora').value.trim(),posse:$('kbPosse').value.trim(),documentos:$('kbDocumentos').value.trim(),paymentConditions:(window.collectPaymentConditions?window.collectPaymentConditions():[]),obs:$('kbObs').value.trim(),updatedAt:new Date().toISOString(),updatedBy:current?.id||''};
     payload.itensChecklist=readItemsEditor(existing?.itensChecklist||[]);
     payload.itens=payload.itensChecklist.map(x=>x.title).join('\n');
     const _pcArr=Array.isArray(payload.paymentConditions)?payload.paymentConditions:[];
@@ -4443,7 +4450,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.npcFirebasePayload=function(){const payload=oldPayload?oldPayload():{};ensureKanbanData();payload.kanbanColumns=db.kanbanColumns||[];payload.kanbanCards=db.kanbanCards||[];payload.kanbanComissaoOptions=db.kanbanComissaoOptions||[];payload.kanbanPosseOptions=db.kanbanPosseOptions||[];payload.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];return payload;};
   const oldLoad=window.loadCloudDb;
   if(typeof oldLoad==='function'){
-    window.loadCloudDb=async function(){await oldLoad.apply(this,arguments);try{const snap=await firebaseDb.ref('/').once('value');const cloud=snap.val()||{};db.kanbanColumns=Array.isArray(cloud.kanbanColumns)?cloud.kanbanColumns:(cloud.kanbanColumns?Object.values(cloud.kanbanColumns):(db.kanbanColumns||[]));db.kanbanCards=Array.isArray(cloud.kanbanCards)?cloud.kanbanCards:(cloud.kanbanCards?Object.values(cloud.kanbanCards):(db.kanbanCards||[]));db.kanbanComissaoOptions=Array.isArray(cloud.kanbanComissaoOptions)?cloud.kanbanComissaoOptions:(Array.isArray(cloud.kanbanOptions?.comissao)?cloud.kanbanOptions.comissao:(db.kanbanComissaoOptions||[]));db.kanbanPosseOptions=Array.isArray(cloud.kanbanPosseOptions)?cloud.kanbanPosseOptions:(Array.isArray(cloud.kanbanOptions?.posse)?cloud.kanbanOptions.posse:(db.kanbanPosseOptions||[]));db.kanbanDocumentosOptions=Array.isArray(cloud.kanbanDocumentosOptions)?cloud.kanbanDocumentosOptions:(Array.isArray(cloud.kanbanOptions?.documentos)?cloud.kanbanOptions.documentos:(db.kanbanDocumentosOptions||[]));}catch(e){console.warn('Falha ao carregar dados do Kanban:',e);}ensureKanbanData();safeSaveLocal(db);};
+    window.loadCloudDb=async function(){await oldLoad.apply(this,arguments);/* [otimização de login] os campos de Kanban já vêm populados pela leitura única feita em oldLoad() / cloudToLocal(), então a busca extra que existia aqui foi removida para acelerar o login. */ensureKanbanData();safeSaveLocal(db);};
   }
   const oldSave=window.save;
   window.save=function(){ensureKanbanData();safeSaveLocal(db); if(window.firebaseDb&&window.firebaseAuth?.currentUser){const isAdmin=kanbanCanManage();const updates={};if(isAdmin){updates.kanbanCards=db.kanbanCards||[];updates.kanbanColumns=db.kanbanColumns||[];updates.kanbanComissaoOptions=db.kanbanComissaoOptions||[];updates.kanbanPosseOptions=db.kanbanPosseOptions||[];updates.kanbanDocumentosOptions=db.kanbanDocumentosOptions||[];}else{updates.kanbanCards=db.kanbanCards||[];}firebaseDb.ref('/').update(updates).catch(e=>{if(typeof toast==='function')toast('Erro ao salvar Kanban: '+e.message,'warn');});} if(oldSave)oldSave.apply(this,arguments);};
@@ -4619,10 +4626,9 @@ body:has(#login:not(.hidden)) #app.hidden{
     window.loadCloudDb=async function(){
       tryExposeGlobals();
       await oldLoad.apply(this,arguments);
+      /* [otimização de login] removida a segunda busca completa do banco:
+         oldLoad() já popula "db" via cloudToLocal() a partir de uma única leitura. */
       try{
-        const snap=await firebaseDb.ref('/').once('value');
-        const cloud=snap.val()||{};
-        db=typeof cloudToLocal==='function' ? cloudToLocal(cloud) : {...db,...cloud};
         ensureFirebaseBackedData();
         safeSaveLocal(db);
       }catch(e){ console.warn('Falha ao sincronizar Firebase:',e); }
@@ -11878,14 +11884,10 @@ body:has(#login:not(.hidden)) #app.hidden{
   if(oldLoad){
     window.loadCloudDb = async function(){
       var r = await oldLoad.apply(this, arguments);
+      /* [otimização de login] removida busca duplicada de /visitAnalysis — já é buscada mais cedo nesta mesma cadeia. */
       try{
-        if(window.firebaseDb){
-          var snap = await window.firebaseDb.ref('/visitAnalysis').once('value');
-          var val = snap.val();
-          db.visitAnalysis = Array.isArray(val) ? val : (val ? Object.values(val) : []);
-          ensure();
-          try{ if(typeof KEY !== 'undefined') safeSaveLocal(db); }catch(e){}
-        }
+        ensure();
+        try{ if(typeof KEY !== 'undefined') safeSaveLocal(db); }catch(e){}
       }catch(e){ console.warn('Falha ao carregar Análise de Visitas:', e); }
       return r;
     };
@@ -13722,12 +13724,12 @@ body:has(#login:not(.hidden)) #app.hidden{
       +'<div class="kanban-info">'
       +'<h4>Dados da negociação</h4>'
       +(valorFormatado ? '<p><b>Valor da venda:</b> '+esc(valorFormatado)+'</p>' : '')
-      +'<p><b>Comissão:</b> '+esc(c.comissao||'')+'</p>'
+      +'<p><b>Documentos enviados por:</b> '+esc(c.documentos||'')+'</p>'
       +'<p><b>Posse:</b> '+esc(c.posse||'')+'</p>'
       +'<p><b>Usuário responsável:</b> '+esc(ownerDisplay)+'</p>'
       +'<p><b>Vendedor(a):</b> '+esc(c.vendedora||'')+(c.emailVendedora?' — '+esc(c.emailVendedora):'')+'</p>'
       +'<p><b>Comprador(a):</b> '+esc(c.compradora||'')+(c.emailCompradora?' — '+esc(c.emailCompradora):'')+'</p>'
-      +'<p><b>Documentos enviados por:</b> '+esc(c.documentos||'')+'</p>'
+      +'<p class="npc-comissionamento-detail"></p>'
       +'</div>'
       +'<div class="kanban-info" style="margin-top:12px"><h4>Condições de pagamento</h4>'+_payHtml+'</div>'
       +'<div class="kanban-info" style="margin-top:12px"><h4>Itens que permanecerão no imóvel</h4>'
@@ -14076,6 +14078,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   /* -- 3) Card no quadro (mini-card): exibe "Parceria" quando houver -- */
   function injetarParceriaNosCards(){
+    return; /* substituído pelo novo sistema de Comissionamento */
     try{
       var lista = cardsRef();
       var els = document.querySelectorAll('.kanban-card');
@@ -14110,6 +14113,8 @@ body:has(#login:not(.hidden)) #app.hidden{
   var _origOpenViewV110 = window.openKanbanCardView;
   window.openKanbanCardView = function(cardId){
     var result = _origOpenViewV110 ? _origOpenViewV110.apply(this, arguments) : undefined;
+    return result;
+    /* substituído pelo novo sistema de Comissionamento */
     setTimeout(function(){
       try{
         var c = cardsRef().find(function(x){ return String(x.id) === String(cardId); });
@@ -14593,14 +14598,18 @@ body:has(#login:not(.hidden)) #app.hidden{
   /* ---- integração com menu e permissões (duas telas, duas permissões separadas) ---- */
   try{
     if(typeof PERMS !== 'undefined'){
-      PERMS['analise360_ver'] = 'Análise 360° (visualizar)';
+      PERMS['analise360_ver'] = 'Análise 360° - Vendas (visualizar)';
+      PERMS['analise360_locacao_ver'] = 'Análise 360° - Locação (visualizar)';
       PERMS['analise360_upload'] = 'Análise 360° (enviar arquivos)';
     }
   }catch(e){}
   try{
     if(typeof pages !== 'undefined'){
       if(!pages.some(function(p){ return p[1] === 'analise360'; })){
-        pages.push(['Geral','analise360','Análise 360°','◈','analise360_ver']);
+        pages.push(['Geral','analise360','Análise 360° - Vendas','◈','analise360_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'analise360_locacao'; })){
+        pages.push(['Geral','analise360_locacao','Análise 360° - Locação','⌂','analise360_locacao_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'analise360_upload'; })){
         pages.push(['Geral','analise360_upload','Importar Análise 360°','⇪','analise360_upload']);
@@ -14825,6 +14834,11 @@ body:has(#login:not(.hidden)) #app.hidden{
       porCorretor: porCorretor, comissaoPorCorretor: comissaoPorCorretor, contagemPorCorretor: contagemPorCorretor, porTipo: porTipo };
   }
 
+  function tipoEhLocacao(tipoBruto){
+    var t = normalizarChave(tipoBruto).toLowerCase();
+    return /loca|aluguel/.test(t);
+  }
+
   function agregarAtendimentos(rows){
     var porCorretor={}, porMidia={}, porEtapa={}, porMes={};
     rows.forEach(function(r){
@@ -14837,7 +14851,10 @@ body:has(#login:not(.hidden)) #app.hidden{
     return { total: rows.length, porCorretor: porCorretor, porMidia: porMidia, porEtapa: porEtapa, porMes: porMes };
   }
 
-  function agregarImoveis(rows){
+  function agregarImoveis(rows, modo){
+    var linhasContagem = rows;
+    if(modo === 'venda') linhasContagem = rows.filter(function(r){ return paraNumero(r['Valor Venda']) > 0; });
+    else if(modo === 'locacao') linhasContagem = rows.filter(function(r){ return paraNumero(r['Valor Locação']) > 0; });
     var valoresVenda=[], valoresLocacao=[];
     rows.forEach(function(r){
       var vv = paraNumero(r['Valor Venda']); if(vv>0) valoresVenda.push(vv);
@@ -14845,10 +14862,10 @@ body:has(#login:not(.hidden)) #app.hidden{
     });
     var soma = function(arr){ return arr.reduce(function(a,b){ return a+b; },0); };
     return {
-      total: rows.length,
-      porTipo: contarPor(rows,'Tipo'),
-      porCidade: contarPor(rows,'Cidade'),
-      porFinalidade: contarPor(rows,'Finalidade'),
+      total: linhasContagem.length,
+      porTipo: contarPor(linhasContagem,'Tipo'),
+      porCidade: contarPor(linhasContagem,'Cidade'),
+      porFinalidade: contarPor(linhasContagem,'Finalidade'),
       ticketMedioVenda: valoresVenda.length ? soma(valoresVenda)/valoresVenda.length : 0,
       ticketMedioLocacao: valoresLocacao.length ? soma(valoresLocacao)/valoresLocacao.length : 0
     };
@@ -14989,8 +15006,14 @@ body:has(#login:not(.hidden)) #app.hidden{
       if(arquivos.negociacoes && arquivos.negociacoes.files[0]) negRows = trimNegociacoes(await lerPlanilha(arquivos.negociacoes.files[0]));
       if(arquivos.atendVendas && arquivos.atendVendas.files[0]) avRows = trimAtendimentos(await lerPlanilha(arquivos.atendVendas.files[0]));
       if(arquivos.atendLocacao && arquivos.atendLocacao.files[0]) alRows = trimAtendimentos(await lerPlanilha(arquivos.atendLocacao.files[0]));
-      if(arquivos.imoveisAtivos && arquivos.imoveisAtivos.files[0]) iaObj = agregarImoveis(await lerPlanilha(arquivos.imoveisAtivos.files[0]));
-      if(arquivos.imoveisInativos && arquivos.imoveisInativos.files[0]) iiObj = agregarImoveis(await lerPlanilha(arquivos.imoveisInativos.files[0]));
+      if(arquivos.imoveisAtivos && arquivos.imoveisAtivos.files[0]){
+        var linhasIA = await lerPlanilha(arquivos.imoveisAtivos.files[0]);
+        iaObj = { geral: agregarImoveis(linhasIA), venda: agregarImoveis(linhasIA,'venda'), locacao: agregarImoveis(linhasIA,'locacao') };
+      }
+      if(arquivos.imoveisInativos && arquivos.imoveisInativos.files[0]){
+        var linhasII = await lerPlanilha(arquivos.imoveisInativos.files[0]);
+        iiObj = { geral: agregarImoveis(linhasII), venda: agregarImoveis(linhasII,'venda'), locacao: agregarImoveis(linhasII,'locacao') };
+      }
 
       /* IMPORTANTE: buscar a "loja" de dados AGORA, depois de todos os awaits acima —
          o db pode ter sido substituído por inteiro em segundo plano enquanto os
@@ -15144,17 +15167,17 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function analise360Render(){
     var store = ensureStore();
+    var negociacoesVenda = (store.negociacoes || []).filter(function(r){ return !tipoEhLocacao(r.tipo); });
     var box = document.getElementById('a360Resultados');
-    var semNadaAinda = !store.negociacoes.length && !store.atendimentosVendas.length && !store.atendimentosLocacao.length && !store.imoveisAtivos;
+    var semNadaAinda = !negociacoesVenda.length && !store.atendimentosVendas.length && !store.imoveisAtivos;
     if(semNadaAinda){
       if(box) box.innerHTML = '<div class="empty">Nenhum dado enviado ainda. Envie os arquivos na tela "Importar Análise 360°" para começar.</div>';
       return;
     }
 
     /* datas reais disponíveis nos dados (não a data de importação) */
-    var todasDatas = store.negociacoes.map(function(r){ return r.data; })
+    var todasDatas = negociacoesVenda.map(function(r){ return r.data; })
       .concat(store.atendimentosVendas.map(function(r){ return r.data; }))
-      .concat(store.atendimentosLocacao.map(function(r){ return r.data; }))
       .filter(Boolean).sort();
     var hoje = new Date().toISOString().slice(0,10);
 
@@ -15172,18 +15195,17 @@ body:has(#login:not(.hidden)) #app.hidden{
     }
 
     function noPeriodo(r){ return r.data && (!de || r.data >= de) && (!ate || r.data <= ate); }
-    var negLinhasPeriodo = store.negociacoes.filter(noPeriodo);
+    var negLinhasPeriodo = negociacoesVenda.filter(noPeriodo);
     var avLinhasPeriodo = store.atendimentosVendas.filter(noPeriodo);
-    var alLinhasPeriodo = store.atendimentosLocacao.filter(noPeriodo);
 
-    if(!negLinhasPeriodo.length && !avLinhasPeriodo.length && !alLinhasPeriodo.length && !store.imoveisAtivos){
+    if(!negLinhasPeriodo.length && !avLinhasPeriodo.length && !store.imoveisAtivos){
       if(box) box.innerHTML = '<div class="empty">Nenhum dado entre '+(de?de.split('-').reverse().join('/'):'—')+' e '+(ate?ate.split('-').reverse().join('/'):'—')+'.</div>';
       return;
     }
 
     /* -- lista de corretores disponíveis no período (antes de aplicar o filtro) -- */
     var negAgregadoPeriodo = agregarNegociacoes(negLinhasPeriodo);
-    var atendPorCorretorPeriodo = somarDuasChaves(agregarAtendimentos(avLinhasPeriodo).porCorretor, agregarAtendimentos(alLinhasPeriodo).porCorretor);
+    var atendPorCorretorPeriodo = agregarAtendimentos(avLinhasPeriodo).porCorretor;
     var corretores = Object.keys(somarDuasChaves(negAgregadoPeriodo.porCorretor, atendPorCorretorPeriodo)).sort();
 
     var podeVerTodos = (typeof window.canViewAllUsers === 'function') ? window.canViewAllUsers()
@@ -15218,15 +15240,14 @@ body:has(#login:not(.hidden)) #app.hidden{
     }
     var negLinhas = corretorAtivo ? negLinhasPeriodo.filter(ehDoCorretor('responsavel')) : negLinhasPeriodo;
     var avLinhas = corretorAtivo ? avLinhasPeriodo.filter(ehDoCorretor('corretor')) : avLinhasPeriodo;
-    var alLinhas = corretorAtivo ? alLinhasPeriodo.filter(ehDoCorretor('corretor')) : alLinhasPeriodo;
 
     var neg = agregarNegociacoes(negLinhas);
     var av = agregarAtendimentos(avLinhas);
-    var al = agregarAtendimentos(alLinhas);
-    var ia = store.imoveisAtivos || {total:0,porTipo:{},porCidade:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
-    var totalAtendimentos = (av.total||0) + (al.total||0);
-    var vendasFechadas = (neg.porTipo && neg.porTipo['Venda']) || 0;
-    var atendimentosPorCorretor = somarDuasChaves(av.porCorretor, al.porCorretor);
+    var iaVazio = {total:0,porTipo:{},porCidade:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
+    var iaBruto = store.imoveisAtivos || null;
+    var ia = iaBruto ? (iaBruto.venda || iaBruto.geral || iaBruto) : iaVazio;
+    var totalAtendimentos = av.total||0;
+    var atendimentosPorCorretor = av.porCorretor;
 
     /* -- período anterior: mesma duração, imediatamente antes de "De" (já considerando o corretor filtrado) -- */
     var negAnt = null, totalAtendimentosAnt = null;
@@ -15237,16 +15258,14 @@ body:has(#login:not(.hidden)) #app.hidden{
       var anteAte = new Date(msDe - msDia).toISOString().slice(0,10);
       var anteDe = new Date(msDe - msDia - duracao).toISOString().slice(0,10);
       function noPeriodoAnterior(r){ return r.data && r.data >= anteDe && r.data <= anteAte; }
-      var negLinhasAnt = store.negociacoes.filter(noPeriodoAnterior);
+      var negLinhasAnt = negociacoesVenda.filter(noPeriodoAnterior);
       var avLinhasAnt = store.atendimentosVendas.filter(noPeriodoAnterior);
-      var alLinhasAnt = store.atendimentosLocacao.filter(noPeriodoAnterior);
       if(corretorAtivo){
         negLinhasAnt = negLinhasAnt.filter(ehDoCorretor('responsavel'));
         avLinhasAnt = avLinhasAnt.filter(ehDoCorretor('corretor'));
-        alLinhasAnt = alLinhasAnt.filter(ehDoCorretor('corretor'));
       }
       if(negLinhasAnt.length) negAnt = agregarNegociacoes(negLinhasAnt);
-      if(avLinhasAnt.length || alLinhasAnt.length) totalAtendimentosAnt = avLinhasAnt.length + alLinhasAnt.length;
+      if(avLinhasAnt.length) totalAtendimentosAnt = avLinhasAnt.length;
     }
 
     var aba = window.__npcA360Aba || 'geral';
@@ -15258,10 +15277,11 @@ body:has(#login:not(.hidden)) #app.hidden{
 
     var conteudo = '';
     if(aba === 'vgv'){
+      var taxaConversao = av.total ? (neg.total/av.total*100) : null;
       var kpisVgv = ''
         + '<div class="card kpi" style="text-align:center"><div class="l">VGV Bruto Total</div><div class="v">'+moneyCompact(neg.vgvTotal)+'</div>'+(negAnt?pctLabel(neg.vgvTotal, negAnt.vgvTotal):'<p class="sub">&nbsp;</p>')+'</div>'
         + '<div class="card kpi" style="text-align:center"><div class="l">Negócios Fechados</div><div class="v">'+neg.total+'</div><p class="sub">&nbsp;</p></div>'
-        + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis Vendidos</div><div class="v">'+vendasFechadas+'</div><p class="sub">Do total de negócios</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Taxa de Conversão</div><div class="v">'+(taxaConversao!==null?taxaConversao.toFixed(1)+'%':'—')+'</div><p class="sub">Negócios fechados por atendimento</p></div>'
         + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio</div><div class="v">'+moneyCompact(neg.ticketMedio)+'</div><p class="sub">Por negócio fechado</p></div>';
       conteudo = '<div class="grid cols4" style="margin-bottom:18px">'+kpisVgv+'</div>'
         + '<div class="grid cols2" style="margin-bottom:18px">'+graficoBarrasAno('VGV Comparativo Anual', agruparPorAno(neg.porMes), moneyCompact)+graficoLinha('VGV Mês a Mês', neg.porMes, moneyCompact)+'</div>'
@@ -15277,31 +15297,29 @@ body:has(#login:not(.hidden)) #app.hidden{
         + '</div>';
     } else if(aba === 'atendimentos'){
       var kpisAt = ''
-        + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos — Vendas</div><div class="v">'+av.total+'</div><p class="sub">&nbsp;</p></div>'
-        + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos — Locação</div><div class="v">'+al.total+'</div><p class="sub">&nbsp;</p></div>'
-        + '<div class="card kpi" style="text-align:center"><div class="l">Total no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">&nbsp;</p>')+'</div>';
-      conteudo = '<div class="grid cols3" style="margin-bottom:18px">'+kpisAt+'</div>'
-        + '<div class="grid cols2" style="margin-bottom:18px">'+graficoLinha('Atendimentos por Mês (Vendas)', av.porMes)+barraLista('Atendimentos por Corretor', topN(atendimentosPorCorretor,10), null, corretorAtivo)+'</div>'
-        + '<div class="grid cols2">'+barraLista('Atendimentos por Mídia (Vendas)', topN(av.porMidia,10))+barraLista('Funil — Atendimentos por Etapa (Vendas)', topN(av.porEtapa,12))+'</div>';
+        + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">&nbsp;</p>')+'</div>';
+      conteudo = '<div class="grid cols1" style="margin-bottom:18px">'+kpisAt+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+graficoLinha('Atendimentos por Mês', av.porMes)+barraLista('Atendimentos por Corretor', topN(atendimentosPorCorretor,10), null, corretorAtivo)+'</div>'
+        + '<div class="grid cols2">'+barraLista('Atendimentos por Mídia', topN(av.porMidia,10))+barraLista('Funil — Atendimentos por Etapa', topN(av.porEtapa,12))+'</div>';
     } else if(aba === 'carteira'){
       var kpisCa = ''
-        + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis na Carteira</div><div class="v">'+ia.total+'</div><p class="sub">Portfólio ativo</p></div>'
-        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Venda</div><div class="v">'+moneyCompact(ia.ticketMedioVenda)+'</div><p class="sub">&nbsp;</p></div>'
-        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Locação</div><div class="v">'+moneyCompact(ia.ticketMedioLocacao)+'</div><p class="sub">&nbsp;</p></div>';
-      conteudo = '<div class="grid cols3" style="margin-bottom:18px">'+kpisCa+'</div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis na Carteira (Venda)</div><div class="v">'+ia.total+'</div><p class="sub">Portfólio ativo</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Venda</div><div class="v">'+moneyCompact(ia.ticketMedioVenda)+'</div><p class="sub">&nbsp;</p></div>';
+      conteudo = '<div class="grid cols2" style="margin-bottom:18px">'+kpisCa+'</div>'
         + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10))+barraLista('Carteira por Cidade', topN(ia.porCidade,10))+'</div>'
         + '<div class="grid cols1">'+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6))+'</div>'
         + (corretorAtivo ? '<p class="sub" style="margin-top:10px">A carteira de imóveis não é filtrada por corretor (não há essa relação nos dados de origem).</p>' : '');
     } else {
+      var taxaConversaoGeral = av.total ? (neg.total/av.total*100) : null;
       var kpis = ''
         + '<div class="card kpi" style="text-align:center;grid-column:span 2"><div class="l">VGV Bruto Total</div><div class="v">'+moneyCompact(neg.vgvTotal)+'</div>'+(negAnt?pctLabel(neg.vgvTotal, negAnt.vgvTotal):'<p class="sub">Sem dado anterior</p>')+'</div>'
         + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Negócios Fechados</div><div class="v">'+neg.total+'</div>'+(negAnt?pctLabel(neg.total, negAnt.total):'<p class="sub">Sem dado anterior</p>')+'</div>'
-        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Imóveis Vendidos</div><div class="v">'+vendasFechadas+'</div><p class="sub">Do total de negócios</p></div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Taxa de Conversão</div><div class="v">'+(taxaConversaoGeral!==null?taxaConversaoGeral.toFixed(1)+'%':'—')+'</div><p class="sub">Negócios fechados por atendimento</p></div>'
         + '<div class="card kpi" style="text-align:center;grid-column:span 2"><div class="l">Ticket Médio</div><div class="v">'+moneyCompact(neg.ticketMedio)+'</div><p class="sub">Por negócio fechado</p></div>'
         + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Atendimentos no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">Sem dado anterior</p>')+'</div>';
 
       var linha1 = ''
-        + graficoFunil('Funil de Conversão', [['Atendimentos', totalAtendimentos], ['Negócios Fechados', neg.total], ['Imóveis Vendidos', vendasFechadas]])
+        + graficoFunil('Funil de Conversão', [['Atendimentos', totalAtendimentos], ['Negócios Fechados', neg.total]])
         + graficoRosca('Negociações por Tipo', neg.porTipo)
         + (corretorAtivo ? barraLista('Atendimentos por Mídia', topN(av.porMidia,8)) : graficoRosca('Carteira por Finalidade', ia.porFinalidade));
 
@@ -15312,8 +15330,7 @@ body:has(#login:not(.hidden)) #app.hidden{
           + '<tr><td>VGV Total</td><td><b>'+moneyCompact(neg.vgvTotal)+'</b></td></tr>'
           + '<tr><td>Comissão Total</td><td><b>'+moneyCompact(neg.comissaoTotal)+'</b></td></tr>'
           + '<tr><td>Negócios Fechados</td><td><b>'+neg.total+'</b></td></tr>'
-          + '<tr><td>Atendimentos — Vendas</td><td><b>'+av.total+'</b></td></tr>'
-          + '<tr><td>Atendimentos — Locação</td><td><b>'+al.total+'</b></td></tr>'
+          + '<tr><td>Atendimentos</td><td><b>'+av.total+'</b></td></tr>'
           + '<tr><td>Ticket Médio</td><td><b>'+moneyCompact(neg.ticketMedio)+'</b></td></tr>'
           + '</tbody></table></div>';
       } else {
@@ -15345,6 +15362,292 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
   window.analise360Render = analise360Render;
 
+  /* ================= TELA DE LOCAÇÃO (separada da de Vendas: dados, permissão e navegação próprios) ================= */
+  var ABAS_A360_LOCACAO = [
+    ['geral','Visão Geral'],
+    ['vgv','Valor Locado'],
+    ['comissoes','Comissões'],
+    ['ranking','Ranking'],
+    ['atendimentos','Atendimentos'],
+    ['carteira','Carteira de Imóveis']
+  ];
+
+  function analise360RenderLocacao(){
+    var store = ensureStore();
+    var negociacoesLocacao = (store.negociacoes || []).filter(function(r){ return tipoEhLocacao(r.tipo); });
+    var box = document.getElementById('a360LocResultados');
+    var semNadaAinda = !negociacoesLocacao.length && !store.atendimentosLocacao.length && !store.imoveisAtivos;
+    if(semNadaAinda){
+      if(box) box.innerHTML = '<div class="empty">Nenhum dado enviado ainda. Envie os arquivos na tela "Importar Análise 360°" para começar.</div>';
+      return;
+    }
+
+    var todasDatas = negociacoesLocacao.map(function(r){ return r.data; })
+      .concat(store.atendimentosLocacao.map(function(r){ return r.data; }))
+      .filter(Boolean).sort();
+    var hoje = new Date().toISOString().slice(0,10);
+
+    var deEl = document.getElementById('a360LocDe');
+    var ateEl = document.getElementById('a360LocAte');
+    var ultimoFiltro = window.__npcA360LocUltimoFiltro;
+    if(deEl && !deEl.value) deEl.value = (ultimoFiltro && ultimoFiltro.de) || (todasDatas.length ? todasDatas[0] : hoje);
+    if(ateEl && !ateEl.value) ateEl.value = (ultimoFiltro && ultimoFiltro.ate) || (todasDatas.length ? todasDatas[todasDatas.length-1] : hoje);
+    var de = deEl ? deEl.value : (todasDatas.length ? todasDatas[0] : hoje);
+    var ate = ateEl ? ateEl.value : (todasDatas.length ? todasDatas[todasDatas.length-1] : hoje);
+    if(de && ate && de > ate){
+      var tmp = de; de = ate; ate = tmp;
+      if(deEl) deEl.value = de;
+      if(ateEl) ateEl.value = ate;
+    }
+
+    function noPeriodo(r){ return r.data && (!de || r.data >= de) && (!ate || r.data <= ate); }
+    var negLinhasPeriodo = negociacoesLocacao.filter(noPeriodo);
+    var alLinhasPeriodo = store.atendimentosLocacao.filter(noPeriodo);
+
+    if(!negLinhasPeriodo.length && !alLinhasPeriodo.length && !store.imoveisAtivos){
+      if(box) box.innerHTML = '<div class="empty">Nenhum dado entre '+(de?de.split('-').reverse().join('/'):'—')+' e '+(ate?ate.split('-').reverse().join('/'):'—')+'.</div>';
+      return;
+    }
+
+    var negAgregadoPeriodo = agregarNegociacoes(negLinhasPeriodo);
+    var atendPorCorretorPeriodo = agregarAtendimentos(alLinhasPeriodo).porCorretor;
+    var corretores = Object.keys(somarDuasChaves(negAgregadoPeriodo.porCorretor, atendPorCorretorPeriodo)).sort();
+
+    var podeVerTodos = (typeof window.canViewAllUsers === 'function') ? window.canViewAllUsers()
+      : (typeof window.npcCanViewAllUsers === 'function') ? window.npcCanViewAllUsers()
+      : (typeof has === 'function') ? has('view_all_users') : false;
+    var meuNomeCorretor = normalizarChave((window.current && (window.current.name || window.current.nome)) || '');
+
+    var selCorretor = document.getElementById('a360LocCorretor');
+    var corretorAtivo = '';
+    if(selCorretor){
+      if(!podeVerTodos){
+        selCorretor.innerHTML = '<option value="'+esc(meuNomeCorretor)+'" selected>'+esc(meuNomeCorretor || 'Meus dados')+'</option>';
+        selCorretor.disabled = true;
+        corretorAtivo = meuNomeCorretor;
+      } else {
+        var reconstruidoAgora = selCorretor.options.length <= 1;
+        var valorAnterior = reconstruidoAgora ? (selCorretor.value || (ultimoFiltro && ultimoFiltro.corretor) || '') : selCorretor.value;
+        selCorretor.disabled = false;
+        selCorretor.innerHTML = '<option value="">Todos os corretores</option>' + corretores.map(function(c){
+          return '<option value="'+esc(c)+'"'+(c===valorAnterior?' selected':'')+'>'+esc(c)+'</option>';
+        }).join('');
+        corretorAtivo = selCorretor.value || '';
+      }
+    }
+
+    function ehDoCorretor(campo){
+      return function(r){ return normalizarChave(r[campo]) === corretorAtivo; };
+    }
+    var negLinhas = corretorAtivo ? negLinhasPeriodo.filter(ehDoCorretor('responsavel')) : negLinhasPeriodo;
+    var alLinhas = corretorAtivo ? alLinhasPeriodo.filter(ehDoCorretor('corretor')) : alLinhasPeriodo;
+
+    var neg = agregarNegociacoes(negLinhas);
+    var al = agregarAtendimentos(alLinhas);
+    var iaVazio = {total:0,porTipo:{},porCidade:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
+    var iaBruto = store.imoveisAtivos || null;
+    var ia = iaBruto ? (iaBruto.locacao || iaBruto.geral || iaBruto) : iaVazio;
+    var totalAtendimentos = al.total||0;
+    var atendimentosPorCorretor = al.porCorretor;
+
+    var negAnt = null, totalAtendimentosAnt = null;
+    if(de && ate){
+      var msDia = 86400000;
+      var msDe = new Date(de+'T00:00:00').getTime(), msAte = new Date(ate+'T00:00:00').getTime();
+      var duracao = Math.max(msAte - msDe, msDia);
+      var anteAte = new Date(msDe - msDia).toISOString().slice(0,10);
+      var anteDe = new Date(msDe - msDia - duracao).toISOString().slice(0,10);
+      function noPeriodoAnterior(r){ return r.data && r.data >= anteDe && r.data <= anteAte; }
+      var negLinhasAnt = negociacoesLocacao.filter(noPeriodoAnterior);
+      var alLinhasAnt = store.atendimentosLocacao.filter(noPeriodoAnterior);
+      if(corretorAtivo){
+        negLinhasAnt = negLinhasAnt.filter(ehDoCorretor('responsavel'));
+        alLinhasAnt = alLinhasAnt.filter(ehDoCorretor('corretor'));
+      }
+      if(negLinhasAnt.length) negAnt = agregarNegociacoes(negLinhasAnt);
+      if(alLinhasAnt.length) totalAtendimentosAnt = alLinhasAnt.length;
+    }
+
+    var aba = window.__npcA360AbaLocacao || 'geral';
+
+    var abasHtml = '<div class="card pad" style="margin-bottom:18px;display:flex;gap:6px;overflow-x:auto">' + ABAS_A360_LOCACAO.map(function(a){
+      var ativa = a[0] === aba;
+      return '<button type="button" onclick="analise360TrocarAbaLocacao(\''+a[0]+'\')" style="white-space:nowrap;border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:13px;cursor:pointer;background:'+(ativa?'#ffc71b':'transparent')+';color:'+(ativa?'#111':'#666')+'">'+esc(a[1])+'</button>';
+    }).join('') + '</div>';
+
+    var conteudo = '';
+    if(aba === 'vgv'){
+      var taxaConversao = al.total ? (neg.total/al.total*100) : null;
+      var kpisVgv = ''
+        + '<div class="card kpi" style="text-align:center"><div class="l">Valor Total Locado</div><div class="v">'+moneyCompact(neg.vgvTotal)+'</div>'+(negAnt?pctLabel(neg.vgvTotal, negAnt.vgvTotal):'<p class="sub">&nbsp;</p>')+'</div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Negócios Fechados</div><div class="v">'+neg.total+'</div><p class="sub">&nbsp;</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Taxa de Conversão</div><div class="v">'+(taxaConversao!==null?taxaConversao.toFixed(1)+'%':'—')+'</div><p class="sub">Negócios fechados por atendimento</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio</div><div class="v">'+moneyCompact(neg.ticketMedio)+'</div><p class="sub">Por negócio fechado</p></div>';
+      conteudo = '<div class="grid cols4" style="margin-bottom:18px">'+kpisVgv+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+graficoBarrasAno('Valor Locado — Comparativo Anual', agruparPorAno(neg.porMes), moneyCompact)+graficoLinha('Valor Locado — Mês a Mês', neg.porMes, moneyCompact)+'</div>'
+        + '<div class="grid cols2">'+barraLista('Ranking de Corretores — Valor Locado', topN(neg.porCorretor,10), moneyCompact, corretorAtivo)+barraLista('Negociações por Tipo', topN(neg.porTipo,8))+'</div>';
+    } else if(aba === 'comissoes'){
+      conteudo = '<div class="empty" style="padding:60px 20px"><h3 style="margin:0 0 8px">🚧 Em Construção</h3><p class="sub" style="margin:0">Esta tela ainda está sendo preparada.</p></div>';
+    } else if(aba === 'ranking'){
+      conteudo = '<div class="grid cols2">'
+        + barraLista('Corretores — Valor Locado', topN(neg.porCorretor,12), moneyCompact, corretorAtivo)
+        + barraLista('Corretores — Comissão', topN(neg.comissaoPorCorretor,12), moneyCompact, corretorAtivo)
+        + barraLista('Corretores — Negócios Fechados', topN(neg.contagemPorCorretor,12), null, corretorAtivo)
+        + barraLista('Corretores — Atendimentos', topN(atendimentosPorCorretor,12), null, corretorAtivo)
+        + '</div>';
+    } else if(aba === 'atendimentos'){
+      var kpisAt = ''
+        + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">&nbsp;</p>')+'</div>';
+      conteudo = '<div class="grid cols1" style="margin-bottom:18px">'+kpisAt+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+graficoLinha('Atendimentos por Mês', al.porMes)+barraLista('Atendimentos por Corretor', topN(atendimentosPorCorretor,10), null, corretorAtivo)+'</div>'
+        + '<div class="grid cols2">'+barraLista('Atendimentos por Mídia', topN(al.porMidia,10))+barraLista('Funil — Atendimentos por Etapa', topN(al.porEtapa,12))+'</div>';
+    } else if(aba === 'carteira'){
+      var kpisCa = ''
+        + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis na Carteira (Locação)</div><div class="v">'+ia.total+'</div><p class="sub">Portfólio ativo</p></div>'
+        + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Locação</div><div class="v">'+moneyCompact(ia.ticketMedioLocacao)+'</div><p class="sub">&nbsp;</p></div>';
+      conteudo = '<div class="grid cols2" style="margin-bottom:18px">'+kpisCa+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10))+barraLista('Carteira por Cidade', topN(ia.porCidade,10))+'</div>'
+        + '<div class="grid cols1">'+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6))+'</div>'
+        + (corretorAtivo ? '<p class="sub" style="margin-top:10px">A carteira de imóveis não é filtrada por corretor (não há essa relação nos dados de origem).</p>' : '');
+    } else {
+      var taxaConversaoGeral = al.total ? (neg.total/al.total*100) : null;
+      var kpis = ''
+        + '<div class="card kpi" style="text-align:center;grid-column:span 2"><div class="l">Valor Total Locado</div><div class="v">'+moneyCompact(neg.vgvTotal)+'</div>'+(negAnt?pctLabel(neg.vgvTotal, negAnt.vgvTotal):'<p class="sub">Sem dado anterior</p>')+'</div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Negócios Fechados</div><div class="v">'+neg.total+'</div>'+(negAnt?pctLabel(neg.total, negAnt.total):'<p class="sub">Sem dado anterior</p>')+'</div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Taxa de Conversão</div><div class="v">'+(taxaConversaoGeral!==null?taxaConversaoGeral.toFixed(1)+'%':'—')+'</div><p class="sub">Negócios fechados por atendimento</p></div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 2"><div class="l">Ticket Médio</div><div class="v">'+moneyCompact(neg.ticketMedio)+'</div><p class="sub">Por negócio fechado</p></div>'
+        + '<div class="card kpi" style="text-align:center;grid-column:span 1"><div class="l">Atendimentos no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">Sem dado anterior</p>')+'</div>';
+
+      var linha1 = ''
+        + graficoFunil('Funil de Conversão', [['Atendimentos', totalAtendimentos], ['Negócios Fechados', neg.total]])
+        + graficoRosca('Negociações por Tipo', neg.porTipo)
+        + (corretorAtivo ? barraLista('Atendimentos por Mídia', topN(al.porMidia,8)) : graficoRosca('Carteira por Finalidade', ia.porFinalidade));
+
+      var conteudoLinha2;
+      if(corretorAtivo){
+        conteudoLinha2 = '<div class="card pad"><h3>Resumo — '+esc(corretorAtivo)+'</h3>'
+          + '<table class="table"><tbody>'
+          + '<tr><td>Valor Total Locado</td><td><b>'+moneyCompact(neg.vgvTotal)+'</b></td></tr>'
+          + '<tr><td>Comissão Total</td><td><b>'+moneyCompact(neg.comissaoTotal)+'</b></td></tr>'
+          + '<tr><td>Negócios Fechados</td><td><b>'+neg.total+'</b></td></tr>'
+          + '<tr><td>Atendimentos</td><td><b>'+al.total+'</b></td></tr>'
+          + '<tr><td>Ticket Médio</td><td><b>'+moneyCompact(neg.ticketMedio)+'</b></td></tr>'
+          + '</tbody></table></div>';
+      } else {
+        var topCorretoresGeral = topN(neg.porCorretor, 6);
+        var linhasTabela = topCorretoresGeral.map(function(e){
+          var nome = e[0];
+          return '<tr><td>'+esc(nome)+'</td>'
+            + '<td>'+moneyCompact(neg.porCorretor[nome]||0)+'</td>'
+            + '<td>'+moneyCompact(neg.comissaoPorCorretor[nome]||0)+'</td>'
+            + '<td>'+(neg.contagemPorCorretor[nome]||0)+'</td>'
+            + '<td>'+(atendimentosPorCorretor[nome]||0)+'</td></tr>';
+        }).join('');
+        var tabela = topCorretoresGeral.length
+          ? '<table class="table"><thead><tr><th>Corretor</th><th>Valor Locado</th><th>Comissão</th><th>Negócios</th><th>Atendimentos</th></tr></thead><tbody>'+linhasTabela+'</tbody></table>'
+          : '<p class="sub">Sem dados para o período.</p>';
+        conteudoLinha2 = '<div class="card pad"><h3>Panorama por Corretor</h3>'+tabela+'</div>';
+      }
+
+      conteudo = '<div class="grid" style="grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:18px">'+kpis+'</div>'
+        + '<div class="grid cols3" style="margin-bottom:18px">'+linha1+'</div>'
+        + conteudoLinha2;
+    }
+
+    if(box){
+      box.innerHTML = abasHtml + conteudo
+        + '<p class="sub" style="margin-top:14px">Período: '+de.split('-').reverse().join('/')+' a '+ate.split('-').reverse().join('/')+(corretorAtivo?' — filtrado por '+esc(corretorAtivo):'')+' — dados atualizados em '+(store.atualizadoEm?new Date(store.atualizadoEm).toLocaleString('pt-BR'):'—')+(store.atualizadoPor?' por '+esc(store.atualizadoPor):'')+'.</p>';
+    }
+    atualizarCacheLocal();
+  }
+  window.analise360RenderLocacao = analise360RenderLocacao;
+
+  function analise360CapturarEstadoLocacao(){
+    return {
+      de: (document.getElementById('a360LocDe')||{}).value || '',
+      ate: (document.getElementById('a360LocAte')||{}).value || '',
+      corretor: (document.getElementById('a360LocCorretor')||{}).value || ''
+    };
+  }
+  function analise360SalvarUltimoFiltroLocacao(){
+    window.__npcA360LocUltimoFiltro = analise360CapturarEstadoLocacao();
+  }
+  window.analise360TrocarLocacao = function(){
+    analise360RenderLocacao();
+    analise360SalvarUltimoFiltroLocacao();
+  };
+  window.analise360FiltrarCorretorLocacao = function(){
+    analise360RenderLocacao();
+    analise360SalvarUltimoFiltroLocacao();
+  };
+  window.analise360TrocarAbaLocacao = function(aba){
+    window.__npcA360AbaLocacao = aba;
+    analise360RenderLocacao();
+    analise360SalvarUltimoFiltroLocacao();
+  };
+
+  window.render_analise360_locacao = function(){
+    var c = document.getElementById('content');
+    if(!c) return;
+    if(typeof has === 'function' && !has('analise360_locacao_ver')){
+      c.innerHTML = '<div class="empty">Você não possui permissão para acessar a Análise 360° - Locação.</div>';
+      return;
+    }
+    c.innerHTML =
+      '<div class="card pad" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'
+      + '<div><h2 style="margin:0 0 4px">Análise 360° — Locação</h2><p class="sub" style="margin:0">Consolidado de valor locado, comissões, atendimentos e carteira de imóveis (locação).</p></div>'
+      + '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+      + '<div style="display:flex;align-items:center;gap:8px"><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">De</label>'
+      + '<input type="date" id="a360LocDe" onchange="analise360TrocarLocacao()" style="border-radius:10px;padding:8px 10px;font-weight:800">'
+      + '<label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">Até</label>'
+      + '<input type="date" id="a360LocAte" onchange="analise360TrocarLocacao()" style="border-radius:10px;padding:8px 10px;font-weight:800"></div>'
+      + '<div style="display:flex;align-items:center;gap:10px"><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">Corretor</label>'
+      + '<select id="a360LocCorretor" onchange="analise360FiltrarCorretorLocacao()" style="border-radius:10px;padding:9px 12px;font-weight:800;max-width:220px"><option value="">Todos os corretores</option></select></div>'
+      + '</div></div>'
+
+      + '<div id="a360LocResultados"></div>';
+
+    analise360RenderLocacao();
+    if(!window.__npcA360LocUltimoFiltro) analise360SalvarUltimoFiltroLocacao();
+  };
+
+  try{
+    var _origRenderV115Loc = window.render;
+    if(typeof _origRenderV115Loc === 'function' && !window.__npcV115RenderLocWrapped){
+      window.__npcV115RenderLocWrapped = true;
+      window.render = function(){
+        var filtrosAntes = {};
+        try{
+          ['a360LocDe','a360LocAte','a360LocCorretor'].forEach(function(id){
+            var el = document.getElementById(id);
+            if(el && el.value) filtrosAntes[id] = el.value;
+          });
+        }catch(e){}
+
+        var result = _origRenderV115Loc.apply(this, arguments);
+
+        try{
+          var paginaAtual = window.page || (typeof page !== 'undefined' && page) || '';
+          if(paginaAtual === 'analise360_locacao' && Object.keys(filtrosAntes).length){
+            var mudouAlgo = false;
+            ['a360LocDe','a360LocAte'].forEach(function(id){
+              var el = document.getElementById(id);
+              if(el && filtrosAntes[id] && el.value !== filtrosAntes[id]){ el.value = filtrosAntes[id]; mudouAlgo = true; }
+            });
+            var selC = document.getElementById('a360LocCorretor');
+            if(selC && filtrosAntes['a360LocCorretor']){
+              var existeOpcao = Array.prototype.some.call(selC.options, function(o){ return o.value === filtrosAntes['a360LocCorretor']; });
+              if(existeOpcao && selC.value !== filtrosAntes['a360LocCorretor']){ selC.value = filtrosAntes['a360LocCorretor']; mudouAlgo = true; }
+            }
+            if(mudouAlgo && typeof analise360RenderLocacao === 'function') analise360RenderLocacao();
+          }
+        }catch(e){ console.error('[V115] Erro ao restaurar filtros da Análise 360° - Locação:', e); }
+
+        return result;
+      };
+    }
+  }catch(e){ console.error('[V115] Erro ao proteger filtros (Locação) contra atualização automática:', e); }
+
   /* ---------- render da página ---------- */
   window.render_analise360 = function(){
     var c = document.getElementById('content');
@@ -15355,7 +15658,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     }
     c.innerHTML =
       '<div class="card pad" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'
-      + '<div><h2 style="margin:0 0 4px">Análise 360°</h2><p class="sub" style="margin:0">Consolidado de VGV, comissões, atendimentos e carteira de imóveis.</p></div>'
+      + '<div><h2 style="margin:0 0 4px">Análise 360° — Vendas</h2><p class="sub" style="margin:0">Consolidado de VGV, comissões, atendimentos e carteira de imóveis (vendas).</p></div>'
       + '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
       + '<div style="display:flex;align-items:center;gap:8px"><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#8a8f99">De</label>'
       + '<input type="date" id="a360De" onchange="analise360Trocar()" style="border-radius:10px;padding:8px 10px;font-weight:800">'
@@ -15397,7 +15700,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
         try{
           var paginaAtual = window.page || (typeof page !== 'undefined' && page) || '';
-          if(paginaAtual === 'analise360' && Object.keys(filtrosAntes).length){
+          if((paginaAtual === 'analise360' || paginaAtual === 'analise360_locacao') && Object.keys(filtrosAntes).length){
             var mudouAlgo = false;
             ['a360De','a360Ate'].forEach(function(id){
               var el = document.getElementById(id);
@@ -15408,7 +15711,10 @@ body:has(#login:not(.hidden)) #app.hidden{
               var existeOpcao = Array.prototype.some.call(selC.options, function(o){ return o.value === filtrosAntes['a360Corretor']; });
               if(existeOpcao && selC.value !== filtrosAntes['a360Corretor']){ selC.value = filtrosAntes['a360Corretor']; mudouAlgo = true; }
             }
-            if(mudouAlgo && typeof analise360Render === 'function') analise360Render();
+            if(mudouAlgo){
+              if(paginaAtual === 'analise360_locacao' && typeof analise360RenderLocacao === 'function') analise360RenderLocacao();
+              else if(typeof analise360Render === 'function') analise360Render();
+            }
           }
         }catch(e){ console.error('[V115] Erro ao restaurar filtros da Análise 360°:', e); }
 
@@ -15447,6 +15753,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{
     if(typeof renders !== 'undefined'){
       renders['analise360'] = window.render_analise360;
+      renders['analise360_locacao'] = window.render_analise360_locacao;
       renders['analise360_upload'] = window.render_analise360_upload;
       window.renders = renders;
     }
@@ -15454,6 +15761,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{
     if(typeof window.renders !== 'undefined'){
       window.renders['analise360'] = window.render_analise360;
+      window.renders['analise360_locacao'] = window.render_analise360_locacao;
       window.renders['analise360_upload'] = window.render_analise360_upload;
     }
   }catch(e){}
@@ -15699,5 +16007,448 @@ body:has(#login:not(.hidden)) #app.hidden{
 
 
   console.log('[V118] Linha "Itens" removida da capa dos cards.');
+})();
+</script>
+
+
+<!-- PATCH V120: Novo sistema de Comissionamento (substitui Comissão/Parceria por lista de comissionados) -->
+<script>
+(function(){
+  if(window.__npcV120Comissionamento) return;
+  window.__npcV120Comissionamento = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function cardsRef(){ var d=dbRef(); return Array.isArray(d.kanbanCards) ? d.kanbanCards : []; }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error(e); } }
+  function escAttrSafe(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escSafe(v){ return escAttrSafe(v); }
+
+  function parseMoneyLoose(v){
+    var n = Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function parsePercentLoose(v){
+    var n = Number(String(v==null?'':v).replace('%','').replace(',','.').trim());
+    return Number.isFinite(n) ? n : 0;
+  }
+  function formatMoneyBR(n){
+    return (n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  }
+
+  /* ---- montagem de cada linha de comissão ---- */
+  function comissaoRowHTML(data){
+    data = data || {};
+    var fixo = !!data.fixo;
+    var estiloTravado = fixo ? ' style="background:#f2f3f5;color:#555;cursor:not-allowed"' : '';
+    var atributoTravado = fixo ? ' disabled' : '';
+    var botaoRemover = fixo ? '' : '<button type="button" class="danger" style="padding:8px 10px" onclick="window.__npcRemoveComissaoRow(this)">×</button>';
+    return '<div class="npc-comissao-row" data-fixo="' + (fixo?'1':'0') + '" style="display:grid;grid-template-columns:1.3fr 1fr 0.7fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px">' +
+      '<input type="text" class="npc-com-nome" placeholder="Comissionado" value="' + escAttrSafe(data.nome || '') + '"' + atributoTravado + estiloTravado + '>' +
+      '<input type="text" class="npc-com-tipo" placeholder="Tipo (Corretor, Captador, Parceiro, Quinto Andar...)" value="' + escAttrSafe(data.tipo || '') + '"' + atributoTravado + estiloTravado + '>' +
+      '<input type="text" class="npc-com-pct" placeholder="Ex.: 5%" value="' + escAttrSafe(data.porcentagem || '') + '" oninput="window.__npcRecalcComissoes()">' +
+      '<input type="text" class="npc-com-valor" placeholder="R$ 0,00" value="' + escAttrSafe(data.valor || '') + '" disabled style="background:#f2f3f5;color:#555;cursor:not-allowed">' +
+      botaoRemover +
+    '</div>';
+  }
+
+  window.__npcAddComissaoRow = function(data){
+    var list = document.getElementById('kbComissionamentoList');
+    if(!list) return;
+    list.insertAdjacentHTML('beforeend', comissaoRowHTML(data));
+    window.__npcRecalcComissoes();
+  };
+
+  window.__npcRemoveComissaoRow = function(btn){
+    var row = btn.closest('.npc-comissao-row');
+    if(row && row.getAttribute('data-fixo') !== '1') row.remove();
+  };
+
+  window.__npcRecalcComissoes = function(){
+    try{
+      var imobEl = document.getElementById('kbComissaoImobValor');
+      var baseComissaoImob = imobEl ? parseMoneyLoose(imobEl.value) : 0;
+      document.querySelectorAll('#kbComissionamentoList .npc-comissao-row').forEach(function(row){
+        var pctEl = row.querySelector('.npc-com-pct');
+        var valorComEl = row.querySelector('.npc-com-valor');
+        if(!pctEl || !valorComEl) return;
+        var pct = parsePercentLoose(pctEl.value);
+        var valorCalculado = baseComissaoImob * (pct / 100);
+        valorComEl.value = valorCalculado ? formatMoneyBR(valorCalculado) : '';
+      });
+    }catch(e){ console.error('[V120] Erro ao recalcular comissões:', e); }
+  };
+
+  window.__npcInitComissoes = function(c){
+    try{
+      var list = document.getElementById('kbComissionamentoList');
+      if(!list) return;
+      list.innerHTML = '';
+      var arr = Array.isArray(c && c.comissionamento) ? c.comissionamento.slice() : [];
+      var indiceFixo = -1;
+      for(var i=0;i<arr.length;i++){ if(arr[i] && arr[i].fixo){ indiceFixo = i; break; } }
+      if(indiceFixo === -1){
+        arr.unshift({ nome: 'Na Ponta da Chave', tipo: 'Imobiliária', porcentagem: '', valor: '', fixo: true });
+      } else if(indiceFixo > 0){
+        var fixo = arr.splice(indiceFixo,1)[0];
+        arr.unshift(fixo);
+      }
+      arr.forEach(function(item){ window.__npcAddComissaoRow(item); });
+    }catch(e){ console.error('[V120] Erro ao iniciar comissionamento:', e); }
+  };
+
+  function collectComissoes(){
+    var list = document.getElementById('kbComissionamentoList');
+    if(!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll('.npc-comissao-row'), function(row){
+      var nomeEl = row.querySelector('.npc-com-nome');
+      var tipoEl = row.querySelector('.npc-com-tipo');
+      var pctEl = row.querySelector('.npc-com-pct');
+      var valorEl = row.querySelector('.npc-com-valor');
+      return {
+        nome: nomeEl ? nomeEl.value.trim() : '',
+        tipo: tipoEl ? tipoEl.value.trim() : '',
+        porcentagem: pctEl ? pctEl.value.trim() : '',
+        valor: valorEl ? valorEl.value.trim() : '',
+        fixo: row.getAttribute('data-fixo') === '1'
+      };
+    }).filter(function(item){ return item.nome || item.tipo || item.porcentagem; });
+  }
+
+  /* ---- salvamento: grava o array de comissionamento no card ---- */
+  var _origSaveCardV120 = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var comissoes = collectComissoes();
+    var cId = String(cardId || '');
+
+    function aplicar(card){
+      if(!card) return;
+      card.comissionamento = comissoes;
+    }
+
+    if(cId){
+      try{ aplicar(cardsRef().find(function(x){ return String(x.id) === cId; })); }
+      catch(e){ console.error('[V120] Erro ao preparar comissionamento (edição):', e); }
+      return _origSaveCardV120 ? _origSaveCardV120.apply(this, arguments) : undefined;
+    }
+
+    var result = _origSaveCardV120 ? _origSaveCardV120.apply(this, arguments) : undefined;
+    try{
+      var lista = cardsRef();
+      aplicar(lista[lista.length - 1]);
+      doSave();
+    }catch(e){ console.error('[V120] Erro ao preparar comissionamento (novo):', e); }
+    return result;
+  };
+
+  /* ---- tela "Abrir": mostra a lista completa de comissionamento ---- */
+  function comissionamentoDetailHTML(c){
+    var arr = Array.isArray(c && c.comissionamento) ? c.comissionamento : [];
+    if(!arr.length) return '<b>Rateio da Comissão Bruta:</b> —';
+    var linhas = arr.map(function(item){
+      var partes = [];
+      partes.push('<b>Comissionado:</b> ' + escSafe(item.nome || '(sem nome)'));
+      if(item.tipo) partes.push('<b>Tipo:</b> ' + escSafe(item.tipo));
+      if(item.porcentagem) partes.push('<b>Porcentagem:</b> ' + escSafe(/%$/.test(String(item.porcentagem).trim()) ? item.porcentagem : item.porcentagem + '%'));
+      if(item.valor) partes.push('<b>Valor:</b> ' + escSafe(item.valor));
+      return partes.join('<br>');
+    });
+    return '<b>Rateio da Comissão Bruta:</b><br>' + linhas.join('<br><br>');
+  }
+
+  var _origOpenViewV120 = window.openKanbanCardView;
+  window.openKanbanCardView = function(cardId){
+    var result = _origOpenViewV120 ? _origOpenViewV120.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        var c = cardsRef().find(function(x){ return String(x.id) === String(cardId); });
+        if(!c) return;
+        var alvo = document.querySelector('.npc-comissionamento-detail');
+        if(alvo) alvo.innerHTML = comissionamentoDetailHTML(c);
+      }catch(e){ console.error('[V120] Erro ao exibir comissionamento:', e); }
+    }, 90);
+    return result;
+  };
+
+  console.log('[V120] Novo sistema de Comissionamento instalado.');
+})();
+</script>
+
+
+<!-- PATCH V121: Move a linha Posse/Financiamento para cima do Comissionamento -->
+<script>
+(function(){
+  if(window.__npcV121ReordenarPosse) return;
+  window.__npcV121ReordenarPosse = true;
+
+  function reordenar(){
+    try{
+      var posseEl = document.getElementById('kbPosse');
+      var comissionamentoField = document.getElementById('kbComissionamentoField');
+      if(!posseEl || !comissionamentoField) return;
+      var grid = posseEl.closest('.grid');
+      if(!grid) return;
+      if(grid.nextSibling === comissionamentoField) return; /* já está no lugar certo */
+      comissionamentoField.parentNode.insertBefore(grid, comissionamentoField);
+    }catch(e){ console.error('[V121] Erro ao reordenar Posse/Financiamento:', e); }
+  }
+
+  var _origOpenModalV121 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(){
+    var result = _origOpenModalV121 ? _origOpenModalV121.apply(this, arguments) : undefined;
+    setTimeout(reordenar, 260);
+    return result;
+  };
+
+  console.log('[V121] Posse/Financiamento reposicionados acima do Comissionamento.');
+})();
+</script>
+
+
+<!-- PATCH V122: Comissão Imobiliária (separada da comissão dos Prestadores) -->
+<script>
+(function(){
+  if(window.__npcV122ComissaoImobiliaria) return;
+  window.__npcV122ComissaoImobiliaria = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function cardsRef(){ var d=dbRef(); return Array.isArray(d.kanbanCards) ? d.kanbanCards : []; }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error(e); } }
+  function escAttrSafe(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escSafe(v){ return escAttrSafe(v); }
+
+  function parseMoneyLoose(v){
+    var n = Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function parsePercentLoose(v){
+    var n = Number(String(v==null?'':v).replace('%','').replace(',','.').trim());
+    return Number.isFinite(n) ? n : 0;
+  }
+  function formatMoneyBR(n){
+    return (n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  }
+
+  window.__npcRecalcComissaoImob = function(){
+    try{
+      var valorEl = document.getElementById('kbValor');
+      var pctEl = document.getElementById('kbComissaoImobPct');
+      var valorImobEl = document.getElementById('kbComissaoImobValor');
+      if(!pctEl || !valorImobEl) return;
+      var valorVenda = valorEl ? parseMoneyLoose(valorEl.value) : 0;
+      var pct = parsePercentLoose(pctEl.value);
+      var valorCalculado = valorVenda * (pct / 100);
+      valorImobEl.value = valorCalculado ? formatMoneyBR(valorCalculado) : '';
+      /* a comissão dos prestadores é calculada em cima da comissão da imobiliária, então recalcula em cascata */
+      if(typeof window.__npcRecalcComissoes === 'function') window.__npcRecalcComissoes();
+    }catch(e){ console.error('[V122] Erro ao recalcular comissão imobiliária:', e); }
+  };
+
+  function montarCampo(c){
+    try{
+      if(document.getElementById('kbComissaoImobPct')) return;
+      var wrapFinanciamento = document.querySelector('.npc-saldo-fin-wrap');
+      if(!wrapFinanciamento) return;
+
+      var pctSalvo = (c && c.comissaoImobiliariaPercentual) || '';
+      var valorSalvo = (c && c.comissaoImobiliariaValor) || '';
+
+      var novo = document.createElement('div');
+      novo.className = 'field';
+      novo.id = 'kbComissaoImobField';
+      novo.innerHTML =
+        '<label>Comissão Bruta</label>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<input type="text" id="kbComissaoImobPct" placeholder="Ex.: 5%" style="flex:1 1 auto" value="' + escAttrSafe(pctSalvo) + '" oninput="window.__npcRecalcComissaoImob()">' +
+        '<input type="text" id="kbComissaoImobValor" placeholder="R$ 0,00" style="flex:1 1 auto;background:#f2f3f5;color:#555;cursor:not-allowed" value="' + escAttrSafe(valorSalvo) + '" disabled>' +
+        '</div>';
+
+      wrapFinanciamento.parentNode.insertBefore(novo, wrapFinanciamento.nextSibling);
+
+      /* recalcula automaticamente quando o Valor da Venda mudar */
+      var valorEl = document.getElementById('kbValor');
+      if(valorEl && !valorEl.__npcComissaoImobBound){
+        valorEl.__npcComissaoImobBound = true;
+        valorEl.addEventListener('change', window.__npcRecalcComissaoImob);
+        valorEl.addEventListener('input', window.__npcRecalcComissaoImob);
+      }
+      window.__npcRecalcComissaoImob();
+    }catch(e){ console.error('[V122] Erro ao montar campo de Comissão Imobiliária:', e); }
+  }
+
+  var _origOpenModalV122 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(columnId, cardId){
+    var result = _origOpenModalV122 ? _origOpenModalV122.apply(this, arguments) : undefined;
+    var c = cardId ? cardsRef().find(function(x){ return String(x.id) === String(cardId); }) : null;
+    setTimeout(function(){ montarCampo(c); }, 270);
+    return result;
+  };
+
+  /* ---- salvamento ---- */
+  var _origSaveCardV122 = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var pctEl = document.getElementById('kbComissaoImobPct');
+    var valorEl = document.getElementById('kbComissaoImobValor');
+    var pct = pctEl ? pctEl.value.trim() : '';
+    var valor = valorEl ? valorEl.value.trim() : '';
+    var cId = String(cardId || '');
+
+    function aplicar(card){
+      if(!card) return;
+      card.comissaoImobiliariaPercentual = pct;
+      card.comissaoImobiliariaValor = valor;
+    }
+
+    if(cId){
+      try{ aplicar(cardsRef().find(function(x){ return String(x.id) === cId; })); }
+      catch(e){ console.error('[V122] Erro ao preparar comissão imobiliária (edição):', e); }
+      return _origSaveCardV122 ? _origSaveCardV122.apply(this, arguments) : undefined;
+    }
+
+    var result = _origSaveCardV122 ? _origSaveCardV122.apply(this, arguments) : undefined;
+    try{
+      var lista = cardsRef();
+      aplicar(lista[lista.length - 1]);
+      doSave();
+    }catch(e){ console.error('[V122] Erro ao preparar comissão imobiliária (novo):', e); }
+    return result;
+  };
+
+  /* ---- tela "Abrir": mostra a comissão da imobiliária separada da dos prestadores ---- */
+  var _origOpenViewV122 = window.openKanbanCardView;
+  window.openKanbanCardView = function(cardId){
+    var result = _origOpenViewV122 ? _origOpenViewV122.apply(this, arguments) : undefined;
+    setTimeout(function(){
+      try{
+        var c = cardsRef().find(function(x){ return String(x.id) === String(cardId); });
+        if(!c) return;
+        var alvo = document.querySelector('.npc-comissionamento-detail');
+        if(!alvo) return;
+        if(alvo.querySelector('.npc-comissao-imob-linha')) return;
+        var linha = document.createElement('div');
+        linha.className = 'npc-comissao-imob-linha';
+        linha.style.marginTop = '14px';
+        linha.style.marginBottom = '8px';
+        linha.innerHTML = '<b>Comissão Bruta:</b> ' + (c.comissaoImobiliariaPercentual ? escSafe(/%$/.test(String(c.comissaoImobiliariaPercentual).trim()) ? c.comissaoImobiliariaPercentual : c.comissaoImobiliariaPercentual + '%') + ' — ' + escSafe(c.comissaoImobiliariaValor || '') : '—');
+        alvo.parentNode.insertBefore(linha, alvo);
+      }catch(e){ console.error('[V122] Erro ao exibir comissão imobiliária:', e); }
+    }, 95);
+    return result;
+  };
+
+  console.log('[V122] Comissão Imobiliária instalada (separada dos Prestadores).');
+})();
+</script>
+
+
+<!-- PATCH V123: Comissionado vinculado a usuário do sistema (autocomplete + reconciliação por nome) -->
+<script>
+(function(){
+  if(window.__npcV123ComissionadoUsuario) return;
+  window.__npcV123ComissionadoUsuario = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function cardsRef(){ var d=dbRef(); return Array.isArray(d.kanbanCards) ? d.kanbanCards : []; }
+  function usersRef(){ var d=dbRef(); return Array.isArray(d.users) ? d.users : []; }
+  function escAttrSafe(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function normalizarNome(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
+  function montarDatalist(){
+    try{
+      var dl = document.getElementById('npcUsuariosDatalist');
+      if(!dl){
+        dl = document.createElement('datalist');
+        dl.id = 'npcUsuariosDatalist';
+        document.body.appendChild(dl);
+      }
+      dl.innerHTML = usersRef().filter(function(u){ return u && u.active !== false && (u.name||u.nome) && normalizarNome(u.name||u.nome) !== 'claude ia'; })
+        .map(function(u){ return '<option value="' + escAttrSafe(u.name||u.nome) + '">'; }).join('');
+    }catch(e){ console.error('[V123] Erro ao montar lista de usuários:', e); }
+  }
+
+  function ligarInputsComissionado(){
+    try{
+      document.querySelectorAll('#kbComissionamentoList .npc-comissao-row').forEach(function(row){
+        if(row.getAttribute('data-fixo') === '1') return;
+        var nomeEl = row.querySelector('.npc-com-nome');
+        if(nomeEl && nomeEl.getAttribute('list') !== 'npcUsuariosDatalist'){
+          nomeEl.setAttribute('list', 'npcUsuariosDatalist');
+          nomeEl.setAttribute('placeholder', 'Comissionado (nome de um usuário do sistema ou texto livre)');
+        }
+      });
+    }catch(e){ console.error('[V123] Erro ao ligar autocomplete:', e); }
+  }
+
+  /* reaplica o autocomplete sempre que uma linha nova de comissão é adicionada (o campo é recriado do zero) */
+  var _origAddRowV123 = window.__npcAddComissaoRow;
+  window.__npcAddComissaoRow = function(data){
+    var result = _origAddRowV123 ? _origAddRowV123.apply(this, arguments) : undefined;
+    ligarInputsComissionado();
+    return result;
+  };
+
+  var _origOpenModalV123 = window.openKanbanCardModal;
+  window.openKanbanCardModal = function(){
+    var result = _origOpenModalV123 ? _origOpenModalV123.apply(this, arguments) : undefined;
+    setTimeout(function(){ montarDatalist(); ligarInputsComissionado(); }, 40);
+    return result;
+  };
+
+  /* ao salvar: se o nome digitado bater com um usuário do sistema, usa o nome
+     canônico do cadastro dele e guarda o usuarioId — evita divergências como
+     "joão silva" x "João Silva" nas análises de comissão futuras */
+  var _origSaveCardV123 = window.saveKanbanCard;
+  window.saveKanbanCard = function(cardId){
+    var cId = String(cardId || '');
+    function reconciliar(card){
+      if(!card || !Array.isArray(card.comissionamento)) return;
+      var usuarios = usersRef();
+      card.comissionamento.forEach(function(item){
+        if(!item || item.fixo) return;
+        var alvo = normalizarNome(item.nome);
+        if(!alvo) return;
+        var achou = usuarios.find(function(u){ return normalizarNome(u.name||u.nome) === alvo && alvo !== 'claude ia'; });
+        if(achou){
+          item.usuarioId = achou.id || achou.uid || '';
+          item.nome = achou.name || achou.nome || item.nome;
+        } else {
+          delete item.usuarioId;
+        }
+      });
+    }
+    if(cId){
+      try{ reconciliar(cardsRef().find(function(x){ return String(x.id) === cId; })); }
+      catch(e){ console.error('[V123] Erro ao reconciliar comissionado (edição):', e); }
+      return _origSaveCardV123 ? _origSaveCardV123.apply(this, arguments) : undefined;
+    }
+    var result = _origSaveCardV123 ? _origSaveCardV123.apply(this, arguments) : undefined;
+    try{
+      var lista = cardsRef();
+      reconciliar(lista[lista.length - 1]);
+      if(typeof save === 'function') save(); else if(typeof window.save === 'function') window.save();
+    }catch(e){ console.error('[V123] Erro ao reconciliar comissionado (novo):', e); }
+    return result;
+  };
+
+  console.log('[V123] Comissionado com autocomplete de usuários instalado.');
+})();
+</script>
+
+
+<!-- PATCH V124: Desativa o aviso "Você não possui permissão para acessar este módulo." -->
+<script>
+(function(){
+  if(window.__npcV124SilenciarAvisoModulo) return;
+  window.__npcV124SilenciarAvisoModulo = true;
+
+  var _origToastV124 = window.toast;
+  if(typeof _origToastV124 === 'function'){
+    window.toast = function(msg, type){
+      if(String(msg||'').indexOf('Você não possui permissão para acessar este módulo') === 0) return;
+      return _origToastV124.apply(this, arguments);
+    };
+    try{ toast = window.toast; }catch(e){}
+  }
+
+  console.log('[V124] Aviso de permissão de módulo silenciado.');
 })();
 </script>
