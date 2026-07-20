@@ -1522,7 +1522,7 @@ async function sendPasswordReset(id){
 function render_config(){$('content').innerHTML=`<div class="card pad"><h2>Configurações</h2><p>Ambiente conectado. O acesso é realizado por autenticação individual, com usuários e permissões controlados pela administração.</p><div class="callout" style="margin-top:14px"><b>Segurança:</b> novos usuários entram com senha inicial definida no cadastro. Para recuperação de acesso, envie o e-mail oficial de redefinição pela aba Usuários.</div></div>`}
 function searchAll(q){q=q.toLowerCase().trim(); if(!q)return; const res=trainingModules.filter(m=>(m.title+' '+m.summary+' '+m.area).toLowerCase().includes(q)); openModal('Resultado da busca',res.length?`<div class="grid cols2">${cards(res)}</div>`:'<div class="empty">Nenhum treinamento encontrado.</div>')}
 function openHelp(){openModal('Ajuda rápida',`<div class="grid cols2"><div class="item"><div class="bullet">1</div><div><h4>Treinamentos</h4><p>Cada módulo possui aula, objetivo, conteúdo, checklist e avaliação.</p></div></div><div class="item"><div class="bullet">2</div><div><h4>Permissões</h4><p>O menu aparece conforme as permissões liberadas para o usuário.</p></div></div><div class="item"><div class="bullet">3</div><div><h4>Biblioteca interna</h4><p>Conteúdos e materiais exibidos dentro da intranet.</p></div></div><div class="item"><div class="bullet">4</div><div><h4>Acessos</h4><p>Usuários e permissões são controlados pela administração.</p></div></div></div>`)}
-function openModal(t,b){$('modalTitle').textContent=t;$('modalBody').innerHTML=b;$('modalBg').classList.add('open')}function closeModal(){$('modalBg').classList.remove('open')}$('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+function openModal(t,b){$('modalTitle').textContent=t;$('modalBody').innerHTML=b;$('modalBg').classList.add('open')}function closeModal(){$('modalBg').classList.remove('open')}
 
 
 /* ====== PATCH V17: NOTIFICAÇÕES, CIÊNCIA, TRILHAS, PLANO DE AÇÃO E AUDITORIA ====== */
@@ -2086,6 +2086,13 @@ function cloudToLocal(cloud){
   base.kanbanComissaoOptions = Array.isArray(cloud?.kanbanComissaoOptions) ? cloud.kanbanComissaoOptions : (Array.isArray(cloud?.kanbanOptions?.comissao) ? cloud.kanbanOptions.comissao : (base.kanbanComissaoOptions || []));
   base.kanbanPosseOptions = Array.isArray(cloud?.kanbanPosseOptions) ? cloud.kanbanPosseOptions : (Array.isArray(cloud?.kanbanOptions?.posse) ? cloud.kanbanOptions.posse : (base.kanbanPosseOptions || []));
   base.kanbanDocumentosOptions = Array.isArray(cloud?.kanbanDocumentosOptions) ? cloud.kanbanDocumentosOptions : (Array.isArray(cloud?.kanbanOptions?.documentos) ? cloud.kanbanOptions.documentos : (base.kanbanDocumentosOptions || []));
+  base.locacaoPropostasColumns = Array.isArray(cloud?.locacaoPropostasColumns) ? cloud.locacaoPropostasColumns : (cloud?.locacaoPropostasColumns ? Object.values(cloud.locacaoPropostasColumns) : (base.locacaoPropostasColumns || []));
+  base.locacaoPropostasCards = Array.isArray(cloud?.locacaoPropostasCards) ? cloud.locacaoPropostasCards : (cloud?.locacaoPropostasCards ? Object.values(cloud.locacaoPropostasCards) : (base.locacaoPropostasCards || []));
+  base.locacaoChecklistTemplate = Array.isArray(cloud?.locacaoChecklistTemplate) ? cloud.locacaoChecklistTemplate : (cloud?.locacaoChecklistTemplate ? Object.values(cloud.locacaoChecklistTemplate) : (base.locacaoChecklistTemplate || []));
+  base.locacaoComissaoRegras = Array.isArray(cloud?.locacaoComissaoRegras) ? cloud.locacaoComissaoRegras : (cloud?.locacaoComissaoRegras ? Object.values(cloud.locacaoComissaoRegras) : (base.locacaoComissaoRegras || []));
+  base.locacaoKPIs = Array.isArray(cloud?.locacaoKPIs) ? cloud.locacaoKPIs : (cloud?.locacaoKPIs ? Object.values(cloud.locacaoKPIs) : (base.locacaoKPIs || []));
+  base.locacaoRegistrosDiarios = Array.isArray(cloud?.locacaoRegistrosDiarios) ? cloud.locacaoRegistrosDiarios : (cloud?.locacaoRegistrosDiarios ? Object.values(cloud.locacaoRegistrosDiarios) : (base.locacaoRegistrosDiarios || []));
+  base.locacaoInfoUteis = Array.isArray(cloud?.locacaoInfoUteis) ? cloud.locacaoInfoUteis : (cloud?.locacaoInfoUteis ? Object.values(cloud.locacaoInfoUteis) : (base.locacaoInfoUteis || []));
   if(!base.comunicados || !base.comunicados.length) base.comunicados = structuredClone(DEFAULT_COMUNICADOS);
   return base;
 }
@@ -16892,5 +16899,1116 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
 
   console.log('[V124] Aviso de permissão de módulo silenciado.');
+})();
+</script>
+
+
+<!-- PATCH V126: Módulo LOCAÇÃO - Propostas (Kanban) + Gestão (colunas e checklist) -->
+<script>
+(function(){
+  if(window.__npcLocacaoModulo) return;
+  window.__npcLocacaoModulo = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error('[Locação]', e); } }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function escAttr(v){ return esc(v); }
+  function uid(){ return 'loc_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function currencyBR(v){
+    var n = (typeof v === 'number') ? v : Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+    return Number.isFinite(n) ? n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '';
+  }
+  function parseMoneyLoose(v){
+    var n = Number(String(v==null?'':v).replace(/[^0-9,.-]/g,'').replace(/\./g,'').replace(',','.'));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function parsePercentLoose(v){
+    var n = Number(String(v==null?'':v).replace('%','').replace(',','.').trim());
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  var LOC_CHECKLIST_PADRAO = ['Contato inicial com proprietário(a)','Visita de avaliação agendada','Fotos e avaliação realizadas','Anúncio publicado','Documentação do(a) proprietário(a) recebida','Documentação do(a) locatário(a) recebida','Análise de crédito aprovada','Contrato de locação redigido','Contrato assinado','Vistoria de entrada realizada','Chaves entregues'];
+
+  function ensureLocacaoData(){
+    var d = dbRef();
+    d.locacaoPropostasColumns = (Array.isArray(d.locacaoPropostasColumns) && d.locacaoPropostasColumns.length)
+      ? d.locacaoPropostasColumns
+      : [
+          {id:'loc_col_1', title:'Novo Contato', order:1},
+          {id:'loc_col_2', title:'Visita Agendada', order:2},
+          {id:'loc_col_3', title:'Em Análise', order:3},
+          {id:'loc_col_4', title:'Contrato', order:4},
+          {id:'loc_col_5', title:'Fechado', order:5}
+        ];
+    d.locacaoPropostasCards = Array.isArray(d.locacaoPropostasCards) ? d.locacaoPropostasCards : [];
+    d.locacaoChecklistTemplate = (Array.isArray(d.locacaoChecklistTemplate) && d.locacaoChecklistTemplate.length) ? d.locacaoChecklistTemplate : LOC_CHECKLIST_PADRAO.slice();
+    d.locacaoComissaoRegras = Array.isArray(d.locacaoComissaoRegras) ? d.locacaoComissaoRegras : [];
+    d.locacaoKPIs = Array.isArray(d.locacaoKPIs) ? d.locacaoKPIs : [];
+    d.locacaoRegistrosDiarios = Array.isArray(d.locacaoRegistrosDiarios) ? d.locacaoRegistrosDiarios : [];
+    d.locacaoInfoUteis = Array.isArray(d.locacaoInfoUteis) ? d.locacaoInfoUteis : [];
+    d.locacaoPropostasCards.forEach(ensureLocCardDefaults);
+  }
+
+  function locColumnTitleByIdRaw(columnId){
+    var cols = dbRef().locacaoPropostasColumns || [];
+    var col = cols.find(function(c){ return c.id === columnId; });
+    return col ? col.title : columnId;
+  }
+
+  /* registra no historico do card a etapa em que ele entrou, evitando duplicar
+     quando a etapa nao muda (usado para montar o funil de conversao) */
+  function locRegistrarHistorico(card, columnId){
+    if(!Array.isArray(card.historico)) card.historico = [];
+    var last = card.historico[card.historico.length - 1];
+    if(last && last.columnId === columnId) return;
+    card.historico.push({
+      columnId: columnId,
+      columnTitle: locColumnTitleByIdRaw(columnId),
+      changedAt: new Date().toISOString(),
+      changedBy: (current && current.id) || '',
+      changedByName: (current && (current.name || current.nome)) || ''
+    });
+  }
+
+  function ensureLocCardDefaults(card){
+    if(!Array.isArray(card.proprietarios)) card.proprietarios = [];
+    if(!Array.isArray(card.locatarios)) card.locatarios = [];
+    if(!Array.isArray(card.checklist) || !card.checklist.length){
+      var tmpl = dbRef().locacaoChecklistTemplate || LOC_CHECKLIST_PADRAO;
+      card.checklist = tmpl.map(function(t,i){ return {id:'ck_'+i, title:t, done:false, doneBy:'', doneByName:'', doneAt:''}; });
+    }
+    if(!Array.isArray(card.historico)) card.historico = [];
+    if(!card.historico.length && card.columnId){
+      card.historico.push({
+        columnId: card.columnId,
+        columnTitle: locColumnTitleByIdRaw(card.columnId),
+        changedAt: card.createdAt || new Date().toISOString(),
+        changedBy: card.createdBy || '',
+        changedByName: card.createdByName || ''
+      });
+    }
+  }
+
+  function locColunas(){ ensureLocacaoData(); return dbRef().locacaoPropostasColumns.slice().sort(function(a,b){ return (Number(a.order)||0)-(Number(b.order)||0); }); }
+
+  function locIsAdmin(){
+    return !!(current && ((current.perms && (current.perms.view_all_users===true || current.perms.locacao_gestao===true)) || (current.permissoes && current.permissoes.view_all_users===true)));
+  }
+  function locIsOwnCard(c){
+    if(!c || !current) return false;
+    var ids = [String(current.id||''), String(current.uid||''), String(current.email||current.user||'')].filter(Boolean);
+    return ids.indexOf(String(c.createdBy||'')) !== -1 || ids.indexOf(String(c.ownerId||'')) !== -1;
+  }
+  function locCanAccessCard(c){ return locIsAdmin() || locIsOwnCard(c); }
+
+  function locCardsDaColuna(colId){
+    ensureLocacaoData();
+    return dbRef().locacaoPropostasCards.filter(function(c){ return c.columnId===colId && locCanAccessCard(c); }).sort(function(a,b){ return (Number(a.order)||0)-(Number(b.order)||0); });
+  }
+
+  /* ================= PROPOSTAS: capa do card ================= */
+  function locRenderCard(c){
+    var checklist = Array.isArray(c.checklist) ? c.checklist : [];
+    var done = checklist.filter(function(x){ return x.done; }).length;
+    var total = checklist.length || 1;
+    var proprietarioNomes = (c.proprietarios||[]).map(function(p){ return p.nome; }).filter(Boolean).join('; ');
+    var locatarioNomes = (c.locatarios||[]).map(function(p){ return p.nome; }).filter(Boolean).join('; ');
+    var podeEditar = locCanAccessCard(c);
+    return '<div class="kanban-card" draggable="' + (podeEditar?'true':'false') + '" ondragstart="locDragStart(event,\'' + escAttr(c.id) + '\')">' +
+      '<h4>' + esc(c.title||'Proposta') + '</h4>' +
+      '<p><b>Valor Proposto:</b> ' + esc(currencyBR(c.valorProposto||'')) + '</p>' +
+      (c.valorDivulgado ? '<p><b>Valor Divulgado:</b> ' + esc(currencyBR(c.valorDivulgado)) + (c.diferencaPct?' ('+esc(c.diferencaPct)+')':'') + '</p>' : '') +
+      (c.comissaoValor ? '<p><b>Comissão Total:</b> ' + esc(c.comissaoValor) + '</p>' : '') +
+      '<p><b>Proprietário(a):</b> ' + esc(proprietarioNomes||'—') + '</p>' +
+      '<p><b>Locatário(a):</b> ' + esc(locatarioNomes||'—') + '</p>' +
+      '<p><b>Checklist:</b> ' + done + '/' + total + '</p>' +
+      '<div class="progress" title="' + done + '/' + total + '"><span style="width:' + (total ? Math.round(done/total*100) : 0) + '%"></span></div>' +
+      '<p class="kanban-meta">Cadastrado por ' + esc(c.createdByName || c.createdByEmail || '—') + (c.createdAt ? ' em ' + new Date(c.createdAt).toLocaleString('pt-BR') : '') + '</p>' +
+      '<div class="mini-line">' +
+        '<button class="kanban-mini" onclick="locOpenView(\'' + escAttr(c.id) + '\')">Abrir</button>' +
+        (podeEditar ? '<button class="kanban-mini" onclick="locOpenModal(\'\', \'' + escAttr(c.id) + '\')">Editar</button><button class="kanban-mini danger" onclick="locDeleteCard(\'' + escAttr(c.id) + '\')">×</button>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ================= PROPOSTAS: quadro ================= */
+  window.render_locacao_propostas = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('locacao_propostas_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar Propostas de Locação.</div>';
+      return;
+    }
+    ensureLocacaoData();
+    var cols = locColunas();
+    var podeGerenciar = (typeof has === 'function') ? has('locacao_gestao') : false;
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Propostas de Locação</h2><p>Funil de locação, do primeiro contato até o fechamento.</p></div>' +
+      '<div class="kanban-actions-row"><button class="primary" onclick="locOpenModal()">Nova proposta</button>' +
+      (podeGerenciar ? '<button class="secondary" onclick="go(\'locacao_gestao\')">Gestão de Locação</button>' : '') +
+      '</div></div>' +
+      '<div class="kanban-wrap">' + cols.map(function(col){
+        var cards = locCardsDaColuna(col.id);
+        return '<div class="kanban-col" data-col="' + escAttr(col.id) + '" ondragover="locDragOver(event)" ondragleave="locDragLeave(event)" ondrop="locDrop(event,\'' + escAttr(col.id) + '\')">' +
+          '<div class="kanban-col-head"><h3>' + esc(col.title) + '</h3><span class="kanban-count">' + cards.length + '</span></div>' +
+          '<button class="secondary" style="width:100%;margin-bottom:10px" onclick="locOpenModal(\'' + escAttr(col.id) + '\')">+ Proposta</button>' +
+          (cards.length ? cards.map(locRenderCard).join('') : '<p class="sub" style="padding:10px">Nenhuma proposta nesta etapa.</p>') +
+        '</div>';
+      }).join('') + '</div>';
+  };
+
+  /* ================= drag and drop ================= */
+  window.locDragStart = function(ev, cardId){ try{ ev.dataTransfer.setData('text/plain', cardId); }catch(e){} };
+  window.locDragOver = function(ev){ ev.preventDefault(); try{ ev.currentTarget.classList.add('drop-target'); }catch(e){} };
+  window.locDragLeave = function(ev){ try{ ev.currentTarget.classList.remove('drop-target'); }catch(e){} };
+  window.locDrop = function(ev, colId){
+    ev.preventDefault();
+    try{ ev.currentTarget.classList.remove('drop-target'); }catch(e){}
+    var cardId = ev.dataTransfer.getData('text/plain');
+    ensureLocacaoData();
+    var d = dbRef();
+    var card = d.locacaoPropostasCards.find(function(c){ return c.id === cardId; });
+    if(!card || !locCanAccessCard(card)) return;
+    if(card.columnId !== colId) locRegistrarHistorico(card, colId);
+    card.columnId = colId;
+    card.order = Date.now();
+    doSave();
+    window.render_locacao_propostas();
+  };
+
+  /* ================= modal de proposta (novo/editar) ================= */
+  var LOC_ESTADO_CIVIL_OPCOES = ['', 'Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Separado(a) judicialmente', 'Viúvo(a)', 'União estável'];
+
+  function locPessoaRowHTML(data){
+    data = data || {};
+    var estadoCivilOptionsHtml = LOC_ESTADO_CIVIL_OPCOES.map(function(op){
+      var label = op || 'Estado civil';
+      return '<option value="' + escAttr(op) + '"' + ((data.estadoCivil||'') === op ? ' selected' : '') + '>' + esc(label) + '</option>';
+    }).join('');
+    return '<div class="loc-pessoa-row" style="border:1px solid #e3e5ea;border-radius:8px;padding:10px;margin-bottom:8px">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">' +
+        '<input type="text" class="loc-pessoa-nome" placeholder="Nome" value="' + escAttr(data.nome||'') + '">' +
+        '<input type="text" class="loc-pessoa-email" placeholder="E-mail" value="' + escAttr(data.email||'') + '">' +
+        '<input type="text" class="loc-pessoa-telefone" placeholder="Telefone" value="' + escAttr(data.telefone||'') + '">' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:center">' +
+        '<input type="text" class="loc-pessoa-profissao" placeholder="Profissão" value="' + escAttr(data.profissao||'') + '">' +
+        '<select class="loc-pessoa-estadocivil">' + estadoCivilOptionsHtml + '</select>' +
+        '<input type="text" class="loc-pessoa-endereco" placeholder="Endereço completo" value="' + escAttr(data.endereco||'') + '">' +
+        '<button type="button" class="danger" style="padding:8px 10px" onclick="window.__locRemovePessoaRow(this)">×</button>' +
+      '</div>' +
+    '</div>';
+  }
+  window.__locInitPessoas = function(tipo, lista){
+    var listEl = document.getElementById(tipo === 'proprietarios' ? 'locProprietariosList' : 'locLocatariosList');
+    if(!listEl) return;
+    listEl.innerHTML = '';
+    (Array.isArray(lista) && lista.length ? lista : [{}]).forEach(function(p){ listEl.insertAdjacentHTML('beforeend', locPessoaRowHTML(p)); });
+  };
+  window.__locAddPessoa = function(tipo){
+    var listEl = document.getElementById(tipo === 'proprietarios' ? 'locProprietariosList' : 'locLocatariosList');
+    if(listEl) listEl.insertAdjacentHTML('beforeend', locPessoaRowHTML());
+  };
+  window.__locRemovePessoaRow = function(btn){ var row = btn.closest('.loc-pessoa-row'); if(row) row.remove(); };
+  function locCollectPessoas(tipo){
+    var listEl = document.getElementById(tipo === 'proprietarios' ? 'locProprietariosList' : 'locLocatariosList');
+    if(!listEl) return [];
+    return Array.prototype.map.call(listEl.querySelectorAll('.loc-pessoa-row'), function(row){
+      return {
+        nome: (row.querySelector('.loc-pessoa-nome')||{}).value ? row.querySelector('.loc-pessoa-nome').value.trim() : '',
+        email: (row.querySelector('.loc-pessoa-email')||{}).value ? row.querySelector('.loc-pessoa-email').value.trim() : '',
+        telefone: (row.querySelector('.loc-pessoa-telefone')||{}).value ? row.querySelector('.loc-pessoa-telefone').value.trim() : '',
+        profissao: (row.querySelector('.loc-pessoa-profissao')||{}).value ? row.querySelector('.loc-pessoa-profissao').value.trim() : '',
+        estadoCivil: (row.querySelector('.loc-pessoa-estadocivil')||{}).value ? row.querySelector('.loc-pessoa-estadocivil').value.trim() : '',
+        endereco: (row.querySelector('.loc-pessoa-endereco')||{}).value ? row.querySelector('.loc-pessoa-endereco').value.trim() : ''
+      };
+    }).filter(function(p){ return p.nome || p.email || p.telefone || p.profissao || p.estadoCivil || p.endereco; });
+  }
+
+  window.locRecalcDiferenca = function(){
+    try{
+      var divEl = document.getElementById('locValorDivulgado');
+      var propEl = document.getElementById('locValorProposto');
+      var difEl = document.getElementById('locDiferencaPct');
+      if(!difEl) return;
+      var divulgado = divEl ? parseMoneyLoose(divEl.value) : 0;
+      var proposto = propEl ? parseMoneyLoose(propEl.value) : 0;
+      if(!divulgado){ difEl.value = ''; return; }
+      var diff = ((proposto - divulgado) / divulgado) * 100;
+      var sinal = diff >= 0 ? '+' : '';
+      difEl.value = sinal + diff.toFixed(1) + '%';
+    }catch(e){ console.error('[Locação] recalc diferença:', e); }
+  };
+
+  function locComissaoRowHTML(data){
+    data = data || {};
+    var fixo = !!data.fixo;
+    var estiloTravado = fixo ? ' style="background:#f2f3f5;color:#555;cursor:not-allowed"' : '';
+    var atributoTravado = fixo ? ' disabled' : '';
+    var pctExtra = fixo ? ' disabled style="background:#f2f3f5;color:#555;cursor:not-allowed"' : ' oninput="window.locRecalcRateio()"';
+    var botaoRemover = fixo ? '' : '<button type="button" class="danger" style="padding:8px 10px" onclick="window.locRemoverComissaoRow(this)">×</button>';
+    return '<div class="loc-comissao-row" data-fixo="' + (fixo?'1':'0') + '" data-auto="' + (data.auto?'1':'0') + '" style="display:grid;grid-template-columns:1.3fr 1fr 0.7fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px">' +
+      '<input type="text" class="loc-com-nome" placeholder="Comissionado" value="' + escAttr(data.nome||'') + '"' + atributoTravado + estiloTravado + ' list="locUsuariosDatalist">' +
+      '<input type="text" class="loc-com-tipo" placeholder="Tipo (Corretor, Captador...)" value="' + escAttr(data.tipo||'') + '"' + atributoTravado + estiloTravado + '>' +
+      '<input type="text" class="loc-com-pct" placeholder="Ex.: 5%" value="' + escAttr(data.porcentagem||'') + '"' + pctExtra + '>' +
+      '<input type="text" class="loc-com-valor" placeholder="R$ 0,00" value="' + escAttr(data.valor||'') + '" disabled style="background:#f2f3f5;color:#555;cursor:not-allowed">' +
+      botaoRemover +
+    '</div>';
+  }
+
+  window.locAddComissaoRow = function(data){
+    var list = document.getElementById('locComissaoList');
+    if(!list) return;
+    list.insertAdjacentHTML('beforeend', locComissaoRowHTML(data));
+    window.locRecalcRateio();
+  };
+  window.locRemoverComissaoRow = function(btn){
+    var row = btn.closest('.loc-comissao-row');
+    if(row && row.getAttribute('data-fixo') !== '1') row.remove();
+    window.locRecalcRateio();
+  };
+  window.locInitComissaoRateio = function(c){
+    var list = document.getElementById('locComissaoList');
+    if(!list) return;
+    list.innerHTML = '';
+    var arr = Array.isArray(c && c.rateio) ? c.rateio.slice() : [];
+    var idxFixo = -1;
+    for(var i=0;i<arr.length;i++){ if(arr[i] && arr[i].fixo){ idxFixo = i; break; } }
+    if(idxFixo === -1){
+      arr.unshift({nome:'Na Ponta da Chave', tipo:'Imobiliária', porcentagem:'', valor:'', fixo:true});
+    } else if(idxFixo > 0){
+      var fixo = arr.splice(idxFixo,1)[0];
+      arr.unshift(fixo);
+    }
+    arr.forEach(function(item){ window.locAddComissaoRow(item); });
+  };
+  window.locRecalcRateio = function(){
+    try{
+      var baseEl = document.getElementById('locValorProposto');
+      var base = baseEl ? parseMoneyLoose(baseEl.value) : 0;
+      var rows = document.querySelectorAll('#locComissaoList .loc-comissao-row');
+      var somaOutros = 0;
+      rows.forEach(function(row){
+        if(row.getAttribute('data-fixo') === '1') return;
+        var pctEl = row.querySelector('.loc-com-pct');
+        var pct = parsePercentLoose(pctEl ? pctEl.value : '');
+        somaOutros += pct;
+        var valorEl = row.querySelector('.loc-com-valor');
+        var valorCalc = base * (pct/100);
+        if(valorEl) valorEl.value = valorCalc ? currencyBR(valorCalc) : '';
+      });
+      var fixaRow = document.querySelector('#locComissaoList .loc-comissao-row[data-fixo="1"]');
+      if(fixaRow){
+        var pctFixa = Math.max(0, 100 - somaOutros);
+        var pctFixaEl = fixaRow.querySelector('.loc-com-pct');
+        var valorFixaEl = fixaRow.querySelector('.loc-com-valor');
+        var pctFixaTexto = (Math.round(pctFixa*100)/100) + '%';
+        if(pctFixaEl) pctFixaEl.value = pctFixaTexto;
+        var valorFixa = base * (pctFixa/100);
+        if(valorFixaEl) valorFixaEl.value = valorFixa ? currencyBR(valorFixa) : '';
+      }
+    }catch(e){ console.error('[Locação] recalc rateio:', e); }
+  };
+  function locCollectComissaoRateio(){
+    var list = document.getElementById('locComissaoList');
+    if(!list) return [];
+    return Array.prototype.map.call(list.querySelectorAll('.loc-comissao-row'), function(row){
+      var nomeEl = row.querySelector('.loc-com-nome');
+      var tipoEl = row.querySelector('.loc-com-tipo');
+      var pctEl = row.querySelector('.loc-com-pct');
+      var valorEl = row.querySelector('.loc-com-valor');
+      return {
+        nome: nomeEl ? nomeEl.value.trim() : '',
+        tipo: tipoEl ? tipoEl.value.trim() : '',
+        porcentagem: pctEl ? pctEl.value.trim() : '',
+        valor: valorEl ? valorEl.value.trim() : '',
+        fixo: row.getAttribute('data-fixo') === '1',
+        auto: row.getAttribute('data-auto') === '1'
+      };
+    }).filter(function(p){ return p.nome || p.tipo || p.porcentagem; });
+  }
+
+  /* -- carrega automaticamente Captador / Promotor de Locação-Visitador / Gestor de Locação,
+     conforme a Taxa de Administração e a Origem da Captação preenchidas na proposta -- */
+  window.locCarregarComissoesAutomaticas = function(){
+    try{
+      var list = document.getElementById('locComissaoList');
+      if(!list) return;
+      var taxaEl = document.getElementById('locTaxaAdministracao');
+      var origemEl = document.getElementById('locOrigemCaptacao');
+      var rateioWrap = document.getElementById('locRateioWrap');
+      var taxaSelecionada = taxaEl ? taxaEl.value : '';
+      if(rateioWrap) rateioWrap.style.display = taxaSelecionada ? '' : 'none';
+      var taxaDigitada = parsePercentLoose(taxaSelecionada);
+      var origem = origemEl ? origemEl.value : 'ativa';
+      var d = dbRef();
+      var regra = (d.locacaoComissaoRegras||[]).find(function(r){ return parsePercentLoose(r.taxaAdministrativa) === taxaDigitada; });
+
+      /* remove as linhas carregadas automaticamente antes (não mexe em linhas fixas nem adicionadas manualmente) */
+      Array.prototype.forEach.call(list.querySelectorAll('.loc-comissao-row[data-auto="1"]'), function(row){ row.remove(); });
+
+      if(!taxaSelecionada || !regra) { window.locRecalcRateio(); return; }
+
+      var papeis = [
+        {nome:'Captador', pct: origem==='receptiva' ? regra.captadorReceptiva : regra.captadorAtiva},
+        {nome:'Promotor de Locação / Visitador', pct: origem==='receptiva' ? regra.promotorReceptiva : regra.promotorAtiva},
+        {nome:'Gestor de Locação', pct: origem==='receptiva' ? regra.gestorReceptiva : regra.gestorAtiva}
+      ];
+      papeis.forEach(function(p){
+        window.locAddComissaoRow({tipo: p.nome, porcentagem: p.pct||'', auto: true});
+      });
+      window.locRecalcRateio();
+    }catch(e){ console.error('[Locação] Erro ao carregar comissões automáticas:', e); }
+  };
+
+  function locNormalizarNome(v){ return String(v||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  window.locMontarDatalistUsuarios = function(){
+    try{
+      var dl = document.getElementById('locUsuariosDatalist');
+      if(!dl){
+        dl = document.createElement('datalist');
+        dl.id = 'locUsuariosDatalist';
+        document.body.appendChild(dl);
+      }
+      var d = dbRef();
+      dl.innerHTML = (Array.isArray(d.users) ? d.users : []).filter(function(u){ return u && u.active !== false && (u.name||u.nome) && locNormalizarNome(u.name||u.nome) !== 'claude ia'; })
+        .map(function(u){ return '<option value="' + escAttr(u.name||u.nome) + '">'; }).join('');
+    }catch(e){ console.error('[Locação] Erro ao montar lista de usuários:', e); }
+  };
+
+  window.locOpenModal = function(columnId, cardId){
+    ensureLocacaoData();
+    var d = dbRef();
+    var cols = locColunas();
+    var c = cardId ? d.locacaoPropostasCards.find(function(x){ return x.id === cardId; }) : null;
+    if(cardId && (!c || !locCanAccessCard(c))){ try{ toast('Sem permissão para editar esta proposta.'); }catch(e){} return; }
+    var selected = columnId || (c ? c.columnId : (cols[0] ? cols[0].id : ''));
+    var titulo = cardId ? 'Editar proposta' : 'Nova proposta';
+
+    var html = '<div class="grid" style="grid-template-columns:2fr 1fr;gap:14px">' +
+      '<div class="field"><label>Título (Referência do imóvel)</label><input id="locTitle" value="' + escAttr(c ? c.title : '') + '" placeholder="Ex.: REF 1234 - Rua Exemplo, 100"></div>' +
+      '<div class="field"><label>Etapa</label><select id="locColumn">' + cols.map(function(col){ return '<option value="' + escAttr(col.id) + '"' + (col.id === selected ? ' selected' : '') + '>' + esc(col.title) + '</option>'; }).join('') + '</select></div>' +
+    '</div>' +
+    '<div class="grid" style="grid-template-columns:repeat(5,minmax(0,1fr));gap:14px">' +
+      '<div class="field"><label>Valor Divulgado</label><input id="locValorDivulgado" value="' + escAttr(c ? c.valorDivulgado : '') + '" oninput="window.locRecalcDiferenca()"></div>' +
+      '<div class="field"><label>Valor Proposto</label><input id="locValorProposto" value="' + escAttr(c ? c.valorProposto : '') + '" oninput="window.locRecalcDiferenca();window.locRecalcRateio()"></div>' +
+      '<div class="field"><label>Diferença</label><input id="locDiferencaPct" value="' + escAttr(c ? c.diferencaPct : '') + '" disabled style="background:#f2f3f5;color:#555;cursor:not-allowed"></div>' +
+      '<div class="field"><label>Taxa de Administração</label><select id="locTaxaAdministracao" onchange="window.locCarregarComissoesAutomaticas()">' +
+        '<option value="">Selecione a taxa</option>' +
+        Array.from(new Set((d.locacaoComissaoRegras||[]).map(function(r){ return r.taxaAdministrativa; }).filter(Boolean))).map(function(t){ return '<option value="' + escAttr(t) + '"' + (c && c.taxaAdministracao===t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div class="field"><label>Origem da Captação</label><select id="locOrigemCaptacao" onchange="window.locCarregarComissoesAutomaticas()">' +
+        '<option value="ativa"' + (c && c.origemCaptacao==='ativa' ? ' selected' : '') + '>Ativa</option>' +
+        '<option value="receptiva"' + (c && c.origemCaptacao==='receptiva' ? ' selected' : '') + '>Receptiva</option>' +
+      '</select></div>' +
+    '</div>' +
+    '<div class="field" id="locRateioWrap" style="' + ((c && c.taxaAdministracao) ? '' : 'display:none') + '"><label>Rateio da Comissão (1º aluguel)</label><p class="sub" style="margin:0 0 6px">A imobiliária começa com o valor do primeiro aluguel inteiro. Ao adicionar colaboradores, o valor dela reduz sozinho.</p><div id="locComissaoList"></div><button type="button" class="secondary" onclick="window.locAddComissaoRow()">+ Adicionar comissão</button></div>' +
+    '<div class="field"><label>Proprietário(a)(s)</label><p class="sub" style="margin:0 0 6px">Nome · E-mail · Telefone · Profissão · Estado civil · Endereço</p><div id="locProprietariosList"></div><button type="button" class="secondary" onclick="window.__locAddPessoa(\'proprietarios\')">+ Adicionar proprietário(a)</button></div>' +
+    '<div class="field"><label>Locatário(a)(s)</label><p class="sub" style="margin:0 0 6px">Nome · E-mail · Telefone · Profissão · Estado civil · Endereço</p><div id="locLocatariosList"></div><button type="button" class="secondary" onclick="window.__locAddPessoa(\'locatarios\')">+ Adicionar locatário(a)</button></div>' +
+    '<div class="field"><label>Observações</label><textarea id="locObs" rows="3">' + esc(c ? c.obs : '') + '</textarea></div>' +
+    '<div class="actions kanban-form-actions"><button class="primary" onclick="locSaveCard(\'' + escAttr(cardId||'') + '\')">Salvar proposta</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+
+    openModal(titulo, html);
+    setTimeout(function(){
+      window.__locInitPessoas('proprietarios', c ? c.proprietarios : []);
+      window.__locInitPessoas('locatarios', c ? c.locatarios : []);
+      window.locInitComissaoRateio(c);
+      if(!c) window.locCarregarComissoesAutomaticas();
+      window.locMontarDatalistUsuarios();
+      window.locRecalcDiferenca();
+    }, 0);
+  };
+
+  window.locSaveCard = function(cardId){
+    ensureLocacaoData();
+    var d = dbRef();
+    var title = (document.getElementById('locTitle')||{}).value || '';
+    title = title.trim();
+    var columnId = (document.getElementById('locColumn')||{}).value || '';
+    var valorDivulgado = ((document.getElementById('locValorDivulgado')||{}).value || '').trim();
+    var valorProposto = ((document.getElementById('locValorProposto')||{}).value || '').trim();
+    var diferencaPct = ((document.getElementById('locDiferencaPct')||{}).value || '').trim();
+    var origemCaptacao = (document.getElementById('locOrigemCaptacao')||{}).value || 'ativa';
+    var taxaAdministracao = ((document.getElementById('locTaxaAdministracao')||{}).value || '').trim();
+    var administracaoImobiliaria = parsePercentLoose(taxaAdministracao) > 0 ? 'sim' : 'nao';
+    var obs = ((document.getElementById('locObs')||{}).value || '').trim();
+    var proprietarios = locCollectPessoas('proprietarios');
+    var locatarios = locCollectPessoas('locatarios');
+    var rateio = locCollectComissaoRateio();
+    var usuarios = Array.isArray(d.users) ? d.users : [];
+    rateio.forEach(function(item){
+      if(!item || item.fixo) return;
+      var alvo = locNormalizarNome(item.nome);
+      if(!alvo) return;
+      var achou = usuarios.find(function(u){ return locNormalizarNome(u.name||u.nome) === alvo && alvo !== 'claude ia'; });
+      if(achou){ item.usuarioId = achou.id || achou.uid || ''; item.nome = achou.name || achou.nome || item.nome; }
+      else { delete item.usuarioId; }
+    });
+    var comissaoTotal = rateio.reduce(function(s,item){ return s + parseMoneyLoose(item.valor); }, 0);
+    var cId = String(cardId || '');
+
+    if(cId){
+      var existing = d.locacaoPropostasCards.find(function(c){ return c.id === cId; });
+      if(!existing || !locCanAccessCard(existing)){ try{ toast('Sem permissão.'); }catch(e){} return; }
+      if(existing.columnId !== columnId) locRegistrarHistorico(existing, columnId);
+      existing.title = title; existing.columnId = columnId;
+      existing.valorDivulgado = valorDivulgado; existing.valorProposto = valorProposto; existing.diferencaPct = diferencaPct;
+      existing.origemCaptacao = origemCaptacao; existing.administracaoImobiliaria = administracaoImobiliaria; existing.taxaAdministracao = taxaAdministracao;
+      existing.rateio = rateio; existing.comissaoValor = comissaoTotal ? currencyBR(comissaoTotal) : '';
+      existing.obs = obs;
+      existing.proprietarios = proprietarios; existing.locatarios = locatarios;
+      existing.updatedAt = new Date().toISOString(); existing.updatedBy = (current && current.id) || '';
+    } else {
+      d.locacaoPropostasCards.push({
+        id: uid(), title: title, columnId: columnId,
+        valorDivulgado: valorDivulgado, valorProposto: valorProposto, diferencaPct: diferencaPct,
+        origemCaptacao: origemCaptacao, administracaoImobiliaria: administracaoImobiliaria, taxaAdministracao: taxaAdministracao,
+        rateio: rateio, comissaoValor: comissaoTotal ? currencyBR(comissaoTotal) : '', obs: obs,
+        proprietarios: proprietarios, locatarios: locatarios,
+        order: Date.now(), createdAt: new Date().toISOString(),
+        createdBy: (current && current.id) || '', createdByName: (current && (current.name || current.nome)) || '', createdByEmail: (current && (current.email || current.user)) || '',
+        ownerId: (current && current.id) || '',
+        checklist: (d.locacaoChecklistTemplate || LOC_CHECKLIST_PADRAO).map(function(t,i){ return {id:'ck_'+i, title:t, done:false, doneBy:'', doneByName:'', doneAt:''}; }),
+        historico: [{
+          columnId: columnId,
+          columnTitle: locColumnTitleByIdRaw(columnId),
+          changedAt: new Date().toISOString(),
+          changedBy: (current && current.id) || '',
+          changedByName: (current && (current.name || current.nome)) || ''
+        }]
+      });
+    }
+    doSave();
+    try{ closeModal(); }catch(e){}
+    window.render_locacao_propostas();
+  };
+
+  window.locDeleteCard = function(cardId){
+    ensureLocacaoData();
+    var d = dbRef();
+    var card = d.locacaoPropostasCards.find(function(c){ return c.id === cardId; });
+    if(!card || !locCanAccessCard(card)) return;
+    if(!confirm('Excluir esta proposta?')) return;
+    d.locacaoPropostasCards = d.locacaoPropostasCards.filter(function(c){ return c.id !== cardId; });
+    doSave();
+    window.render_locacao_propostas();
+  };
+
+  /* ================= tela "Abrir" ================= */
+  window.locOpenView = function(cardId){
+    ensureLocacaoData();
+    var d = dbRef();
+    var c = d.locacaoPropostasCards.find(function(x){ return x.id === cardId; });
+    if(!c || !locCanAccessCard(c)) return;
+    var checklist = Array.isArray(c.checklist) ? c.checklist : [];
+
+    var checklistHtml = checklist.map(function(item){
+      return '<div class="kanban-check-row"><input type="checkbox" ' + (item.done ? 'checked' : '') + ' onchange="window.locToggleChecklist(\'' + escAttr(c.id) + '\',\'' + escAttr(item.id) + '\',this.checked)"><div><b>' + esc(item.title) + '</b><small>' + (item.done ? ('Concluído por ' + esc(item.doneByName || '—') + (item.doneAt ? ' em ' + new Date(item.doneAt).toLocaleString('pt-BR') : '')) : 'Pendente') + '</small></div></div>';
+    }).join('');
+
+    function pessoaBloco(lista, label){
+      if(!Array.isArray(lista) || !lista.length) return '<p style="margin:0"><b>' + label + ':</b> —</p>';
+      var linhas = lista.map(function(p, idx){
+        var campos = '<b>Nome:</b> ' + esc(p.nome || '(sem nome)') + '<br><b>E-mail:</b> ' + (p.email ? esc(p.email) : '—') + '<br><b>Telefone:</b> ' + (p.telefone ? esc(p.telefone) : '—') + '<br><b>Profissão:</b> ' + (p.profissao ? esc(p.profissao) : '—') + '<br><b>Estado civil:</b> ' + (p.estadoCivil ? esc(p.estadoCivil) : '—') + '<br><b>Endereço:</b> ' + (p.endereco ? esc(p.endereco) : '—');
+        var isLast = idx === lista.length - 1;
+        return '<div style="' + (isLast ? '' : 'margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed #e3e5ea') + '">' + campos + '</div>';
+      });
+      return '<p style="margin:0 0 6px"><b>' + label + ':</b></p>' + linhas.join('');
+    }
+
+    function rateioBloco(lista){
+      if(!Array.isArray(lista) || !lista.length) return '<b>Rateio da Comissão:</b> —';
+      var linhas = lista.map(function(item){
+        var partes = [];
+        partes.push('<b>Comissionado:</b> ' + esc(item.nome || '(sem nome)'));
+        if(item.tipo) partes.push('<b>Tipo:</b> ' + esc(item.tipo));
+        if(item.porcentagem) partes.push('<b>Porcentagem:</b> ' + esc(item.porcentagem));
+        if(item.valor) partes.push('<b>Valor:</b> ' + esc(item.valor));
+        return partes.join('<br>');
+      });
+      return '<b>Rateio da Comissão:</b><br>' + linhas.join('<br><br>');
+    }
+
+    var dadosPanel = '<div class="kanban-detail"><div>' +
+      '<div class="kanban-info"><h4>Dados da proposta</h4>' +
+      '<p><b>Valor Proposto:</b> ' + esc(currencyBR(c.valorProposto||'')) + '</p>' +
+      '<p><b>Valor Divulgado:</b> ' + esc(currencyBR(c.valorDivulgado||'')) + (c.diferencaPct ? ' (' + esc(c.diferencaPct) + ')' : '') + '</p>' +
+      '<p><b>Origem da Captação:</b> ' + esc(c.origemCaptacao === 'receptiva' ? 'Receptiva' : 'Ativa') + '</p>' +
+      '<p><b>Administração pela Imobiliária?</b> ' + (parsePercentLoose(c.taxaAdministracao) > 0 ? ('Sim — Taxa: ' + esc(c.taxaAdministracao||'—')) : 'Não') + '</p>' +
+      '<p style="margin-top:1.4em">' + rateioBloco(c.rateio) + '</p>' +
+      '<div style="margin-top:1.4em">' + pessoaBloco(c.proprietarios, 'Proprietário(a)(s)') + '</div>' +
+      '<div style="margin-top:1.4em">' + pessoaBloco(c.locatarios, 'Locatário(a)(s)') + '</div>' +
+      '</div>' +
+      (c.obs ? '<div class="kanban-info" style="margin-top:12px"><h4>Observações</h4><p>' + esc(c.obs) + '</p></div>' : '') +
+      '</div>' +
+      '<div><h4>Checklist com responsável</h4><div class="kanban-check">' + checklistHtml + '</div></div>' +
+    '</div>';
+
+    var podeEditar = locCanAccessCard(c);
+    openModal(esc(c.title || 'Proposta'), dadosPanel + '<div class="actions kanban-form-actions">' + (podeEditar ? '<button class="primary" onclick="locOpenModal(\'\',\'' + escAttr(c.id) + '\')">Editar proposta</button>' : '') + '<button class="secondary" onclick="locOpenHistorico(\'' + escAttr(c.id) + '\')">Histórico</button><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+  };
+
+  /* ================= popup de histórico de etapas do card (funil) ================= */
+  window.locOpenHistorico = function(cardId){
+    ensureLocacaoData();
+    var d = dbRef();
+    var c = d.locacaoPropostasCards.find(function(x){ return x.id === cardId; });
+    if(!c || !locCanAccessCard(c)) return;
+    var historico = Array.isArray(c.historico) ? c.historico.slice().reverse() : [];
+    var linhas = historico.length ? historico.map(function(h){
+      return '<div class="kanban-info" style="margin-bottom:10px">' +
+        '<p><b>Etapa:</b> ' + esc(h.columnTitle || h.columnId || '—') + '</p>' +
+        '<p><b>Data:</b> ' + (h.changedAt ? esc(new Date(h.changedAt).toLocaleString('pt-BR')) : '—') + '</p>' +
+        '<p><b>Responsável:</b> ' + esc(h.changedByName || '—') + '</p>' +
+      '</div>';
+    }).join('') : '<p class="sub">Sem histórico registrado ainda.</p>';
+    openModal('Histórico — ' + esc(c.title || 'Proposta'), '<div>' + linhas + '</div><div class="actions kanban-form-actions"><button class="secondary" onclick="locOpenView(\'' + escAttr(c.id) + '\')">Voltar</button><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+  };
+
+  window.locToggleChecklist = function(cardId, itemId, checked){
+    ensureLocacaoData();
+    var d = dbRef();
+    var c = d.locacaoPropostasCards.find(function(x){ return x.id === cardId; });
+    if(!c) return;
+    var item = (c.checklist||[]).find(function(x){ return x.id === itemId; });
+    if(!item) return;
+    item.done = !!checked;
+    item.doneBy = checked ? ((current && current.id) || '') : '';
+    item.doneByName = checked ? ((current && (current.name || current.nome)) || '') : '';
+    item.doneAt = checked ? new Date().toISOString() : '';
+    doSave();
+    window.locOpenView(cardId);
+  };
+
+  /* ================= Gestão de Locação: etapas (colunas) e checklist padrão ================= */
+  window.render_locacao_gestao = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('locacao_gestao')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar a Gestão de Locação.</div>';
+      return;
+    }
+    ensureLocacaoData();
+    var d = dbRef();
+    var cols = locColunas();
+    var checklistItens = d.locacaoChecklistTemplate || LOC_CHECKLIST_PADRAO;
+
+    content.innerHTML = '<div class="section"><div><h2>Gestão de Locação</h2><p>Configure as etapas do funil e o checklist padrão das propostas.</p></div><button class="secondary" onclick="go(\'locacao_propostas\')">Voltar às Propostas</button></div>' +
+      '<div class="grid cols2">' +
+        '<div class="card pad"><h3>Nova etapa (coluna do quadro)</h3><div class="field"><label>Nome da etapa</label><input id="locNewCol" placeholder="Ex.: Em Análise"></div><button class="primary" onclick="locAddColuna()">Criar etapa</button></div>' +
+        '<div class="card pad"><h3>Etapas atuais</h3>' + cols.map(function(c,i,arr){
+          return '<div class="kanban-manage-row"><input id="loccol_' + escAttr(c.id) + '" value="' + escAttr(c.title) + '"><div class="actions">' +
+            '<button class="secondary" onclick="locMoveColuna(\'' + escAttr(c.id) + '\',-1)" ' + (i===0?'disabled':'') + '>↑</button>' +
+            '<button class="secondary" onclick="locMoveColuna(\'' + escAttr(c.id) + '\',1)" ' + (i===arr.length-1?'disabled':'') + '>↓</button>' +
+            '<button class="primary" onclick="locRenameColuna(\'' + escAttr(c.id) + '\')">Salvar</button>' +
+            '<button class="danger" onclick="locDeleteColuna(\'' + escAttr(c.id) + '\')">×</button>' +
+          '</div></div>';
+        }).join('') + '</div>' +
+      '</div>' +
+      '<div style="height:18px"></div>' +
+      '<div class="grid cols2">' +
+        '<div class="card pad"><h3>Novo item do checklist</h3><div class="field"><label>Descrição do item</label><input id="locNewCheck" placeholder="Ex.: Vistoria de entrada realizada"></div><button class="primary" onclick="locAddChecklistItem()">Adicionar item</button><p class="sub" style="margin-top:8px">Esse checklist é aplicado a toda proposta NOVA a partir de agora. Propostas já existentes mantêm o checklist que já tinham.</p></div>' +
+        '<div class="card pad"><h3>Itens atuais do checklist</h3>' + checklistItens.map(function(t,i,arr){
+          return '<div class="kanban-manage-row"><input id="loccheck_' + i + '" value="' + escAttr(t) + '"><div class="actions">' +
+            '<button class="secondary" onclick="locMoveChecklistItem(' + i + ',-1)" ' + (i===0?'disabled':'') + '>↑</button>' +
+            '<button class="secondary" onclick="locMoveChecklistItem(' + i + ',1)" ' + (i===arr.length-1?'disabled':'') + '>↓</button>' +
+            '<button class="primary" onclick="locRenameChecklistItem(' + i + ')">Salvar</button>' +
+            '<button class="danger" onclick="locDeleteChecklistItem(' + i + ')">×</button>' +
+          '</div></div>';
+        }).join('') + '</div>' +
+      '</div>' +
+      '<div style="height:18px"></div>' +
+      '<div class="grid cols2">' +
+        '<div class="card pad"><h3>Novo KPI da equipe</h3><div class="field"><label>Nome do KPI</label><input id="locNewKpiNome" placeholder="Ex.: Contatos por dia"></div><div class="field"><label>Meta</label><input id="locNewKpiMeta" placeholder="Ex.: 10"></div><button class="primary" onclick="locAddKPI()">Criar KPI</button></div>' +
+        '<div class="card pad"><h3>KPIs atuais</h3>' + (d.locacaoKPIs.length ? d.locacaoKPIs.map(function(k,i){
+          return '<div class="kanban-manage-row"><div style="display:flex;gap:8px;flex:1"><input id="lockpinome_' + i + '" value="' + escAttr(k.nome) + '" style="flex:2" placeholder="Nome do KPI"><input id="lockpimeta_' + i + '" value="' + escAttr(k.meta) + '" style="flex:1" placeholder="Meta"></div><div class="actions"><button class="primary" onclick="locSalvarKPI(' + i + ')">Salvar</button><button class="danger" onclick="locDeleteKPI(' + i + ')">×</button></div></div>';
+        }).join('') : '<p class="sub">Nenhum KPI cadastrado ainda.</p>') + '</div>' +
+      '</div>' +
+      '<div style="height:18px"></div>' +
+      '<div class="card pad"><h3>Nova regra de comissão</h3>' +
+        '<div class="field" style="max-width:280px"><label>Taxa Administrativa</label><input id="locNewComTaxa" placeholder="Ex.: 10% (0% = sem administração)"></div>' +
+        '<div class="grid cols3" style="margin-bottom:6px"><span></span><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#8a8f99">% Prospecção Ativa</label><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#8a8f99">% Captação Receptiva</label></div>' +
+        '<div class="grid cols3" style="margin-bottom:8px;align-items:center"><label style="font-weight:700;font-size:13px">Captador</label><input id="locNewCaptadorAtiva" placeholder="Ex.: 20%"><input id="locNewCaptadorReceptiva" placeholder="Ex.: 20%"></div>' +
+        '<div class="grid cols3" style="margin-bottom:8px;align-items:center"><label style="font-weight:700;font-size:13px">Promotor de Locação / Visitador</label><input id="locNewPromotorAtiva" placeholder="Ex.: 15%"><input id="locNewPromotorReceptiva" placeholder="Ex.: 15%"></div>' +
+        '<div class="grid cols3" style="margin-bottom:8px;align-items:center"><label style="font-weight:700;font-size:13px">Gestor de Locação</label><input id="locNewGestorAtiva" placeholder="Ex.: 10%"><input id="locNewGestorReceptiva" placeholder="Ex.: 10%"></div>' +
+        '<button class="primary" onclick="locAddComissaoRegra()">Criar regra</button>' +
+      '</div>' +
+      '<div style="height:12px"></div>' +
+      '<div class="card pad"><h3>Regras de comissão atuais</h3>' + (d.locacaoComissaoRegras.length ? d.locacaoComissaoRegras.map(function(r,i){
+        return '<div class="kanban-manage-row" style="flex-wrap:wrap;align-items:flex-start;flex-direction:column;gap:10px">' +
+          '<div style="width:100%"><div class="field" style="max-width:280px;margin-bottom:8px"><label>Taxa Administrativa</label><input id="locComTaxa_' + i + '" value="' + escAttr(r.taxaAdministrativa) + '" placeholder="Ex.: 10%"></div>' +
+          '<div class="grid cols3" style="margin-bottom:6px"><span></span><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#8a8f99">% Prospecção Ativa</label><label style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#8a8f99">% Captação Receptiva</label></div>' +
+          '<div class="grid cols3" style="margin-bottom:8px;align-items:center"><label style="font-weight:700;font-size:13px">Captador</label><input id="locComCaptadorAtiva_' + i + '" value="' + escAttr(r.captadorAtiva) + '"><input id="locComCaptadorReceptiva_' + i + '" value="' + escAttr(r.captadorReceptiva) + '"></div>' +
+          '<div class="grid cols3" style="margin-bottom:8px;align-items:center"><label style="font-weight:700;font-size:13px">Promotor de Locação / Visitador</label><input id="locComPromotorAtiva_' + i + '" value="' + escAttr(r.promotorAtiva) + '"><input id="locComPromotorReceptiva_' + i + '" value="' + escAttr(r.promotorReceptiva) + '"></div>' +
+          '<div class="grid cols3" style="margin-bottom:8px;align-items:center"><label style="font-weight:700;font-size:13px">Gestor de Locação</label><input id="locComGestorAtiva_' + i + '" value="' + escAttr(r.gestorAtiva) + '"><input id="locComGestorReceptiva_' + i + '" value="' + escAttr(r.gestorReceptiva) + '"></div>' +
+          '</div>' +
+          '<div class="actions"><button class="primary" onclick="locSalvarComissaoRegra(' + i + ')">Salvar</button><button class="danger" onclick="locDeleteComissaoRegra(' + i + ')">×</button></div>' +
+        '</div>';
+      }).join('') : '<p class="sub">Nenhuma regra cadastrada ainda.</p>') + '</div>';
+  };
+
+  window.locAddColuna = function(){
+    var input = document.getElementById('locNewCol');
+    var titulo = input ? input.value.trim() : '';
+    if(!titulo) return;
+    ensureLocacaoData();
+    var d = dbRef();
+    var maxOrder = d.locacaoPropostasColumns.reduce(function(m,c){ return Math.max(m, Number(c.order)||0); }, 0);
+    d.locacaoPropostasColumns.push({id: uid(), title: titulo, order: maxOrder+1});
+    doSave();
+    window.render_locacao_gestao();
+  };
+  window.locRenameColuna = function(colId){
+    var input = document.getElementById('loccol_' + colId);
+    if(!input) return;
+    var d = dbRef();
+    var col = d.locacaoPropostasColumns.find(function(c){ return c.id === colId; });
+    if(!col) return;
+    col.title = input.value.trim() || col.title;
+    doSave();
+    try{ toast('Etapa salva.'); }catch(e){}
+    window.render_locacao_gestao();
+  };
+  window.locMoveColuna = function(colId, dir){
+    var cols = locColunas();
+    var idx = cols.findIndex(function(c){ return c.id === colId; });
+    if(idx < 0) return;
+    var swapIdx = idx + dir;
+    if(swapIdx < 0 || swapIdx >= cols.length) return;
+    var a = cols[idx].order, b = cols[swapIdx].order;
+    cols[idx].order = b; cols[swapIdx].order = a;
+    doSave();
+    window.render_locacao_gestao();
+  };
+  window.locDeleteColuna = function(colId){
+    var d = dbRef();
+    var temCards = d.locacaoPropostasCards.some(function(c){ return c.columnId === colId; });
+    if(temCards){ try{ toast('Não é possível excluir: existem propostas nesta etapa.'); }catch(e){} return; }
+    if(!confirm('Excluir esta etapa?')) return;
+    d.locacaoPropostasColumns = d.locacaoPropostasColumns.filter(function(c){ return c.id !== colId; });
+    doSave();
+    window.render_locacao_gestao();
+  };
+
+  window.locAddChecklistItem = function(){
+    var input = document.getElementById('locNewCheck');
+    var texto = input ? input.value.trim() : '';
+    if(!texto) return;
+    ensureLocacaoData();
+    var d = dbRef();
+    d.locacaoChecklistTemplate.push(texto);
+    doSave();
+    window.render_locacao_gestao();
+  };
+  window.locRenameChecklistItem = function(i){
+    var input = document.getElementById('loccheck_' + i);
+    if(!input) return;
+    var d = dbRef();
+    if(!d.locacaoChecklistTemplate || !d.locacaoChecklistTemplate[i]) return;
+    d.locacaoChecklistTemplate[i] = input.value.trim() || d.locacaoChecklistTemplate[i];
+    doSave();
+    try{ toast('Item salvo.'); }catch(e){}
+    window.render_locacao_gestao();
+  };
+  window.locMoveChecklistItem = function(i, dir){
+    var d = dbRef();
+    var arr = d.locacaoChecklistTemplate;
+    if(!arr) return;
+    var j = i + dir;
+    if(j < 0 || j >= arr.length) return;
+    var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    doSave();
+    window.render_locacao_gestao();
+  };
+  window.locDeleteChecklistItem = function(i){
+    var d = dbRef();
+    if(!d.locacaoChecklistTemplate) return;
+    if(!confirm('Excluir este item do checklist?')) return;
+    d.locacaoChecklistTemplate.splice(i,1);
+    doSave();
+    window.render_locacao_gestao();
+  };
+
+  /* ================= KPIs da equipe ================= */
+  window.locAddKPI = function(){
+    var nomeEl = document.getElementById('locNewKpiNome');
+    var metaEl = document.getElementById('locNewKpiMeta');
+    var nome = nomeEl ? nomeEl.value.trim() : '';
+    if(!nome) return;
+    ensureLocacaoData();
+    var d = dbRef();
+    d.locacaoKPIs.push({nome: nome, meta: metaEl ? metaEl.value.trim() : ''});
+    doSave();
+    window.render_locacao_gestao();
+  };
+  window.locSalvarKPI = function(i){
+    var d = dbRef();
+    if(!d.locacaoKPIs || !d.locacaoKPIs[i]) return;
+    var nomeEl = document.getElementById('lockpinome_' + i);
+    var metaEl = document.getElementById('lockpimeta_' + i);
+    d.locacaoKPIs[i].nome = nomeEl ? nomeEl.value.trim() : d.locacaoKPIs[i].nome;
+    d.locacaoKPIs[i].meta = metaEl ? metaEl.value.trim() : d.locacaoKPIs[i].meta;
+    doSave();
+    try{ toast('KPI salvo.'); }catch(e){}
+    window.render_locacao_gestao();
+  };
+  window.locDeleteKPI = function(i){
+    var d = dbRef();
+    if(!d.locacaoKPIs) return;
+    if(!confirm('Excluir este KPI?')) return;
+    d.locacaoKPIs.splice(i,1);
+    doSave();
+    window.render_locacao_gestao();
+  };
+
+  /* ================= regras de comissão ================= */
+  function locFormatarPercentual(v){
+    var s = String(v||'').trim();
+    if(!s) return s;
+    return /%$/.test(s) ? s : s + '%';
+  }
+  window.locAddComissaoRegra = function(){
+    ensureLocacaoData();
+    var d = dbRef();
+    d.locacaoComissaoRegras.push({
+      id: uid(),
+      taxaAdministrativa: locFormatarPercentual((document.getElementById('locNewComTaxa')||{}).value || ''),
+      captadorAtiva: locFormatarPercentual((document.getElementById('locNewCaptadorAtiva')||{}).value || ''),
+      captadorReceptiva: locFormatarPercentual((document.getElementById('locNewCaptadorReceptiva')||{}).value || ''),
+      promotorAtiva: locFormatarPercentual((document.getElementById('locNewPromotorAtiva')||{}).value || ''),
+      promotorReceptiva: locFormatarPercentual((document.getElementById('locNewPromotorReceptiva')||{}).value || ''),
+      gestorAtiva: locFormatarPercentual((document.getElementById('locNewGestorAtiva')||{}).value || ''),
+      gestorReceptiva: locFormatarPercentual((document.getElementById('locNewGestorReceptiva')||{}).value || '')
+    });
+    doSave();
+    try{ toast('Regra de comissão criada.'); }catch(e){}
+    window.render_locacao_gestao();
+  };
+  window.locSalvarComissaoRegra = function(i){
+    var d = dbRef();
+    if(!d.locacaoComissaoRegras || !d.locacaoComissaoRegras[i]) return;
+    var r = d.locacaoComissaoRegras[i];
+    r.taxaAdministrativa = locFormatarPercentual((document.getElementById('locComTaxa_' + i)||{}).value || '');
+    r.captadorAtiva = locFormatarPercentual((document.getElementById('locComCaptadorAtiva_' + i)||{}).value || '');
+    r.captadorReceptiva = locFormatarPercentual((document.getElementById('locComCaptadorReceptiva_' + i)||{}).value || '');
+    r.promotorAtiva = locFormatarPercentual((document.getElementById('locComPromotorAtiva_' + i)||{}).value || '');
+    r.promotorReceptiva = locFormatarPercentual((document.getElementById('locComPromotorReceptiva_' + i)||{}).value || '');
+    r.gestorAtiva = locFormatarPercentual((document.getElementById('locComGestorAtiva_' + i)||{}).value || '');
+    r.gestorReceptiva = locFormatarPercentual((document.getElementById('locComGestorReceptiva_' + i)||{}).value || '');
+    doSave();
+    try{ toast('Regra de comissão salva.'); }catch(e){}
+    window.render_locacao_gestao();
+  };
+  window.locDeleteComissaoRegra = function(i){
+    var d = dbRef();
+    if(!d.locacaoComissaoRegras) return;
+    if(!confirm('Excluir esta regra de comissão?')) return;
+    d.locacaoComissaoRegras.splice(i,1);
+    doSave();
+    window.render_locacao_gestao();
+  };
+
+  /* ================= Registro Diário ================= */
+  function locRegistroExistente(userId, dataISO){
+    var d = dbRef();
+    return (d.locacaoRegistrosDiarios||[]).find(function(r){ return r.userId === userId && r.data === dataISO; });
+  }
+
+  /* estado do filtro (usuário + período), mantido em memória entre as renderizações da tela */
+  function locRegFiltroState(){
+    return window.__locRegFiltro || (window.__locRegFiltro = {userId:'', dataDe:'', dataAte:''});
+  }
+
+  function locUsuariosOptionsRegistro(selectedId){
+    var users = (Array.isArray(dbRef().users) ? dbRef().users : []).filter(function(u){ return u && u.active !== false && (u.name||u.nome); });
+    users = users.slice().sort(function(a,b){ return String(a.name||a.nome||'').localeCompare(String(b.name||b.nome||'')); });
+    return '<option value="">Todos os usuários</option>' + users.map(function(u){
+      var id = u.id || u.uid || '';
+      return '<option value="' + escAttr(id) + '"' + (String(id) === String(selectedId||'') ? ' selected' : '') + '>' + esc(u.name||u.nome) + '</option>';
+    }).join('');
+  }
+
+  window.locAtualizarFiltroRegistro = function(campo, valor){
+    var filtro = locRegFiltroState();
+    filtro[campo] = valor || '';
+    window.render_locacao_registro();
+  };
+
+  window.locLimparFiltroRegistro = function(){
+    window.__locRegFiltro = {userId:'', dataDe:'', dataAte:''};
+    window.render_locacao_registro();
+  };
+
+  window.locExcluirRegistro = function(regId){
+    if(!locIsAdmin()){ try{ toast('Sem permissão para excluir registros.'); }catch(e){} return; }
+    ensureLocacaoData();
+    var d = dbRef();
+    var reg = (d.locacaoRegistrosDiarios||[]).find(function(r){ return r.id === regId; });
+    if(!reg) return;
+    var dataFmt = (reg.data||'').split('-').reverse().join('/');
+    if(!confirm('Excluir o registro de ' + (reg.userName||'—') + ' em ' + dataFmt + '?')) return;
+    d.locacaoRegistrosDiarios = d.locacaoRegistrosDiarios.filter(function(r){ return r.id !== regId; });
+    doSave();
+    try{ toast('Registro excluído.'); }catch(e){}
+    window.render_locacao_registro();
+  };
+
+  window.render_locacao_registro = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('locacao_registro_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar o Registro Diário.</div>';
+      return;
+    }
+    ensureLocacaoData();
+    var d = dbRef();
+    var podeVerTodos = locIsAdmin();
+    var podeExcluir = podeVerTodos;
+    var meuId = (current && current.id) || '';
+    var filtro = locRegFiltroState();
+    if(!podeVerTodos) filtro.userId = '';
+
+    var listaRegistros = (d.locacaoRegistrosDiarios||[]).filter(function(r){
+      if(!podeVerTodos && r.userId !== meuId) return false;
+      if(podeVerTodos && filtro.userId && r.userId !== filtro.userId) return false;
+      if(filtro.dataDe && (r.data||'') < filtro.dataDe) return false;
+      if(filtro.dataAte && (r.data||'') > filtro.dataAte) return false;
+      return true;
+    }).sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); }).slice(0,500);
+
+    var linhasTabela = listaRegistros.map(function(r){
+      return '<tr><td>' + esc((r.data||'').split('-').reverse().join('/')) + '</td>' + (podeVerTodos ? '<td>' + esc(r.userName||'—') + '</td>' : '') +
+        '<td>' + esc(r.contatos||0) + '</td><td>' + esc(r.conversasQualificadas||0) + '</td><td>' + esc(r.avaliacoesAgendadas||0) + '</td><td>' + esc(r.avaliacoesRealizadas||0) + '</td><td>' + esc(r.dificuldades||'—') + '</td>' +
+        (podeExcluir ? '<td><button class="danger kanban-mini" onclick="locExcluirRegistro(\'' + escAttr(r.id) + '\')">Excluir</button></td>' : '') +
+      '</tr>';
+    }).join('');
+
+    var filtrosHtml = '<div class="card pad" style="margin-bottom:18px"><h3>Filtros</h3><div class="grid ' + (podeVerTodos ? 'cols3' : 'cols2') + '">' +
+      (podeVerTodos ? '<div class="field"><label>Usuário</label><select id="locRegFiltroUsuario" onchange="window.locAtualizarFiltroRegistro(\'userId\', this.value)">' + locUsuariosOptionsRegistro(filtro.userId) + '</select></div>' : '') +
+      '<div class="field"><label>Data de</label><input type="date" id="locRegFiltroDe" value="' + escAttr(filtro.dataDe) + '" onchange="window.locAtualizarFiltroRegistro(\'dataDe\', this.value)"></div>' +
+      '<div class="field"><label>Data até</label><input type="date" id="locRegFiltroAte" value="' + escAttr(filtro.dataAte) + '" onchange="window.locAtualizarFiltroRegistro(\'dataAte\', this.value)"></div>' +
+      '</div><button class="secondary" style="margin-top:10px" onclick="locLimparFiltroRegistro()">Limpar filtros</button></div>';
+
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Registro Diário</h2><p>Preencha os números do dia. Salvar de novo no mesmo dia atualiza o registro (não duplica).</p></div>' +
+      '<div class="kanban-actions-row"><button class="primary" onclick="locOpenRegistroModal()">Novo registro</button></div></div>' +
+      filtrosHtml +
+      '<div class="card pad"><h3>Histórico' + (podeVerTodos ? ' (toda a equipe)' : ' (meus registros)') + '</h3>' +
+        (linhasTabela ? '<table class="table"><thead><tr><th>Data</th>' + (podeVerTodos ? '<th>Corretor(a)</th>' : '') + '<th>Contatos</th><th>Conv. Qualificadas</th><th>Aval. Agendadas</th><th>Aval. Realizadas</th><th>Dificuldades</th>' + (podeExcluir ? '<th>Ações</th>' : '') + '</tr></thead><tbody>' + linhasTabela + '</tbody></table>' : '<p class="sub">Nenhum registro encontrado para o filtro selecionado.</p>') +
+      '</div>';
+  };
+
+  /* ================= Registro Diário: pop-up de novo registro ================= */
+  window.locOpenRegistroModal = function(){
+    ensureLocacaoData();
+    var hojeISO = new Date().toISOString().slice(0,10);
+    var meuId = (current && current.id) || '';
+    var existente = locRegistroExistente(meuId, hojeISO);
+    var html = '<div class="field" style="max-width:220px"><label>Data</label><input type="date" id="locRegData" value="' + hojeISO + '" max="' + hojeISO + '" onchange="window.locAtualizarCamposRegistro()"></div>' +
+      '<div class="grid cols4">' +
+        '<div class="field"><label>Contatos</label><input type="number" min="0" id="locRegContatos" value="' + (existente ? escAttr(existente.contatos) : '') + '"></div>' +
+        '<div class="field"><label>Conversas Qualificadas</label><input type="number" min="0" id="locRegConversas" value="' + (existente ? escAttr(existente.conversasQualificadas) : '') + '"></div>' +
+        '<div class="field"><label>Avaliações/Fotos Agendadas</label><input type="number" min="0" id="locRegAgendadas" value="' + (existente ? escAttr(existente.avaliacoesAgendadas) : '') + '"></div>' +
+        '<div class="field"><label>Avaliações/Fotos Realizadas</label><input type="number" min="0" id="locRegRealizadas" value="' + (existente ? escAttr(existente.avaliacoesRealizadas) : '') + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>Quais dificuldades encontrou?</label><textarea id="locRegDificuldades" rows="3">' + esc(existente ? existente.dificuldades : '') + '</textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="locSalvarRegistro()">Salvar registro</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Novo registro diário', html);
+  };
+
+  /* ao trocar a data dentro do pop-up, carrega o registro já existente daquele dia (se houver),
+     sem duplicar registro ao salvar */
+  window.locAtualizarCamposRegistro = function(){
+    var dataEl = document.getElementById('locRegData');
+    var dataISO = dataEl ? dataEl.value : '';
+    var meuId = (current && current.id) || '';
+    var existente = dataISO ? locRegistroExistente(meuId, dataISO) : null;
+    var contatosEl = document.getElementById('locRegContatos');
+    var conversasEl = document.getElementById('locRegConversas');
+    var agendadasEl = document.getElementById('locRegAgendadas');
+    var realizadasEl = document.getElementById('locRegRealizadas');
+    var dificuldadesEl = document.getElementById('locRegDificuldades');
+    if(contatosEl) contatosEl.value = existente ? existente.contatos : '';
+    if(conversasEl) conversasEl.value = existente ? existente.conversasQualificadas : '';
+    if(agendadasEl) agendadasEl.value = existente ? existente.avaliacoesAgendadas : '';
+    if(realizadasEl) realizadasEl.value = existente ? existente.avaliacoesRealizadas : '';
+    if(dificuldadesEl) dificuldadesEl.value = existente ? (existente.dificuldades||'') : '';
+  };
+
+  window.locSalvarRegistro = function(){
+    ensureLocacaoData();
+    var d = dbRef();
+    var dataEl = document.getElementById('locRegData');
+    var dataISO = dataEl ? dataEl.value : new Date().toISOString().slice(0,10);
+    if(!dataISO) return;
+    var meuId = (current && current.id) || '';
+    var meuNome = (current && (current.name || current.nome)) || '';
+    var contatos = Number((document.getElementById('locRegContatos')||{}).value || 0) || 0;
+    var conversas = Number((document.getElementById('locRegConversas')||{}).value || 0) || 0;
+    var agendadas = Number((document.getElementById('locRegAgendadas')||{}).value || 0) || 0;
+    var realizadas = Number((document.getElementById('locRegRealizadas')||{}).value || 0) || 0;
+    var dificuldades = ((document.getElementById('locRegDificuldades')||{}).value || '').trim();
+
+    var existente = locRegistroExistente(meuId, dataISO);
+    if(existente){
+      existente.contatos = contatos; existente.conversasQualificadas = conversas;
+      existente.avaliacoesAgendadas = agendadas; existente.avaliacoesRealizadas = realizadas;
+      existente.dificuldades = dificuldades; existente.updatedAt = new Date().toISOString();
+    } else {
+      d.locacaoRegistrosDiarios.push({
+        id: uid(), data: dataISO, userId: meuId, userName: meuNome,
+        contatos: contatos, conversasQualificadas: conversas, avaliacoesAgendadas: agendadas, avaliacoesRealizadas: realizadas,
+        dificuldades: dificuldades, createdAt: new Date().toISOString()
+      });
+    }
+    doSave();
+    try{ closeModal(); }catch(e){}
+    try{ toast('Registro salvo.'); }catch(e){}
+    window.render_locacao_registro();
+  };
+
+  /* ================= Informações Úteis ================= */
+  window.render_locacao_info = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('locacao_info_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar as Informações Úteis.</div>';
+      return;
+    }
+    ensureLocacaoData();
+    var d = dbRef();
+    var podeGerenciar = (typeof has === 'function') ? has('locacao_info_gerenciar') : false;
+    var itens = d.locacaoInfoUteis.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+
+    content.innerHTML = '<div class="section"><div><h2>Informações Úteis</h2><p>Orientações, fluxos e materiais de apoio da equipe de Locação.</p></div>' +
+      (podeGerenciar ? '<button class="primary" onclick="locAbrirModalInfo()">Nova informação</button>' : '') +
+      '</div>' +
+      '<div class="grid cols3">' + (itens.length ? itens.map(function(item){
+        return '<div class="card pad"><h3>' + esc(item.titulo) + '</h3><p class="sub">' + esc((item.conteudo||'').slice(0,120)) + ((item.conteudo||'').length>120?'…':'') + '</p>' +
+          '<div class="mini-line"><button class="kanban-mini" onclick="locAbrirLeituraInfo(\'' + escAttr(item.id) + '\')">Abrir e ler</button>' +
+          (podeGerenciar ? '<button class="kanban-mini" onclick="locAbrirModalInfo(\'' + escAttr(item.id) + '\')">Editar</button><button class="kanban-mini danger" onclick="locExcluirInfo(\'' + escAttr(item.id) + '\')">×</button>' : '') +
+          '</div></div>';
+      }).join('') : '<p class="sub">Nenhuma informação cadastrada ainda.</p>') + '</div>';
+  };
+
+  window.locAbrirLeituraInfo = function(itemId){
+    var d = dbRef();
+    var item = d.locacaoInfoUteis.find(function(x){ return x.id === itemId; });
+    if(!item) return;
+    var conteudoHtml = esc(item.conteudo||'').replace(/\n/g,'<br>');
+    openModal(esc(item.titulo||'Informação'), '<div class="kanban-info">' + conteudoHtml + '</div><div class="actions kanban-form-actions"><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+  };
+
+  window.locAbrirModalInfo = function(itemId){
+    if(typeof has === 'function' && !has('locacao_info_gerenciar')){ try{ toast('Sem permissão.'); }catch(e){} return; }
+    ensureLocacaoData();
+    var d = dbRef();
+    var item = itemId ? d.locacaoInfoUteis.find(function(x){ return x.id === itemId; }) : null;
+    var titulo = itemId ? 'Editar informação' : 'Nova informação';
+    var html = '<div class="field"><label>Título</label><input id="locInfoTitulo" value="' + escAttr(item ? item.titulo : '') + '" placeholder="Ex.: Fluxo de vistoria de entrada"></div>' +
+      '<div class="field"><label>Conteúdo</label><textarea id="locInfoConteudo" rows="10">' + esc(item ? item.conteudo : '') + '</textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="locSalvarInfo(\'' + escAttr(itemId||'') + '\')">Salvar</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal(titulo, html);
+  };
+
+  window.locSalvarInfo = function(itemId){
+    ensureLocacaoData();
+    var d = dbRef();
+    var titulo = ((document.getElementById('locInfoTitulo')||{}).value || '').trim();
+    var conteudo = ((document.getElementById('locInfoConteudo')||{}).value || '').trim();
+    if(!titulo){ try{ toast('Informe um título.'); }catch(e){} return; }
+    var iId = String(itemId || '');
+    if(iId){
+      var existente = d.locacaoInfoUteis.find(function(x){ return x.id === iId; });
+      if(!existente) return;
+      existente.titulo = titulo; existente.conteudo = conteudo; existente.updatedAt = new Date().toISOString();
+    } else {
+      d.locacaoInfoUteis.push({
+        id: uid(), titulo: titulo, conteudo: conteudo,
+        createdAt: new Date().toISOString(),
+        createdBy: (current && current.id) || '', createdByName: (current && (current.name || current.nome)) || ''
+      });
+    }
+    doSave();
+    try{ closeModal(); }catch(e){}
+    window.render_locacao_info();
+  };
+
+  window.locExcluirInfo = function(itemId){
+    var d = dbRef();
+    if(!confirm('Excluir esta informação?')) return;
+    d.locacaoInfoUteis = d.locacaoInfoUteis.filter(function(x){ return x.id !== itemId; });
+    doSave();
+    window.render_locacao_info();
+  };
+
+  /* ================= registro de permissões, páginas e navegação ================= */
+  try{
+    if(typeof PERMS !== 'undefined'){
+      PERMS['locacao_propostas_ver'] = 'Locação - Propostas (visualizar)';
+      PERMS['locacao_gestao'] = 'Locação - Gestão (etapas, checklist, comissão, KPIs)';
+      PERMS['locacao_registro_ver'] = 'Locação - Registro Diário (preencher)';
+      PERMS['locacao_info_ver'] = 'Locação - Informações Úteis (visualizar)';
+      PERMS['locacao_info_gerenciar'] = 'Locação - Informações Úteis (cadastrar/editar)';
+    }
+  }catch(e){ console.error('[Locação] Erro ao registrar permissões:', e); }
+
+  try{
+    if(typeof pages !== 'undefined'){
+      if(!pages.some(function(p){ return p[1] === 'locacao_propostas'; })){
+        pages.push(['Locação','locacao_propostas','Propostas','🏠','locacao_propostas_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'locacao_registro'; })){
+        pages.push(['Locação','locacao_registro','Registro Diário','📋','locacao_registro_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'locacao_gestao'; })){
+        pages.push(['Locação','locacao_gestao','Gestão de Locação','⚙','locacao_gestao']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'locacao_info'; })){
+        pages.push(['Locação','locacao_info','Informações Úteis','ℹ','locacao_info_ver']);
+      }
+      if(typeof window.pages !== 'undefined') window.pages = pages;
+    }
+  }catch(e){ console.error('[Locação] Erro ao registrar páginas:', e); }
+
+  try{
+    if(typeof renders !== 'undefined'){
+      renders['locacao_propostas'] = window.render_locacao_propostas;
+      renders['locacao_registro'] = window.render_locacao_registro;
+      renders['locacao_gestao'] = window.render_locacao_gestao;
+      renders['locacao_info'] = window.render_locacao_info;
+      window.renders = renders;
+    }
+    if(typeof window.renders !== 'undefined'){
+      window.renders['locacao_propostas'] = window.render_locacao_propostas;
+      window.renders['locacao_registro'] = window.render_locacao_registro;
+      window.renders['locacao_gestao'] = window.render_locacao_gestao;
+      window.renders['locacao_info'] = window.render_locacao_info;
+    }
+  }catch(e){ console.error('[Locação] Erro ao registrar renders:', e); }
+
+  try{ if(typeof buildNav === 'function') setTimeout(buildNav, 0); }catch(e){}
+
+  /* ================= garantia extra de salvamento no Firebase ================= */
+  var _origSaveLocacao = window.save;
+  window.save = function(){
+    var result = (typeof _origSaveLocacao === 'function') ? _origSaveLocacao.apply(this, arguments) : undefined;
+    try{
+      if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
+        var d = dbRef();
+        window.firebaseDb.ref('/').update({
+          locacaoPropostasColumns: d.locacaoPropostasColumns || [],
+          locacaoPropostasCards: d.locacaoPropostasCards || [],
+          locacaoChecklistTemplate: d.locacaoChecklistTemplate || [],
+          locacaoComissaoRegras: d.locacaoComissaoRegras || [],
+          locacaoKPIs: d.locacaoKPIs || [],
+          locacaoRegistrosDiarios: d.locacaoRegistrosDiarios || [],
+          locacaoInfoUteis: d.locacaoInfoUteis || []
+        }).catch(function(err){ console.error('[Locação] Erro ao salvar no Firebase:', err); });
+      }
+    }catch(e){ console.error('[Locação] Erro ao salvar (garantia extra):', e); }
+    return result;
+  };
+  try{ save = window.save; }catch(e){}
+
+  console.log('[V126] Módulo LOCAÇÃO instalado (Propostas + Gestão).');
 })();
 </script>
