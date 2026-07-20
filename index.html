@@ -14820,7 +14820,9 @@ body:has(#login:not(.hidden)) #app.hidden{
         dataCadastro: paraDataISO(r['Data Cadastro']) || paraDataISO(r['Data de Cadastro']) || paraDataISO(r['Data do Cadastro']) || paraDataISO(r['Data atendimento']),
         corretor: String(r['Corretor']||'').trim(),
         midia: String(r['Mídia']||'').trim(),
-        etapa: String(r['Etapa']||'').trim()
+        etapa: String(r['Etapa']||'').trim(),
+        cliente: String(r['Cliente']||r['Nome']||r['Nome do Cliente']||'').trim(),
+        telefone: String(r['Telefones']||r['Telefone']||r['Telefone Cliente']||r['Celular']||'').trim()
       };
     });
   }
@@ -18010,5 +18012,1395 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{ save = window.save; }catch(e){}
 
   console.log('[V126] Módulo LOCAÇÃO instalado (Propostas + Gestão).');
+})();
+</script>
+
+<!-- PATCH: Módulo RELACIONAMENTO - Cadências SDR (Cadências + Gestão + Templates + Dashboard) -->
+<script>
+(function(){
+  if(window.__npcSdrCadenciasModulo) return;
+  window.__npcSdrCadenciasModulo = true;
+
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error('[SDR Cadências]', e); } }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function escAttr(v){ return esc(v); }
+  function uid(){ return 'sdr_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function toastSafe(msg, kind){ try{ toast(msg, kind); }catch(e){} }
+
+  var SDR_DEFAULT_ORIGINS = ['Colaborador','Parceria','Chaves na Mão','Proprietário','Instagram','Lais','Quinto Andar','Grupo Zap','Site','Meta Ads','Google Ads'];
+  var SDR_TIPOS = [['whatsapp','WhatsApp'],['ligacao','Ligação'],['email','E-mail'],['sms','SMS'],['tarefa','Tarefa']];
+  var SDR_UNIDADES = [['minutos','Minutos'],['horas','Horas'],['dias','Dias']];
+  var SDR_SITUACOES_ATIVAS = ['Novo','Em Cadência'];
+  var SDR_SITUACOES_QUALIFICADAS = ['Qualificado','Encaminhado ao Corretor','Em Atendimento','Venda'];
+  var SDR_MOTIVOS_QUALIFICACAO = ['Interesse em compra','Interesse em venda','Agendar visita','Possui financiamento','Cliente pronto para atendimento','Outro'];
+  var SDR_MOTIVOS_PERDA = ['Não respondeu','Número inválido','Sem interesse','Comprou com concorrente','Não possui crédito','Apenas pesquisando','Duplicado','Contato inexistente','Outro'];
+  var SDR_VARIAVEIS = ['Nome','Telefone','Empreendimento','Origem','Corretor'];
+  var SDR_CATEGORIAS_TEMPLATE = ['Primeiro contato','Follow-up','Reagendamento','Reaquecimento'];
+
+  function sdrTipoLabel(tipo){
+    var found = SDR_TIPOS.find(function(t){ return t[0] === tipo; });
+    return found ? found[1] : (tipo || '—');
+  }
+  function sdrUnidadeLabel(u){
+    var found = SDR_UNIDADES.find(function(x){ return x[0] === u; });
+    return found ? found[1] : (u || '');
+  }
+
+  /* formata datas evitando o deslocamento de fuso horário que ocorre quando um
+     ISO 'YYYY-MM-DD...' é convertido para Date e depois formatado com toLocaleDateString
+     (o navegador converte de UTC para o fuso local, podendo voltar um dia) */
+  function sdrFormatarDataSimples(v){
+    if(!v) return '—';
+    var s = String(v);
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[3] + '/' + m[2] + '/' + m[1];
+    var d = new Date(v);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+  }
+
+  function ensureSdrData(){
+    var d = dbRef();
+    d.sdrCadencias = Array.isArray(d.sdrCadencias) ? d.sdrCadencias : [];
+    d.sdrTemplates = Array.isArray(d.sdrTemplates) ? d.sdrTemplates : [];
+    d.sdrLeadsCadencia = Array.isArray(d.sdrLeadsCadencia) ? d.sdrLeadsCadencia : [];
+    if(!d.sdrAtendimentosImportados || typeof d.sdrAtendimentosImportados !== 'object' || Array.isArray(d.sdrAtendimentosImportados)) d.sdrAtendimentosImportados = {};
+    d.sdrCadencias.forEach(function(c){ if(!Array.isArray(c.etapas)) c.etapas = []; if(c.ativa === undefined) c.ativa = true; });
+    d.sdrLeadsCadencia.forEach(function(r){
+      if(!Array.isArray(r.atividades)) r.atividades = [];
+      if(!Array.isArray(r.timeline)) r.timeline = [];
+      if(!r.situacao) r.situacao = 'Novo';
+    });
+  }
+
+  function sdrIsAdmin(){
+    return !!(current && ((current.perms && (current.perms.view_all_users === true || current.perms.sdr_gestao_ver === true)) || (current.permissoes && current.permissoes.view_all_users === true)));
+  }
+  function sdrCanAccessRegistro(r){
+    if(!r) return false;
+    if(sdrIsAdmin()) return true;
+    var meuId = String((current && current.id) || '');
+    return String(r.sdrResponsavelId || '') === meuId;
+  }
+  function sdrCanAccessCadencia(){ return sdrIsAdmin(); }
+
+  function sdrOrigensDisponiveis(){
+    var d = dbRef();
+    var arr = Array.isArray(d.leadOriginOptions) ? d.leadOriginOptions.slice() : [];
+    if(!arr.length) arr = SDR_DEFAULT_ORIGINS.slice();
+    return arr;
+  }
+
+  function sdrUsuariosAtivos(){
+    var d = dbRef();
+    return (Array.isArray(d.users) ? d.users : []).filter(function(u){ return u && u.active !== false && (u.name||u.nome); });
+  }
+  function sdrUsuarioOptions(selectedId){
+    var users = sdrUsuariosAtivos().slice().sort(function(a,b){ return String(a.name||a.nome||'').localeCompare(String(b.name||b.nome||'')); });
+    return '<option value="">Sem responsável definido</option>' + users.map(function(u){
+      var id = u.id || u.uid || '';
+      return '<option value="' + escAttr(id) + '"' + (String(id) === String(selectedId||'') ? ' selected' : '') + '>' + esc(u.name||u.nome) + '</option>';
+    }).join('');
+  }
+
+  function sdrTempoParaMs(valor, unidade){
+    valor = Number(valor) || 0;
+    if(unidade === 'minutos') return valor * 60 * 1000;
+    if(unidade === 'horas') return valor * 60 * 60 * 1000;
+    return valor * 24 * 60 * 60 * 1000;
+  }
+
+  function sdrCadenciaOrdenarEtapas(cadencia){
+    return (cadencia && Array.isArray(cadencia.etapas) ? cadencia.etapas.slice() : []).sort(function(a,b){ return (Number(a.ordem)||0) - (Number(b.ordem)||0); });
+  }
+
+  function sdrCadenciaParaOrigem(origem){
+    var d = dbRef();
+    var normAlvo = String(origem||'').toLowerCase().trim();
+    if(!normAlvo) return null;
+    var candidatas = (d.sdrCadencias||[]).filter(function(c){
+      return c.ativa !== false && String(c.origem||'').toLowerCase().trim() === normAlvo;
+    });
+    if(!candidatas.length) return null;
+    candidatas.sort(function(a,b){ return (Number(a.ordem)||0) - (Number(b.ordem)||0); });
+    return candidatas[0];
+  }
+
+  function sdrAgendarProximaAtividade(registro, cadencia, etapaIndex, baseDate){
+    var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+    var etapa = etapas[etapaIndex];
+    if(!etapa){ registro.proximaAtividade = null; registro.cadenciaEncerrada = true; return; }
+    var espera = sdrTempoParaMs(etapa.tempoValor, etapa.tempoUnidade);
+    var previsto = new Date((baseDate||new Date()).getTime() + espera);
+    registro.proximaAtividade = { etapaId: etapa.id, etapaNome: etapa.nome, tipo: etapa.tipo, previstoPara: previsto.toISOString() };
+  }
+
+  /* ================= criação automática da cadência quando um lead é sincronizado ================= */
+  function sdrIniciarCadenciaAutomatica(lead){
+    if(!lead || !lead.id) return;
+    ensureSdrData();
+    var d = dbRef();
+    if((d.sdrLeadsCadencia||[]).some(function(r){ return r.leadId === lead.id; })) return;
+    var origemBusca = lead.origemTipo || lead.origem || '';
+    var cadencia = sdrCadenciaParaOrigem(origemBusca) || sdrCadenciaParaOrigem(lead.origem);
+    var agora = new Date().toISOString();
+    var registro = {
+      id: uid(), leadId: lead.id,
+      leadNome: lead.nomeLead || '', leadTelefone: lead.telefone || '', leadEmail: lead.email || '',
+      origem: lead.origem || '', empreendimento: lead.interesse || '',
+      corretorId: lead.corretorUid || '', corretorNome: lead.corretorNome || '',
+      sdrResponsavelId: lead.criadoPorUid || (current && current.id) || '',
+      sdrResponsavelNome: lead.criadoPorNome || (current && (current.name||current.nome)) || '',
+      cadenciaId: cadencia ? cadencia.id : '', cadenciaNome: cadencia ? cadencia.nome : '',
+      etapaAtualIndex: 0,
+      situacao: 'Novo',
+      cadenciaEncerrada: !cadencia,
+      proximaAtividade: null,
+      motivoQualificacao: '', motivoPerda: '',
+      qualificadoEm: '', perdidoEm: '',
+      atividades: [],
+      timeline: [{ texto: 'Lead recebido do CRM', tipo: 'sistema', criadoEm: agora }],
+      dataAtendimento: agora,
+      createdAt: agora
+    };
+    if(cadencia){
+      registro.situacao = 'Em Cadência';
+      registro.timeline.push({ texto: 'Cadência "' + cadencia.nome + '" iniciada', tipo: 'sistema', criadoEm: agora });
+      sdrAgendarProximaAtividade(registro, cadencia, 0, new Date());
+    } else {
+      registro.timeline.push({ texto: 'Nenhuma cadência ativa configurada para a origem "' + (lead.origem||'—') + '"', tipo: 'sistema', criadoEm: agora });
+    }
+    d.sdrLeadsCadencia.push(registro);
+    doSave();
+  }
+
+  /* ================= importação de novos leads a partir da base de Atendimentos de Vendas (Análise 360) ================= */
+  function sdrNormTexto(v){
+    return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');
+  }
+  /* o Firebase Realtime Database proíbe estes caracteres em chaves de objeto:
+     . # $ / [ ]  — se qualquer chave for inválida, a gravação inteira é rejeitada.
+     Como a chave é montada a partir de dados do cliente (que pode conter e-mail,
+     por exemplo), sanitizamos aqui antes de usar como chave. */
+  function sdrSanitizarChaveFirebase(v){
+    return String(v||'').replace(/[.#$\/\[\]]/g, '-');
+  }
+  function sdrChaveAtendimento(r){
+    var telefoneDigits = String(r.telefone||'').replace(/\D/g,'');
+    var chave = sdrNormTexto(r.cliente) + '|' + telefoneDigits + '|' + (r.data || r.dataCadastro || '');
+    return sdrSanitizarChaveFirebase(chave);
+  }
+
+  var SDR_ETAPA_IMPORTACAO = 'Novos Leads';
+  function sdrEtapaEhNovoLead(r){
+    return sdrNormTexto(r && r.etapa) === sdrNormTexto(SDR_ETAPA_IMPORTACAO);
+  }
+
+  function sdrContarAtendimentosDisponiveis(){
+    ensureSdrData();
+    var d = dbRef();
+    var linhas = (d.analise360 && Array.isArray(d.analise360.atendimentosVendas)) ? d.analise360.atendimentosVendas : [];
+    var total = 0, novos = 0;
+    linhas.forEach(function(r){
+      var cliente = String(r.cliente||'').trim();
+      var telefone = String(r.telefone||'').trim();
+      if(!cliente && !telefone) return;
+      if(!sdrEtapaEhNovoLead(r)) return;
+      total++;
+      var chave = sdrChaveAtendimento(r);
+      if(!d.sdrAtendimentosImportados[chave]) novos++;
+    });
+    return { total: total, novos: novos, jaImportados: total - novos };
+  }
+
+  window.sdrImportarAtendimentosVendas = function(){
+    if(!sdrIsAdmin()){ toastSafe('Sem permissão para importar atendimentos.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var linhas = (d.analise360 && Array.isArray(d.analise360.atendimentosVendas)) ? d.analise360.atendimentosVendas : [];
+    if(!linhas.length){ toastSafe('Nenhum atendimento encontrado na base de Vendas (Análise 360). Faça o upload da planilha por lá primeiro.'); return; }
+    if(!d.sdrAtendimentosImportados || typeof d.sdrAtendimentosImportados !== 'object' || Array.isArray(d.sdrAtendimentosImportados)) d.sdrAtendimentosImportados = {};
+    var usuarios = sdrUsuariosAtivos();
+    var novos = 0, ignorados = 0, semDados = 0;
+    linhas.forEach(function(r){
+      var cliente = String(r.cliente||'').trim();
+      var telefone = String(r.telefone||'').trim();
+      if(!cliente && !telefone){ semDados++; return; }
+      if(!sdrEtapaEhNovoLead(r)){ return; }
+      var chave = sdrChaveAtendimento(r);
+      if(d.sdrAtendimentosImportados[chave]){ ignorados++; return; }
+      d.sdrAtendimentosImportados[chave] = true;
+      var corretorNome = String(r.corretor||'').trim();
+      var corretorMatch = corretorNome ? usuarios.find(function(u){ return sdrNormTexto(u.name||u.nome) === sdrNormTexto(corretorNome); }) : null;
+      var origemAtendimento = String(r.midia||'').trim();
+      var cadencia = origemAtendimento ? sdrCadenciaParaOrigem(origemAtendimento) : null;
+      var dataBase = r.data || r.dataCadastro;
+      var baseDate = dataBase ? new Date(dataBase) : new Date();
+      if(isNaN(baseDate.getTime())) baseDate = new Date();
+      var agoraIso = new Date().toISOString();
+      var registro = {
+        id: uid(), leadId: '',
+        leadNome: cliente || '(sem nome)', leadTelefone: telefone, leadEmail: '',
+        origem: origemAtendimento || '—', empreendimento: '',
+        corretorId: corretorMatch ? (corretorMatch.id || corretorMatch.uid || '') : '', corretorNome: corretorNome,
+        sdrResponsavelId: corretorMatch ? (corretorMatch.id || corretorMatch.uid || '') : ((current && current.id) || ''),
+        sdrResponsavelNome: corretorMatch ? (corretorMatch.name || corretorMatch.nome || corretorNome) : ((current && (current.name||current.nome)) || ''),
+        cadenciaId: cadencia ? cadencia.id : '', cadenciaNome: cadencia ? cadencia.nome : '',
+        etapaAtualIndex: 0, situacao: 'Novo', cadenciaEncerrada: !cadencia, proximaAtividade: null,
+        motivoQualificacao: '', motivoPerda: '', qualificadoEm: '', perdidoEm: '',
+        atividades: [],
+        timeline: [{ texto: 'Importado da base de Atendimentos de Vendas (Análise 360)', tipo: 'sistema', criadoEm: agoraIso }],
+        origemImportacao: 'atendimentos_vendas',
+        dataAtendimento: baseDate.toISOString(),
+        createdAt: baseDate.toISOString()
+      };
+      if(cadencia){
+        registro.situacao = 'Em Cadência';
+        registro.timeline.push({ texto: 'Cadência "' + cadencia.nome + '" iniciada', tipo: 'sistema', criadoEm: agoraIso });
+        sdrAgendarProximaAtividade(registro, cadencia, 0, baseDate);
+      } else {
+        registro.timeline.push({ texto: 'Nenhuma cadência ativa configurada para a mídia "' + (origemAtendimento||'—') + '"', tipo: 'sistema', criadoEm: agoraIso });
+      }
+      d.sdrLeadsCadencia.push(registro);
+      novos++;
+    });
+    doSave();
+    toastSafe(novos + ' novo(s) atendimento(s) importado(s) para as Cadências.' + (ignorados ? ' ' + ignorados + ' já haviam sido importados antes.' : ''));
+    window.render_sdr_cadencias();
+  };
+
+  var _oldSaveLeadParaSdr = window.saveLead;
+  if(typeof _oldSaveLeadParaSdr === 'function'){
+    window.saveLead = function(){
+      var resultado = _oldSaveLeadParaSdr.apply(this, arguments);
+      try{
+        ensureSdrData();
+        var d = dbRef();
+        var novoLead = (Array.isArray(d.leads) && d.leads.length) ? d.leads[0] : null;
+        if(novoLead) sdrIniciarCadenciaAutomatica(novoLead);
+        if(typeof window.render_sdr_cadencias === 'function' && window.page === 'sdr_cadencias') window.render_sdr_cadencias();
+      }catch(e){ console.error('[SDR Cadências] erro ao iniciar cadência automática:', e); }
+      return resultado;
+    };
+    try{ saveLead = window.saveLead; }catch(e){}
+  }
+
+  function sdrSubstituirVariaveis(texto, r){
+    return String(texto||'')
+      .replace(/\{\{\s*Nome\s*\}\}/gi, r.leadNome || '')
+      .replace(/\{\{\s*Telefone\s*\}\}/gi, r.leadTelefone || '')
+      .replace(/\{\{\s*Empreendimento\s*\}\}/gi, r.empreendimento || '')
+      .replace(/\{\{\s*Origem\s*\}\}/gi, r.origem || '')
+      .replace(/\{\{\s*Corretor\s*\}\}/gi, r.corretorNome || '');
+  }
+
+  function sdrMensagemEtapaAtual(r){
+    ensureSdrData();
+    var d = dbRef();
+    var cadencia = r.cadenciaId ? d.sdrCadencias.find(function(c){ return c.id === r.cadenciaId; }) : null;
+    var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+    var etapa = etapas[r.etapaAtualIndex];
+    if(!etapa || !etapa.templateId) return null;
+    var tpl = (d.sdrTemplates||[]).find(function(t){ return t.id === etapa.templateId; });
+    if(!tpl) return null;
+    return sdrSubstituirVariaveis(tpl.texto, r);
+  }
+
+  function sdrCopiarFallback(texto){
+    try{
+      var ta = document.createElement('textarea');
+      ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      toastSafe('Mensagem copiada.');
+    }catch(e){
+      openModal('Mensagem', '<p class="sub">Não foi possível copiar automaticamente. Copie manualmente abaixo:</p><textarea rows="8" style="width:100%">' + esc(texto) + '</textarea><div class="actions kanban-form-actions"><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+    }
+  }
+  function sdrCopiarParaClipboard(texto){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(texto).then(function(){ toastSafe('Mensagem copiada.'); }).catch(function(){ sdrCopiarFallback(texto); });
+      } else { sdrCopiarFallback(texto); }
+    }catch(e){ sdrCopiarFallback(texto); }
+  }
+
+  /* ================= Templates de Mensagens ================= */
+  window.render_sdr_templates = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('sdr_templates_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar os Templates de Mensagens.</div>';
+      return;
+    }
+    ensureSdrData();
+    var d = dbRef();
+    var podeGerenciar = (typeof has === 'function') ? has('sdr_templates_ver') : false;
+    var lista = d.sdrTemplates.slice().sort(function(a,b){ return String(a.nome||'').localeCompare(String(b.nome||'')); });
+    var cardsHtml = lista.map(function(t){
+      var preview = esc((t.texto||'').slice(0,140)) + ((t.texto||'').length > 140 ? '…' : '');
+      return '<div class="card pad"><span class="tag">' + esc(t.categoria||'Sem categoria') + '</span><h3 style="margin-top:8px">' + esc(t.nome||'Template') + '</h3><p class="sub" style="white-space:pre-wrap">' + preview + '</p>' +
+        (podeGerenciar ? '<div class="mini-line"><button class="kanban-mini" onclick="sdrAbrirModalTemplate(\'' + escAttr(t.id) + '\')">Editar</button><button class="kanban-mini danger" onclick="sdrExcluirTemplate(\'' + escAttr(t.id) + '\')">×</button></div>' : '') +
+      '</div>';
+    }).join('') || '<p class="sub">Nenhum template cadastrado ainda.</p>';
+
+    var variaveisChipsList = SDR_VARIAVEIS.map(function(v){
+      return '<span class="tag" style="margin:3px">{{' + esc(v) + '}}</span>';
+    }).join('');
+
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Templates de Mensagens</h2><p>Mensagens reutilizáveis para as etapas das cadências, com variáveis substituídas automaticamente.</p></div>' +
+      (podeGerenciar ? '<div class="kanban-actions-row"><button class="primary" onclick="sdrAbrirModalTemplate()">Novo template</button></div>' : '') + '</div>' +
+      '<div class="callout" style="margin-bottom:16px"><b>Variáveis disponíveis:</b><br><div style="margin-top:6px">' + variaveisChipsList + '</div><p class="sub" style="margin-top:8px">Ao copiar a mensagem em um card de Cadência, elas são substituídas automaticamente pelos dados do lead.</p></div>' +
+      '<div class="grid cols3">' + cardsHtml + '</div>';
+  };
+
+  window.sdrInserirVariavel = function(token){
+    var ta = document.getElementById('sdrTplTexto');
+    if(!ta) return;
+    var trecho = '{{' + token + '}}';
+    var start = (ta.selectionStart != null) ? ta.selectionStart : ta.value.length;
+    var end = (ta.selectionEnd != null) ? ta.selectionEnd : ta.value.length;
+    ta.value = ta.value.slice(0, start) + trecho + ta.value.slice(end);
+    ta.focus();
+    var novaPos = start + trecho.length;
+    try{ ta.setSelectionRange(novaPos, novaPos); }catch(e){}
+  };
+
+  window.sdrAbrirModalTemplate = function(templateId){
+    if(typeof has === 'function' && !has('sdr_templates_ver')){ toastSafe('Sem permissão.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var t = templateId ? d.sdrTemplates.find(function(x){ return x.id === templateId; }) : null;
+    var titulo = templateId ? 'Editar template' : 'Novo template';
+    var variaveisBotoes = SDR_VARIAVEIS.map(function(v){
+      return '<button type="button" class="kanban-mini" onclick="sdrInserirVariavel(\'' + esc(v) + '\')">+ {{' + esc(v) + '}}</button>';
+    }).join('');
+    var categoriaAtual = t ? (t.categoria || '') : '';
+    var opcoesCategoria = SDR_CATEGORIAS_TEMPLATE.slice();
+    if(categoriaAtual && opcoesCategoria.indexOf(categoriaAtual) === -1) opcoesCategoria.push(categoriaAtual);
+    var categoriaOptionsHtml = '<option value="">Selecione a categoria</option>' + opcoesCategoria.map(function(c){
+      return '<option value="' + escAttr(c) + '"' + (categoriaAtual === c ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+    var html = '<div class="grid cols2"><div class="field"><label>Nome</label><input id="sdrTplNome" value="' + escAttr(t ? t.nome : '') + '" placeholder="Ex.: Primeiro contato Instagram"></div><div class="field"><label>Categoria</label><select id="sdrTplCategoria">' + categoriaOptionsHtml + '</select></div></div>' +
+      '<div class="field"><label>Inserir variável</label><div class="mini-line" style="flex-wrap:wrap">' + variaveisBotoes + '</div></div>' +
+      '<div class="field"><label>Texto</label><textarea id="sdrTplTexto" rows="6" placeholder="Ex.: Olá {{Nome}}, aqui é da Na Ponta da Chave! Vi seu interesse em {{Empreendimento}}...">' + esc(t ? t.texto : '') + '</textarea></div>' +
+      '<p class="sub">Clique em uma variável acima para inserir no cursor, ou digite manualmente no formato {{Nome}}.</p>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="sdrSalvarTemplate(\'' + escAttr(templateId||'') + '\')">Salvar template</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal(titulo, html);
+  };
+
+  window.sdrSalvarTemplate = function(templateId){
+    ensureSdrData();
+    var d = dbRef();
+    var nome = ((document.getElementById('sdrTplNome')||{}).value || '').trim();
+    var categoria = ((document.getElementById('sdrTplCategoria')||{}).value || '').trim();
+    var texto = ((document.getElementById('sdrTplTexto')||{}).value || '').trim();
+    if(!nome || !texto){ toastSafe('Informe nome e texto do template.'); return; }
+    var tId = String(templateId || '');
+    if(tId){
+      var existente = d.sdrTemplates.find(function(x){ return x.id === tId; });
+      if(!existente) return;
+      existente.nome = nome; existente.categoria = categoria; existente.texto = texto; existente.updatedAt = new Date().toISOString();
+    } else {
+      d.sdrTemplates.push({ id: uid(), nome: nome, categoria: categoria, texto: texto, createdAt: new Date().toISOString(), createdBy: (current && current.id) || '' });
+    }
+    doSave();
+    try{ closeModal(); }catch(e){}
+    window.render_sdr_templates();
+  };
+
+  window.sdrExcluirTemplate = function(templateId){
+    if(typeof has === 'function' && !has('sdr_templates_ver')){ toastSafe('Sem permissão.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var emUso = (d.sdrCadencias||[]).some(function(c){ return (c.etapas||[]).some(function(e){ return e.templateId === templateId; }); });
+    if(emUso){ toastSafe('Este template está em uso em ao menos uma etapa de cadência. Remova-o das etapas antes de excluir.'); return; }
+    if(!confirm('Excluir este template?')) return;
+    d.sdrTemplates = d.sdrTemplates.filter(function(t){ return t.id !== templateId; });
+    doSave();
+    window.render_sdr_templates();
+  };
+
+  /* ================= Gestão de Cadências ================= */
+  window.render_sdr_gestao_cadencias = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('sdr_gestao_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar a Gestão de Cadências.</div>';
+      return;
+    }
+    ensureSdrData();
+    /* se estivermos no meio da edição de uma cadência, mantém o editor aberto —
+       isso evita que uma sincronização em segundo plano (Firebase em tempo real)
+       jogue a tela de volta para a listagem enquanto o usuário ainda está preenchendo os campos */
+    if(window.__sdrEditorCadenciaId){
+      var existeCadenciaEmEdicao = dbRef().sdrCadencias.some(function(c){ return c.id === window.__sdrEditorCadenciaId; });
+      if(existeCadenciaEmEdicao){ sdrRenderEditorCadencia(window.__sdrEditorCadenciaId); return; }
+      window.__sdrEditorCadenciaId = '';
+    }
+    var d = dbRef();
+    var lista = d.sdrCadencias.slice().sort(function(a,b){ return (Number(a.ordem)||0) - (Number(b.ordem)||0); });
+    var cardsHtml = lista.map(function(c){
+      var qtdEtapas = (c.etapas||[]).length;
+      return '<div class="card pad"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div><span class="badge ' + (c.ativa !== false ? 'g' : '') + '">' + (c.ativa !== false ? 'Ativa' : 'Inativa') + '</span><h3 style="margin-top:8px">' + esc(c.nome||'Cadência') + '</h3></div><span class="sub">Ordem ' + esc(c.ordem||'—') + '</span></div>' +
+        '<p class="sub">' + esc(c.descricao||'Sem descrição.') + '</p>' +
+        '<p><b>Origem vinculada:</b> ' + esc(c.origem || '—') + '</p>' +
+        '<p><b>Etapas configuradas:</b> ' + qtdEtapas + '</p>' +
+        '<div class="mini-line"><button class="kanban-mini" onclick="sdrAbrirEditorCadencia(\'' + escAttr(c.id) + '\')">Editar</button>' +
+        '<button class="kanban-mini" onclick="sdrDuplicarCadencia(\'' + escAttr(c.id) + '\')">Duplicar</button>' +
+        '<button class="kanban-mini" onclick="sdrAlternarAtivaCadencia(\'' + escAttr(c.id) + '\')">' + (c.ativa !== false ? 'Inativar' : 'Ativar') + '</button>' +
+        '<button class="kanban-mini danger" onclick="sdrExcluirCadencia(\'' + escAttr(c.id) + '\')">×</button></div>' +
+      '</div>';
+    }).join('') || '<p class="sub">Nenhuma cadência cadastrada ainda.</p>';
+
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Gestão de Cadências</h2><p>Configure as cadências de relacionamento da SDR, vinculadas à origem do lead.</p></div>' +
+      '<div class="kanban-actions-row"><button class="primary" onclick="sdrNovaCadencia()">Nova cadência</button><button class="secondary" onclick="go(\'sdr_templates\')">Templates de Mensagens</button></div></div>' +
+      '<div class="grid cols3">' + cardsHtml + '</div>';
+  };
+
+  window.sdrNovaCadencia = function(){
+    if(typeof has === 'function' && !has('sdr_gestao_ver')){ toastSafe('Sem permissão.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var novo = { id: uid(), nome: 'Nova cadência', descricao: '', ativa: true, origem: '', ordem: d.sdrCadencias.length + 1, etapas: [], createdAt: new Date().toISOString() };
+    d.sdrCadencias.push(novo);
+    doSave();
+    window.sdrAbrirEditorCadencia(novo.id);
+  };
+
+  window.sdrDuplicarCadencia = function(cadenciaId){
+    if(typeof has === 'function' && !has('sdr_gestao_ver')){ toastSafe('Sem permissão.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var original = d.sdrCadencias.find(function(c){ return c.id === cadenciaId; });
+    if(!original) return;
+    var copia = JSON.parse(JSON.stringify(original));
+    copia.id = uid();
+    copia.nome = (original.nome || 'Cadência') + ' (cópia)';
+    copia.ordem = d.sdrCadencias.length + 1;
+    copia.etapas = (original.etapas || []).map(function(e){ var ne = Object.assign({}, e); ne.id = uid(); return ne; });
+    copia.createdAt = new Date().toISOString();
+    d.sdrCadencias.push(copia);
+    doSave();
+    window.__sdrEditorCadenciaId = '';
+    window.render_sdr_gestao_cadencias();
+    toastSafe('Cadência duplicada.');
+  };
+
+  window.sdrAlternarAtivaCadencia = function(cadenciaId){
+    if(typeof has === 'function' && !has('sdr_gestao_ver')){ toastSafe('Sem permissão.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c) return;
+    c.ativa = c.ativa === false;
+    doSave();
+    window.render_sdr_gestao_cadencias();
+  };
+
+  window.sdrExcluirCadencia = function(cadenciaId){
+    if(typeof has === 'function' && !has('sdr_gestao_ver')){ toastSafe('Sem permissão.'); return; }
+    ensureSdrData();
+    var d = dbRef();
+    var emUso = (d.sdrLeadsCadencia||[]).some(function(r){ return r.cadenciaId === cadenciaId && !r.cadenciaEncerrada; });
+    if(emUso){ toastSafe('Não é possível excluir: existem leads em andamento nesta cadência.'); return; }
+    if(!confirm('Excluir esta cadência?')) return;
+    d.sdrCadencias = d.sdrCadencias.filter(function(c){ return c.id !== cadenciaId; });
+    doSave();
+    window.render_sdr_gestao_cadencias();
+  };
+
+  function sdrEtapaCardHTML(cadenciaId, etapa, index, total){
+    var d = dbRef();
+    var templatesOptions = '<option value="">Sem template</option>' + (d.sdrTemplates||[]).map(function(t){
+      return '<option value="' + escAttr(t.id) + '"' + (etapa.templateId === t.id ? ' selected' : '') + '>' + esc(t.nome) + '</option>';
+    }).join('');
+    var tiposOptions = SDR_TIPOS.map(function(t){ return '<option value="' + t[0] + '"' + (etapa.tipo === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
+    var unidadesOptions = SDR_UNIDADES.map(function(u){ return '<option value="' + u[0] + '"' + (etapa.tempoUnidade === u[0] ? ' selected' : '') + '>' + u[1] + '</option>'; }).join('');
+    return '<div class="card pad" draggable="true" ondragstart="sdrEtapaDragStart(event,\'' + escAttr(etapa.id) + '\')" ondragover="sdrEtapaDragOver(event)" ondrop="sdrEtapaDrop(event,\'' + escAttr(cadenciaId) + '\',\'' + escAttr(etapa.id) + '\')" style="margin-bottom:12px;cursor:move">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Etapa ' + (index+1) + ' de ' + total + '</b><span class="sub">arraste ⠿ para reordenar</span></div>' +
+      '<div class="grid cols3">' +
+        '<div class="field"><label>Nome</label><input id="sdrEtapaNome_' + escAttr(etapa.id) + '" value="' + escAttr(etapa.nome||'') + '"></div>' +
+        '<div class="field"><label>Tipo da atividade</label><select id="sdrEtapaTipo_' + escAttr(etapa.id) + '">' + tiposOptions + '</select></div>' +
+        '<div class="field"><label>Responsável</label><select id="sdrEtapaResp_' + escAttr(etapa.id) + '">' + sdrUsuarioOptions(etapa.responsavelId) + '</select></div>' +
+      '</div>' +
+      '<div class="grid cols3">' +
+        '<div class="field"><label>Tempo de espera (após a etapa anterior)</label><input type="number" min="0" id="sdrEtapaTempo_' + escAttr(etapa.id) + '" value="' + escAttr(etapa.tempoValor!=null?etapa.tempoValor:1) + '"></div>' +
+        '<div class="field"><label>Unidade</label><select id="sdrEtapaUnidade_' + escAttr(etapa.id) + '">' + unidadesOptions + '</select></div>' +
+        '<div class="field"><label>Template de mensagem</label><select id="sdrEtapaTemplate_' + escAttr(etapa.id) + '">' + templatesOptions + '</select></div>' +
+      '</div>' +
+      '<div class="grid cols3">' +
+        '<label class="checkline"><input type="checkbox" id="sdrEtapaObrigatoria_' + escAttr(etapa.id) + '" ' + (etapa.obrigatoria !== false ? 'checked' : '') + '><span>Etapa obrigatória</span></label>' +
+        '<label class="checkline"><input type="checkbox" id="sdrEtapaIgnorar_' + escAttr(etapa.id) + '" ' + (etapa.podeIgnorar ? 'checked' : '') + '><span>Pode ser ignorada</span></label>' +
+      '</div>' +
+      '<div class="field"><label>Observações</label><textarea id="sdrEtapaObs_' + escAttr(etapa.id) + '" rows="2">' + esc(etapa.observacoes||'') + '</textarea></div>' +
+      '<div class="actions"><button class="primary" onclick="sdrSalvarEtapa(\'' + escAttr(cadenciaId) + '\',\'' + escAttr(etapa.id) + '\')">Salvar etapa</button><button class="danger" onclick="sdrExcluirEtapa(\'' + escAttr(cadenciaId) + '\',\'' + escAttr(etapa.id) + '\')">Excluir etapa</button></div>' +
+    '</div>';
+  }
+
+  function sdrRenderEditorCadencia(cadenciaId){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('sdr_gestao_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar a Gestão de Cadências.</div>';
+      return;
+    }
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c){ window.__sdrEditorCadenciaId = ''; content.innerHTML = '<div class="empty">Cadência não encontrada.</div>'; return; }
+    var origens = sdrOrigensDisponiveis();
+    var origemOptions = '<option value="">Selecione a origem</option>' + origens.map(function(o){
+      return '<option value="' + escAttr(o) + '"' + (c.origem === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+    }).join('');
+    var etapas = sdrCadenciaOrdenarEtapas(c);
+    var etapasHtml = etapas.map(function(e, i){ return sdrEtapaCardHTML(c.id, e, i, etapas.length); }).join('') || '<p class="sub">Nenhuma etapa cadastrada ainda. Clique em "Adicionar etapa".</p>';
+
+    content.innerHTML = '<div class="section"><div><h2>Editar cadência</h2><p>Configure os dados gerais e as etapas desta cadência. A ordem das etapas pode ser alterada arrastando os cartões.</p></div><button class="secondary" onclick="sdrVoltarGestaoCadencias()">Voltar à Gestão de Cadências</button></div>' +
+      '<div class="card pad" style="margin-bottom:18px">' +
+        '<div class="grid cols2"><div class="field"><label>Nome</label><input id="sdrCadNome" value="' + escAttr(c.nome||'') + '"></div><div class="field"><label>Origem vinculada</label><select id="sdrCadOrigem">' + origemOptions + '</select></div></div>' +
+        '<div class="field"><label>Descrição</label><textarea id="sdrCadDescricao" rows="2">' + esc(c.descricao||'') + '</textarea></div>' +
+        '<div class="grid cols2"><div class="field"><label>Ordem de execução</label><input type="number" min="1" id="sdrCadOrdem" value="' + escAttr(c.ordem||1) + '"></div><label class="checkline" style="margin-top:26px"><input type="checkbox" id="sdrCadAtiva" ' + (c.ativa !== false ? 'checked' : '') + '><span>Cadência ativa</span></label></div>' +
+        '<div class="actions"><button class="primary" onclick="sdrSalvarCadenciaBasico(\'' + escAttr(c.id) + '\')">Salvar dados da cadência</button></div>' +
+      '</div>' +
+      '<div class="section"><div><h3>Etapas da cadência</h3><p class="sub">Cada etapa dispara uma atividade da SDR, com tempo de espera em relação à etapa anterior.</p></div><button class="primary" onclick="sdrAdicionarEtapa(\'' + escAttr(c.id) + '\')">+ Adicionar etapa</button></div>' +
+      etapasHtml;
+  }
+
+  window.sdrAbrirEditorCadencia = function(cadenciaId){
+    window.__sdrEditorCadenciaId = cadenciaId;
+    window.render_sdr_gestao_cadencias();
+  };
+
+  window.sdrVoltarGestaoCadencias = function(){
+    window.__sdrEditorCadenciaId = '';
+    if(typeof go === 'function') go('sdr_gestao_cadencias');
+    else window.render_sdr_gestao_cadencias();
+  };
+
+  window.sdrSalvarCadenciaBasico = function(cadenciaId){
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c) return;
+    c.nome = ((document.getElementById('sdrCadNome')||{}).value || '').trim() || 'Cadência';
+    c.descricao = ((document.getElementById('sdrCadDescricao')||{}).value || '').trim();
+    c.origem = (document.getElementById('sdrCadOrigem')||{}).value || '';
+    c.ordem = Number((document.getElementById('sdrCadOrdem')||{}).value) || 1;
+    c.ativa = !!(document.getElementById('sdrCadAtiva')||{}).checked;
+    doSave();
+    toastSafe('Dados da cadência salvos.');
+    window.sdrAbrirEditorCadencia(cadenciaId);
+  };
+
+  window.sdrAdicionarEtapa = function(cadenciaId){
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c) return;
+    c.etapas.push({ id: uid(), nome: 'Nova etapa', ordem: c.etapas.length + 1, tipo: 'whatsapp', tempoValor: 1, tempoUnidade: 'horas', templateId: '', obrigatoria: true, podeIgnorar: false, responsavelId: '', observacoes: '' });
+    doSave();
+    window.sdrAbrirEditorCadencia(cadenciaId);
+  };
+
+  window.sdrSalvarEtapa = function(cadenciaId, etapaId){
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c) return;
+    var e = c.etapas.find(function(x){ return x.id === etapaId; });
+    if(!e) return;
+    e.nome = ((document.getElementById('sdrEtapaNome_'+etapaId)||{}).value || '').trim() || 'Etapa';
+    e.tipo = (document.getElementById('sdrEtapaTipo_'+etapaId)||{}).value || 'tarefa';
+    e.responsavelId = (document.getElementById('sdrEtapaResp_'+etapaId)||{}).value || '';
+    e.tempoValor = Number((document.getElementById('sdrEtapaTempo_'+etapaId)||{}).value) || 0;
+    e.tempoUnidade = (document.getElementById('sdrEtapaUnidade_'+etapaId)||{}).value || 'horas';
+    e.templateId = (document.getElementById('sdrEtapaTemplate_'+etapaId)||{}).value || '';
+    e.obrigatoria = !!(document.getElementById('sdrEtapaObrigatoria_'+etapaId)||{}).checked;
+    e.podeIgnorar = !!(document.getElementById('sdrEtapaIgnorar_'+etapaId)||{}).checked;
+    e.observacoes = ((document.getElementById('sdrEtapaObs_'+etapaId)||{}).value || '').trim();
+    doSave();
+    toastSafe('Etapa salva.');
+    window.sdrAbrirEditorCadencia(cadenciaId);
+  };
+
+  window.sdrExcluirEtapa = function(cadenciaId, etapaId){
+    if(!confirm('Excluir esta etapa?')) return;
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c) return;
+    c.etapas = c.etapas.filter(function(e){ return e.id !== etapaId; });
+    c.etapas.forEach(function(e, i){ e.ordem = i + 1; });
+    doSave();
+    window.sdrAbrirEditorCadencia(cadenciaId);
+  };
+
+  window.sdrEtapaDragStart = function(ev, etapaId){ try{ ev.dataTransfer.setData('text/plain', etapaId); }catch(e){} };
+  window.sdrEtapaDragOver = function(ev){ ev.preventDefault(); };
+  window.sdrEtapaDrop = function(ev, cadenciaId, etapaIdAlvo){
+    ev.preventDefault();
+    var etapaIdOrigem = ev.dataTransfer.getData('text/plain');
+    if(!etapaIdOrigem || etapaIdOrigem === etapaIdAlvo) return;
+    ensureSdrData();
+    var d = dbRef();
+    var c = d.sdrCadencias.find(function(x){ return x.id === cadenciaId; });
+    if(!c) return;
+    var etapas = sdrCadenciaOrdenarEtapas(c);
+    var idxOrigem = etapas.findIndex(function(e){ return e.id === etapaIdOrigem; });
+    var idxAlvo = etapas.findIndex(function(e){ return e.id === etapaIdAlvo; });
+    if(idxOrigem < 0 || idxAlvo < 0) return;
+    var item = etapas.splice(idxOrigem, 1)[0];
+    etapas.splice(idxAlvo, 0, item);
+    etapas.forEach(function(e, i){ e.ordem = i + 1; });
+    c.etapas = etapas;
+    doSave();
+    window.sdrAbrirEditorCadencia(cadenciaId);
+  };
+
+  /* ================= Cadências (tela operacional da SDR) ================= */
+  function sdrFiltroState(){
+    return window.__sdrCadFiltro || (window.__sdrCadFiltro = { tipo: 'hoje', busca: '' });
+  }
+  function sdrMesmoDia(iso, ref){
+    if(!iso) return false;
+    var a = new Date(iso), b = ref || new Date();
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function sdrDiasEntre(iso, ref){
+    if(!iso) return null;
+    var a = new Date(iso), b = ref || new Date();
+    var da = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+    var db = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+    return Math.round((da.getTime() - db.getTime()) / 86400000);
+  }
+  window.sdrAplicarFiltroCadencia = function(tipo){
+    sdrFiltroState().tipo = tipo;
+    window.render_sdr_cadencias();
+  };
+
+  function sdrSituacaoBadge(situacao){
+    if(situacao === 'Perdido') return '<span class="badge" style="background:#ffe8e5;color:#a61b12">' + esc(situacao||'—') + '</span>';
+    if(SDR_SITUACOES_QUALIFICADAS.indexOf(situacao) !== -1) return '<span class="badge g">' + esc(situacao||'—') + '</span>';
+    return '<span class="badge y">' + esc(situacao||'—') + '</span>';
+  }
+
+  function sdrRenderCardLead(r){
+    var d = dbRef();
+    var cadencia = r.cadenciaId ? d.sdrCadencias.find(function(c){ return c.id === r.cadenciaId; }) : null;
+    var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+    var etapaAtual = etapas[r.etapaAtualIndex];
+    var encerrada = !!r.cadenciaEncerrada;
+    var terminal = (r.situacao === 'Qualificado' || r.situacao === 'Perdido');
+    var horarioPrevisto = r.proximaAtividade && r.proximaAtividade.previstoPara ? new Date(r.proximaAtividade.previstoPara).toLocaleString('pt-BR') : '—';
+    var atrasada = r.proximaAtividade && r.proximaAtividade.previstoPara && new Date(r.proximaAtividade.previstoPara) < new Date() && !terminal;
+
+    return '<div class="kanban-card' + (atrasada ? ' overdue' : '') + '" data-sdr-nome="' + escAttr(sdrNormTexto(r.leadNome || '')) + '" style="' + (atrasada ? 'border-color:#e0554f' : '') + '">' +
+      '<h4>' + esc(r.leadNome || 'Lead') + '</h4>' +
+      '<p><b>Telefone:</b> ' + esc(r.leadTelefone || '—') + '</p>' +
+      '<p><b>Origem:</b> ' + esc(r.origem || '—') + '</p>' +
+      (r.corretorNome ? '<p><b>Corretor:</b> ' + esc(r.corretorNome) + '</p>' : '') +
+      '<p><b>Data atendimento:</b> ' + esc(sdrFormatarDataSimples(r.dataAtendimento || r.createdAt)) + '</p>' +
+      '<p><b>Etapa atual:</b> ' + (etapaAtual ? esc(etapaAtual.nome) + ' (' + (r.etapaAtualIndex+1) + '/' + etapas.length + ')' : (encerrada ? 'Cadência encerrada' : '—')) + '</p>' +
+      '<p><b>Horário previsto:</b> ' + esc(horarioPrevisto) + (atrasada ? ' <span class="badge" style="background:#ffe8e5;color:#a61b12">Atrasada</span>' : '') + '</p>' +
+      '<p><b>Situação:</b> ' + sdrSituacaoBadge(r.situacao) + '</p>' +
+      '<div class="mini-line"><button class="kanban-mini primary" onclick="sdrAbrirDetalhesLead(\'' + escAttr(r.id) + '\')">Abrir</button></div>' +
+    '</div>';
+  }
+
+  window.sdrAbrirDetalhesLead = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)){ toastSafe('Lead não encontrado.'); return; }
+    var cadencia = r.cadenciaId ? d.sdrCadencias.find(function(c){ return c.id === r.cadenciaId; }) : null;
+    var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+    var etapaAtual = etapas[r.etapaAtualIndex];
+    var encerrada = !!r.cadenciaEncerrada;
+    var terminal = (r.situacao === 'Qualificado' || r.situacao === 'Perdido');
+    var horarioPrevisto = r.proximaAtividade && r.proximaAtividade.previstoPara ? new Date(r.proximaAtividade.previstoPara).toLocaleString('pt-BR') : '—';
+    var atrasada = r.proximaAtividade && r.proximaAtividade.previstoPara && new Date(r.proximaAtividade.previstoPara) < new Date() && !terminal;
+
+    var etapaOptions = etapas.map(function(e, i){
+      return '<option value="' + i + '"' + (i === r.etapaAtualIndex ? ' selected' : '') + '>' + (i+1) + '. ' + esc(e.nome) + '</option>';
+    }).join('');
+
+    var cadenciaOptions = '<option value="">Nenhuma (sem cadência)</option>' + (d.sdrCadencias||[]).slice().sort(function(a,b){ return String(a.nome||'').localeCompare(String(b.nome||'')); }).map(function(c){
+      return '<option value="' + escAttr(c.id) + '"' + (r.cadenciaId === c.id ? ' selected' : '') + '>' + esc(c.nome||'Sem nome') + (c.ativa === false ? ' (inativa)' : '') + '</option>';
+    }).join('');
+
+    var acoesBotoesHtml = '';
+    if(!terminal){
+      acoesBotoesHtml =
+        '<button class="secondary" onclick="sdrAbrirRegistroAtividade(\'' + escAttr(r.id) + '\')">Registrar contato</button>' +
+        (!encerrada ? '<button class="secondary" onclick="sdrAbrirConcluirEtapa(\'' + escAttr(r.id) + '\')">Concluir etapa</button><button class="secondary" onclick="sdrAbrirAdiar(\'' + escAttr(r.id) + '\')">Adiar</button>' : '') +
+        '<button class="secondary" onclick="sdrAbrirQualificar(\'' + escAttr(r.id) + '\')">Qualificar Lead</button>' +
+        '<button class="danger" onclick="sdrAbrirPerdido(\'' + escAttr(r.id) + '\')">Marcar como Perdido</button>';
+    }
+
+    var etapaAtribuicaoHtml = (!terminal && etapas.length) ? (
+      '<div class="field" style="margin:0 0 8px"><label>Atribuir etapa da cadência</label><select id="sdrDetalheEtapaSelect">' + etapaOptions + '</select></div>' +
+      '<button class="secondary" onclick="sdrAtribuirEtapaManual(\'' + escAttr(r.id) + '\')">Definir etapa</button>'
+    ) : (!terminal ? '<p class="sub" style="margin-top:0">Vincule uma cadência para poder atribuir etapas.</p>' : '');
+
+    var cadenciaVinculoHtml = !terminal ? (
+      '<div class="field" style="margin:0 0 8px"><label>Cadência vinculada</label><select id="sdrDetalheCadenciaSelect">' + cadenciaOptions + '</select></div>' +
+      '<button class="secondary" onclick="sdrVincularCadencia(\'' + escAttr(r.id) + '\')">Vincular cadência</button>'
+    ) : '';
+
+    var mensagemEtapaTexto = terminal ? null : sdrMensagemEtapaAtual(r);
+
+    var infoCardHtml = '<div class="card pad" style="margin-bottom:14px"><div class="grid cols2">' +
+        '<div>' +
+          '<p><b>Telefone:</b> ' + esc(r.leadTelefone || '—') + '</p>' +
+          '<p><b>Origem:</b> ' + esc(r.origem || '—') + '</p>' +
+          '<p><b>Empreendimento:</b> ' + esc(r.empreendimento || '—') + ' <a href="javascript:void(0)" onclick="sdrDefinirEmpreendimento(\'' + escAttr(r.id) + '\')" class="sub">(editar)</a></p>' +
+          (r.corretorNome ? '<p><b>Corretor:</b> ' + esc(r.corretorNome) + '</p>' : '') +
+          '<p style="margin-bottom:0"><b>Data atendimento:</b> ' + esc(sdrFormatarDataSimples(r.dataAtendimento || r.createdAt)) + '</p>' +
+        '</div>' +
+        '<div>' +
+          '<p><b>Situação:</b> ' + sdrSituacaoBadge(r.situacao) + '</p>' +
+          '<p><b>Etapa atual:</b> ' + (etapaAtual ? esc(etapaAtual.nome) + ' (' + (r.etapaAtualIndex+1) + '/' + etapas.length + ')' : (encerrada ? 'Cadência encerrada' : '—')) + '</p>' +
+          '<p><b>Próxima atividade:</b> ' + (r.proximaAtividade ? sdrTipoLabel(r.proximaAtividade.tipo) + ' — ' + esc(r.proximaAtividade.etapaNome||'') : '—') + '</p>' +
+          '<p style="margin-bottom:0"><b>Horário previsto:</b> ' + esc(horarioPrevisto) + (atrasada ? ' <span class="badge" style="background:#ffe8e5;color:#a61b12">Atrasada</span>' : '') + '</p>' +
+        '</div>' +
+      '</div></div>';
+
+    var cadenciaCardHtml = !terminal ? (
+      '<div class="card pad" style="margin-bottom:14px"><h4 style="margin:0 0 12px">Cadência</h4><div class="grid cols2">' +
+        '<div>' + cadenciaVinculoHtml + '</div>' +
+        '<div>' + etapaAtribuicaoHtml + '</div>' +
+      '</div></div>'
+    ) : '';
+
+    var mensagemCardHtml = !terminal ? (
+      '<div class="callout" style="margin-bottom:14px">' +
+        '<label style="display:block;margin-bottom:8px">Mensagem para esta etapa</label>' +
+        (mensagemEtapaTexto ?
+          '<textarea readonly rows="4" style="background:#fff;margin-bottom:10px">' + esc(mensagemEtapaTexto) + '</textarea>' +
+          '<button class="primary" onclick="sdrCopiarMensagem(\'' + escAttr(r.id) + '\')">Copiar mensagem</button>'
+          : '<p class="sub" style="margin:0">Nenhum template configurado para a etapa atual. Configure um template para esta etapa em Gestão de Cadências.</p>')
+      + '</div>'
+    ) : '';
+
+    var html = infoCardHtml + cadenciaCardHtml + mensagemCardHtml +
+      '<div class="actions kanban-form-actions"><button class="secondary" onclick="sdrAbrirHistorico(\'' + escAttr(r.id) + '\')">Histórico</button>' + acoesBotoesHtml + '<button class="secondary" onclick="closeModal()">Fechar</button></div>';
+
+    openModal(esc(r.leadNome || 'Lead'), html);
+  };
+
+  /* Garante que, ao fechar o pop-up de detalhes do lead (pelo X ou pelo botão Fechar),
+     a listagem por trás seja atualizada com os dados mais recentes. Usamos o closeModal
+     global (em vez de um botão com função própria) porque outro patch do sistema (V49)
+     insere automaticamente um segundo botão "Fechar" em qualquer modal cujo HTML não
+     contenha literalmente onclick="closeModal()" — então mantemos esse texto exato no
+     botão para evitar o botão duplicado, e cuidamos da atualização da lista aqui. */
+  if(typeof window.closeModal === 'function' && !window.__sdrCloseModalWrapped){
+    window.__sdrCloseModalWrapped = true;
+    var _oldCloseModalParaSdr = window.closeModal;
+    window.closeModal = function(){
+      var resultado = _oldCloseModalParaSdr.apply(this, arguments);
+      try{
+        if(window.page === 'sdr_cadencias' && typeof window.render_sdr_cadencias === 'function') window.render_sdr_cadencias();
+      }catch(e){}
+      return resultado;
+    };
+  }
+
+  window.sdrVincularCadencia = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var sel = document.getElementById('sdrDetalheCadenciaSelect');
+    if(!sel) return;
+    var novaCadenciaId = sel.value || '';
+    var cadenciaAnterior = r.cadenciaId ? d.sdrCadencias.find(function(c){ return c.id === r.cadenciaId; }) : null;
+    var nomeAnterior = cadenciaAnterior ? cadenciaAnterior.nome : 'nenhuma';
+    var cadencia = novaCadenciaId ? d.sdrCadencias.find(function(c){ return c.id === novaCadenciaId; }) : null;
+    var agora = new Date();
+    r.cadenciaId = novaCadenciaId;
+    r.etapaAtualIndex = 0;
+    if(cadencia){
+      var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+      if(etapas.length){
+        r.cadenciaEncerrada = false;
+        sdrAgendarProximaAtividade(r, cadencia, 0, agora);
+      } else {
+        r.proximaAtividade = null;
+        r.cadenciaEncerrada = true;
+      }
+      if(r.situacao === 'Novo') r.situacao = 'Em Cadência';
+      r.timeline.push({ texto: 'Cadência vinculada: ' + nomeAnterior + ' → ' + cadencia.nome, tipo: 'sistema', criadoEm: agora.toISOString() });
+    } else {
+      r.proximaAtividade = null;
+      r.cadenciaEncerrada = true;
+      r.timeline.push({ texto: 'Cadência removida (era: ' + nomeAnterior + ')', tipo: 'sistema', criadoEm: agora.toISOString() });
+    }
+    doSave();
+    toastSafe('Cadência atualizada.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.sdrAtribuirEtapaManual = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var sel = document.getElementById('sdrDetalheEtapaSelect');
+    if(!sel) return;
+    var novoIndex = parseInt(sel.value, 10);
+    if(isNaN(novoIndex)) return;
+    var cadencia = r.cadenciaId ? d.sdrCadencias.find(function(c){ return c.id === r.cadenciaId; }) : null;
+    var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+    var etapaAnteriorNome = etapas[r.etapaAtualIndex] ? etapas[r.etapaAtualIndex].nome : '—';
+    var agora = new Date();
+    r.etapaAtualIndex = novoIndex;
+    if(cadencia && etapas[novoIndex]){
+      r.cadenciaEncerrada = false;
+      sdrAgendarProximaAtividade(r, cadencia, novoIndex, agora);
+    } else {
+      r.proximaAtividade = null;
+      r.cadenciaEncerrada = true;
+    }
+    if(r.situacao === 'Novo') r.situacao = 'Em Cadência';
+    r.timeline.push({ texto: 'Etapa definida manualmente: ' + etapaAnteriorNome + ' → ' + (etapas[novoIndex] ? etapas[novoIndex].nome : '—'), tipo: 'sistema', criadoEm: agora.toISOString() });
+    doSave();
+    toastSafe('Etapa atualizada.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.render_sdr_cadencias = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('sdr_cadencias_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar as Cadências.</div>';
+      return;
+    }
+    ensureSdrData();
+    var d = dbRef();
+    var filtro = sdrFiltroState();
+    var agora = new Date();
+    var meuId = String((current && current.id) || '');
+
+    var registros = (d.sdrLeadsCadencia || []).filter(sdrCanAccessRegistro);
+
+    registros = registros.filter(function(r){
+      var terminal = (r.situacao === 'Qualificado' || r.situacao === 'Perdido');
+      var atrasada = r.proximaAtividade && r.proximaAtividade.previstoPara && new Date(r.proximaAtividade.previstoPara) < agora && !terminal;
+      var dias = (r.proximaAtividade && r.proximaAtividade.previstoPara) ? sdrDiasEntre(r.proximaAtividade.previstoPara, agora) : null;
+      switch(filtro.tipo){
+        case 'pendentes': return !terminal && !r.cadenciaId;
+        case 'hoje': return !terminal && dias === 0;
+        case 'amanha': return !terminal && dias === 1;
+        case 'em7': return !terminal && dias !== null && dias >= 0 && dias <= 7;
+        case 'em30': return !terminal && dias !== null && dias >= 0 && dias <= 30;
+        case 'atrasadas': return atrasada;
+        case 'qualificados': return SDR_SITUACOES_QUALIFICADAS.indexOf(r.situacao) !== -1;
+        case 'perdidos': return r.situacao === 'Perdido';
+        default: return true;
+      }
+    });
+
+    registros.sort(function(a, b){
+      var pa = a.proximaAtividade && a.proximaAtividade.previstoPara ? new Date(a.proximaAtividade.previstoPara).getTime() : Infinity;
+      var pb = b.proximaAtividade && b.proximaAtividade.previstoPara ? new Date(b.proximaAtividade.previstoPara).getTime() : Infinity;
+      return pa - pb;
+    });
+
+    var abas = [['pendentes','Pendentes'],['hoje','Hoje'],['amanha','Amanhã'],['em7','Em 7 dias'],['em30','Em 30 dias'],['atrasadas','Atrasadas'],['qualificados','Qualificados'],['perdidos','Perdidos'],['todos','Todos']];
+    var abasHtml = abas.map(function(a){
+      return '<button class="' + (filtro.tipo === a[0] ? 'primary' : 'secondary') + '" style="margin-right:6px" onclick="sdrAplicarFiltroCadencia(\'' + a[0] + '\')">' + a[1] + '</button>';
+    }).join('');
+
+    var cardsHtml = registros.map(sdrRenderCardLead).join('') || '<p class="sub" style="padding:10px">Nenhum lead encontrado para este filtro.</p>';
+
+    var statusImportacaoHtml = '';
+    if(sdrIsAdmin()){
+      var contagem = sdrContarAtendimentosDisponiveis();
+      if(contagem.total === 0){
+        statusImportacaoHtml = '<div class="callout" style="margin-bottom:16px"><b>Nenhum atendimento encontrado na base de Vendas.</b> Faça primeiro o upload da planilha em <button class="kanban-mini" onclick="go(\'analise360_upload\')">Importar Análise 360°</button>, depois volte aqui e clique em "Importar da base de Atendimentos de Vendas".</div>';
+      } else {
+        statusImportacaoHtml = '<div class="callout" style="margin-bottom:16px"><b>Base de Atendimentos de Vendas</b> (apenas etapa "' + esc(SDR_ETAPA_IMPORTACAO) + '"): ' + contagem.total + ' atendimento(s) encontrados · ' + contagem.jaImportados + ' já importado(s) · <b>' + contagem.novos + ' novo(s) disponível(is) para importar</b>.</div>';
+      }
+    }
+
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Cadências SDR</h2><p>Relacionamento inicial com o lead até a qualificação ou perda. As cadências são criadas automaticamente ao registrar um novo lead.</p></div>' +
+      (sdrIsAdmin() ? '<div class="kanban-actions-row"><button class="secondary" onclick="sdrImportarAtendimentosVendas()">Importar da base de Atendimentos de Vendas</button></div>' : '') +
+      '</div>' +
+      statusImportacaoHtml +
+      '<div style="margin-bottom:16px">' + abasHtml + '</div>' +
+      '<div class="field" style="max-width:340px;margin:0 0 16px"><input id="sdrBuscaNomeCadencia" value="' + escAttr(filtro.busca||'') + '" oninput="sdrFiltrarPorNomeCadencia(this.value)" placeholder="Buscar por nome..."></div>' +
+      '<div class="grid cols3" id="sdrCadenciaCardsGrid">' + cardsHtml + '</div>';
+
+    if(filtro.busca) sdrFiltrarPorNomeCadencia(filtro.busca);
+  };
+
+  window.sdrFiltrarPorNomeCadencia = function(valor){
+    sdrFiltroState().busca = valor || '';
+    var termo = sdrNormTexto(valor || '');
+    var grid = document.getElementById('sdrCadenciaCardsGrid');
+    if(!grid) return;
+    var cards = grid.querySelectorAll('[data-sdr-nome]');
+    for(var i = 0; i < cards.length; i++){
+      var card = cards[i];
+      var nome = card.getAttribute('data-sdr-nome') || '';
+      card.style.display = (!termo || nome.indexOf(termo) !== -1) ? '' : 'none';
+    }
+  };
+
+  window.sdrDefinirEmpreendimento = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var novo = prompt('Empreendimento de interesse do lead:', r.empreendimento || '');
+    if(novo === null) return;
+    r.empreendimento = novo.trim();
+    doSave();
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.sdrCopiarMensagem = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var texto = sdrMensagemEtapaAtual(r);
+    if(!texto){ toastSafe('Nenhum template configurado para a etapa atual.'); return; }
+    sdrCopiarParaClipboard(texto);
+  };
+
+  window.sdrAbrirRegistroAtividade = function(registroId, tipoForcado){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var html = (!tipoForcado ? '<div class="field"><label>Tipo</label><select id="sdrAtivTipo">' + SDR_TIPOS.map(function(t){ return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></div>' : '') +
+      '<div class="field"><label>Resultado</label><input id="sdrAtivResultado" placeholder="Ex.: Respondeu, sem resposta, remarcado..."></div>' +
+      '<div class="field"><label>Observações</label><textarea id="sdrAtivObs" rows="3"></textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="sdrSalvarAtividade(\'' + escAttr(registroId) + '\',\'' + escAttr(tipoForcado||'') + '\')">Registrar</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal(tipoForcado ? ('Registrar ' + (tipoForcado === 'whatsapp' ? 'contato (WhatsApp)' : 'ligação')) : 'Registrar atividade', html);
+  };
+
+  window.sdrSalvarAtividade = function(registroId, tipoForcado){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var tipo = tipoForcado || ((document.getElementById('sdrAtivTipo')||{}).value || 'tarefa');
+    var resultado = ((document.getElementById('sdrAtivResultado')||{}).value || '').trim();
+    var obs = ((document.getElementById('sdrAtivObs')||{}).value || '').trim();
+    var agora = new Date();
+    r.atividades.push({ id: uid(), data: agora.toISOString().slice(0,10), hora: agora.toTimeString().slice(0,5), usuarioId: (current && current.id) || '', usuarioNome: (current && (current.name||current.nome)) || '', tipo: tipo, resultado: resultado, observacoes: obs, criadoEm: agora.toISOString() });
+    r.timeline.push({ texto: 'Atividade registrada: ' + sdrTipoLabel(tipo) + (resultado ? (' — ' + resultado) : ''), tipo: 'atividade', criadoEm: agora.toISOString() });
+    doSave();
+    toastSafe('Atividade registrada.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.sdrAbrirConcluirEtapa = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var html = '<div class="field"><label>Resultado</label><input id="sdrAtivResultado" placeholder="Ex.: Mensagem enviada, ligação realizada..."></div>' +
+      '<div class="field"><label>Observações</label><textarea id="sdrAtivObs" rows="3"></textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="sdrConcluirEtapa(\'' + escAttr(registroId) + '\')">Concluir etapa</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Concluir etapa', html);
+  };
+
+  window.sdrConcluirEtapa = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    if(r.cadenciaEncerrada){ toastSafe('Esta cadência já foi encerrada.'); return; }
+    var cadencia = r.cadenciaId ? d.sdrCadencias.find(function(c){ return c.id === r.cadenciaId; }) : null;
+    var etapas = sdrCadenciaOrdenarEtapas(cadencia);
+    var etapaAtual = etapas[r.etapaAtualIndex];
+    var resultado = ((document.getElementById('sdrAtivResultado')||{}).value || '').trim();
+    var obs = ((document.getElementById('sdrAtivObs')||{}).value || '').trim();
+    var agora = new Date();
+    r.atividades.push({ id: uid(), data: agora.toISOString().slice(0,10), hora: agora.toTimeString().slice(0,5), usuarioId: (current && current.id) || '', usuarioNome: (current && (current.name||current.nome)) || '', tipo: etapaAtual ? etapaAtual.tipo : 'tarefa', resultado: resultado || 'Concluída', observacoes: obs, criadoEm: agora.toISOString() });
+    r.timeline.push({ texto: 'Etapa concluída: ' + (etapaAtual ? etapaAtual.nome : '—') + (resultado ? (' — ' + resultado) : ''), tipo: 'etapa', criadoEm: agora.toISOString() });
+    if(r.situacao === 'Novo') r.situacao = 'Em Cadência';
+    var proximoIndex = r.etapaAtualIndex + 1;
+    r.etapaAtualIndex = proximoIndex;
+    if(cadencia && etapas[proximoIndex]){
+      sdrAgendarProximaAtividade(r, cadencia, proximoIndex, agora);
+    } else {
+      r.proximaAtividade = null;
+      r.cadenciaEncerrada = true;
+      r.timeline.push({ texto: 'Cadência concluída (sem próximas etapas configuradas).', tipo: 'sistema', criadoEm: agora.toISOString() });
+    }
+    doSave();
+    toastSafe('Etapa concluída.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.sdrAbrirAdiar = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var atual = r.proximaAtividade && r.proximaAtividade.previstoPara ? r.proximaAtividade.previstoPara.slice(0,16) : '';
+    var html = '<div class="field"><label>Novo horário previsto</label><input type="datetime-local" id="sdrAdiarData" value="' + escAttr(atual) + '"></div>' +
+      '<div class="field"><label>Motivo (opcional)</label><input id="sdrAdiarMotivo" placeholder="Ex.: cliente pediu para retornar depois"></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="sdrConfirmarAdiar(\'' + escAttr(registroId) + '\')">Confirmar</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Adiar atividade', html);
+  };
+
+  window.sdrConfirmarAdiar = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var novaDataStr = (document.getElementById('sdrAdiarData')||{}).value;
+    if(!novaDataStr){ toastSafe('Informe o novo horário.'); return; }
+    var motivo = ((document.getElementById('sdrAdiarMotivo')||{}).value || '').trim();
+    var novaData = new Date(novaDataStr);
+    if(!r.proximaAtividade) r.proximaAtividade = { etapaId: '', etapaNome: 'Atividade adiada', tipo: 'tarefa', previstoPara: '' };
+    r.proximaAtividade.previstoPara = novaData.toISOString();
+    r.timeline.push({ texto: 'Atividade adiada para ' + novaData.toLocaleString('pt-BR') + (motivo ? (' — ' + motivo) : ''), tipo: 'sistema', criadoEm: new Date().toISOString() });
+    doSave();
+    toastSafe('Atividade adiada.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.sdrAbrirHistorico = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var timelineHtml = (r.timeline||[]).slice().sort(function(a,b){ return String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')); }).map(function(t){
+      return '<div class="kanban-info" style="margin-bottom:8px"><p class="sub">' + esc(t.criadoEm ? new Date(t.criadoEm).toLocaleString('pt-BR') : '') + '</p><p>' + esc(t.texto) + '</p></div>';
+    }).join('') || '<p class="sub">Sem eventos registrados.</p>';
+    var atividadesHtml = (r.atividades||[]).slice().sort(function(a,b){ return String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')); }).map(function(a){
+      return '<div class="kanban-info" style="margin-bottom:8px"><p><b>' + esc(sdrTipoLabel(a.tipo)) + '</b> — ' + esc((a.data||'').split('-').reverse().join('/')) + ' ' + esc(a.hora||'') + '</p><p><b>Usuário:</b> ' + esc(a.usuarioNome||'—') + '</p><p><b>Resultado:</b> ' + esc(a.resultado||'—') + '</p>' + (a.observacoes ? '<p><b>Observações:</b> ' + esc(a.observacoes) + '</p>' : '') + '</div>';
+    }).join('') || '<p class="sub">Nenhuma atividade registrada ainda.</p>';
+    openModal('Histórico — ' + esc(r.leadNome || 'Lead'), '<div class="grid cols2"><div><h4>Timeline</h4>' + timelineHtml + '</div><div><h4>Atividades registradas</h4>' + atividadesHtml + '</div></div><div class="actions kanban-form-actions"><button class="secondary" onclick="sdrAbrirDetalhesLead(\'' + escAttr(registroId) + '\')">Voltar</button><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+  };
+
+  window.sdrAbrirQualificar = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var html = '<div class="field"><label>Motivo da qualificação</label><select id="sdrMotivoQualif">' + SDR_MOTIVOS_QUALIFICACAO.map(function(m){ return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label>Observações</label><textarea id="sdrQualifObs" rows="3"></textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="sdrConfirmarQualificar(\'' + escAttr(registroId) + '\')">Confirmar qualificação</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Qualificar Lead', html);
+  };
+
+  window.sdrConfirmarQualificar = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var motivo = (document.getElementById('sdrMotivoQualif')||{}).value || 'Outro';
+    var obs = ((document.getElementById('sdrQualifObs')||{}).value || '').trim();
+    var agora = new Date();
+    r.motivoQualificacao = motivo;
+    r.qualificadoEm = agora.toISOString();
+    r.qualificadoPorId = (current && current.id) || '';
+    r.qualificadoPorNome = (current && (current.name||current.nome)) || '';
+    r.cadenciaEncerrada = true;
+    r.proximaAtividade = null;
+    r.timeline.push({ texto: 'Lead qualificado — motivo: ' + motivo + (obs ? (' — ' + obs) : ''), tipo: 'situacao', criadoEm: agora.toISOString() });
+    if(r.corretorId){
+      r.situacao = 'Encaminhado ao Corretor';
+      r.timeline.push({ texto: 'Transferido ao corretor ' + (r.corretorNome || '—'), tipo: 'situacao', criadoEm: agora.toISOString() });
+    } else {
+      r.situacao = 'Qualificado';
+    }
+    doSave();
+    toastSafe('Lead qualificado.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  window.sdrAbrirPerdido = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var html = '<div class="field"><label>Motivo</label><select id="sdrMotivoPerda">' + SDR_MOTIVOS_PERDA.map(function(m){ return '<option value="' + esc(m) + '">' + esc(m) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label>Detalhe (opcional)</label><textarea id="sdrPerdaObs" rows="3"></textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="danger" onclick="sdrConfirmarPerdido(\'' + escAttr(registroId) + '\')">Marcar como Perdido</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Marcar como Perdido', html);
+  };
+
+  window.sdrConfirmarPerdido = function(registroId){
+    ensureSdrData();
+    var d = dbRef();
+    var r = d.sdrLeadsCadencia.find(function(x){ return x.id === registroId; });
+    if(!r || !sdrCanAccessRegistro(r)) return;
+    var motivo = (document.getElementById('sdrMotivoPerda')||{}).value || '';
+    if(!motivo){ toastSafe('Selecione o motivo da perda.'); return; }
+    var obs = ((document.getElementById('sdrPerdaObs')||{}).value || '').trim();
+    var agora = new Date();
+    r.situacao = 'Perdido';
+    r.motivoPerda = motivo;
+    r.perdidoEm = agora.toISOString();
+    r.perdidoPorId = (current && current.id) || '';
+    r.perdidoPorNome = (current && (current.name||current.nome)) || '';
+    r.cadenciaEncerrada = true;
+    r.proximaAtividade = null;
+    r.timeline.push({ texto: 'Lead perdido — motivo: ' + motivo + (obs ? (' — ' + obs) : ''), tipo: 'situacao', criadoEm: agora.toISOString() });
+    doSave();
+    toastSafe('Lead marcado como perdido.');
+    window.sdrAbrirDetalhesLead(registroId);
+  };
+
+  /* ================= Dashboard SDR ================= */
+  function sdrDashFiltroState(){
+    return window.__sdrDashFiltro || (window.__sdrDashFiltro = { de: '', ate: '', sdrId: '', origem: '', empreendimento: '' });
+  }
+  window.sdrAtualizarFiltroDashboard = function(campo, valor){
+    sdrDashFiltroState()[campo] = valor || '';
+    window.render_sdr_dashboard();
+  };
+  window.sdrLimparFiltroDashboard = function(){
+    window.__sdrDashFiltro = { de: '', ate: '', sdrId: '', origem: '', empreendimento: '' };
+    window.render_sdr_dashboard();
+  };
+
+  function sdrFmtHoras(ms){
+    if(!ms || !isFinite(ms) || ms <= 0) return '—';
+    var horas = ms / (1000*60*60);
+    if(horas < 24) return horas.toFixed(1) + 'h';
+    return (horas/24).toFixed(1) + ' dias';
+  }
+
+  window.render_sdr_dashboard = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('sdr_dashboard_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar o Dashboard SDR.</div>';
+      return;
+    }
+    ensureSdrData();
+    var d = dbRef();
+    var podeVerTodos = sdrIsAdmin();
+    var meuId = String((current && current.id) || '');
+    var filtro = sdrDashFiltroState();
+    if(!podeVerTodos) filtro.sdrId = meuId;
+
+    var registros = (d.sdrLeadsCadencia || []).filter(function(r){
+      if(!podeVerTodos && String(r.sdrResponsavelId||'') !== meuId) return false;
+      if(podeVerTodos && filtro.sdrId && String(r.sdrResponsavelId||'') !== filtro.sdrId) return false;
+      if(filtro.origem && String(r.origem||'') !== filtro.origem) return false;
+      if(filtro.empreendimento && String(r.empreendimento||'').toLowerCase().indexOf(filtro.empreendimento.toLowerCase()) === -1) return false;
+      var dataRef = (r.createdAt || '').slice(0,10);
+      if(filtro.de && dataRef && dataRef < filtro.de) return false;
+      if(filtro.ate && dataRef && dataRef > filtro.ate) return false;
+      return true;
+    });
+
+    var agora = new Date();
+    var recebidos = registros.length;
+    var emCadencia = registros.filter(function(r){ return SDR_SITUACOES_ATIVAS.indexOf(r.situacao) !== -1; }).length;
+    var qualificados = registros.filter(function(r){ return SDR_SITUACOES_QUALIFICADAS.indexOf(r.situacao) !== -1; });
+    var perdidos = registros.filter(function(r){ return r.situacao === 'Perdido'; });
+    var conversao = recebidos ? (qualificados.length / recebidos * 100) : 0;
+    var temposQualif = qualificados.filter(function(r){ return r.qualificadoEm && r.createdAt; }).map(function(r){ return new Date(r.qualificadoEm) - new Date(r.createdAt); });
+    var tempoMedioQualif = temposQualif.length ? temposQualif.reduce(function(a,b){ return a+b; },0) / temposQualif.length : 0;
+    var temposPerda = perdidos.filter(function(r){ return r.perdidoEm && r.createdAt; }).map(function(r){ return new Date(r.perdidoEm) - new Date(r.createdAt); });
+    var tempoMedioPerda = temposPerda.length ? temposPerda.reduce(function(a,b){ return a+b; },0) / temposPerda.length : 0;
+    var atividadesPrevistasHoje = registros.filter(function(r){ return r.proximaAtividade && sdrMesmoDia(r.proximaAtividade.previstoPara, agora); }).length;
+    var atividadesConcluidas = registros.reduce(function(s,r){ return s + (r.atividades||[]).length; }, 0);
+    var atividadesAtrasadas = registros.filter(function(r){ return r.proximaAtividade && r.proximaAtividade.previstoPara && new Date(r.proximaAtividade.previstoPara) < agora && r.situacao !== 'Qualificado' && r.situacao !== 'Perdido'; }).length;
+
+    function agrupar(campoFn){
+      var mapa = {};
+      registros.forEach(function(r){
+        var chave = campoFn(r) || '—';
+        if(!mapa[chave]) mapa[chave] = { recebidos: 0, qualificados: 0, atividades: 0 };
+        mapa[chave].recebidos++;
+        if(SDR_SITUACOES_QUALIFICADAS.indexOf(r.situacao) !== -1) mapa[chave].qualificados++;
+        mapa[chave].atividades += (r.atividades||[]).length;
+      });
+      return mapa;
+    }
+    var porSdr = agrupar(function(r){ return r.sdrResponsavelNome; });
+    var porOrigem = agrupar(function(r){ return r.origem; });
+    var porEmpreendimento = agrupar(function(r){ return r.empreendimento; });
+
+    function tabelaGrupoReal(mapa, colLabel){
+      var chaves = Object.keys(mapa).sort();
+      if(!chaves.length) return '<p class="sub">Sem dados para o período.</p>';
+      var linhas = chaves.map(function(k){
+        var v = mapa[k];
+        var conv = v.recebidos ? (v.qualificados / v.recebidos * 100).toFixed(1) + '%' : '—';
+        return '<tr><td>' + esc(k) + '</td><td>' + v.recebidos + '</td><td>' + v.qualificados + '</td><td>' + conv + '</td><td>' + v.atividades + '</td></tr>';
+      }).join('');
+      return '<table class="table"><thead><tr><th>' + esc(colLabel) + '</th><th>Recebidos</th><th>Qualificados</th><th>Conversão</th><th>Atividades</th></tr></thead><tbody>' + linhas + '</tbody></table>';
+    }
+
+    var sdrOptionsHtml = '<option value="">Todos os SDRs</option>' + sdrUsuariosAtivos().slice().sort(function(a,b){ return String(a.name||a.nome||'').localeCompare(String(b.name||b.nome||'')); }).map(function(u){
+      var id = u.id || u.uid || '';
+      return '<option value="' + escAttr(id) + '"' + (String(id) === String(filtro.sdrId||'') ? ' selected' : '') + '>' + esc(u.name||u.nome) + '</option>';
+    }).join('');
+    var origemOptionsHtml = '<option value="">Todas as origens</option>' + sdrOrigensDisponiveis().map(function(o){
+      return '<option value="' + escAttr(o) + '"' + (filtro.origem === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+    }).join('');
+
+    var filtrosHtml = '<div class="card pad" style="margin-bottom:18px"><h3>Filtros</h3><div class="grid cols4">' +
+      '<div class="field"><label>Data de</label><input type="date" value="' + escAttr(filtro.de) + '" onchange="sdrAtualizarFiltroDashboard(\'de\', this.value)"></div>' +
+      '<div class="field"><label>Data até</label><input type="date" value="' + escAttr(filtro.ate) + '" onchange="sdrAtualizarFiltroDashboard(\'ate\', this.value)"></div>' +
+      (podeVerTodos ? '<div class="field"><label>SDR</label><select onchange="sdrAtualizarFiltroDashboard(\'sdrId\', this.value)">' + sdrOptionsHtml + '</select></div>' : '') +
+      '<div class="field"><label>Origem</label><select onchange="sdrAtualizarFiltroDashboard(\'origem\', this.value)">' + origemOptionsHtml + '</select></div>' +
+      '<div class="field"><label>Empreendimento</label><input value="' + escAttr(filtro.empreendimento) + '" placeholder="Buscar por empreendimento" onchange="sdrAtualizarFiltroDashboard(\'empreendimento\', this.value)"></div>' +
+      '</div><button class="secondary" style="margin-top:10px" onclick="sdrLimparFiltroDashboard()">Limpar filtros</button></div>';
+
+    var kpis = [
+      ['Leads recebidos', recebidos],
+      ['Leads em cadência', emCadencia],
+      ['Leads qualificados', qualificados.length],
+      ['Leads perdidos', perdidos.length],
+      ['Conversão', conversao.toFixed(1) + '%'],
+      ['Tempo médio até qualificação', sdrFmtHoras(tempoMedioQualif)],
+      ['Tempo médio até perda', sdrFmtHoras(tempoMedioPerda)],
+      ['Atividades previstas hoje', atividadesPrevistasHoje],
+      ['Atividades concluídas', atividadesConcluidas],
+      ['Atividades atrasadas', atividadesAtrasadas]
+    ];
+    var kpiHtml = kpis.map(function(k){ return '<div class="card pad kpi"><p class="sub">' + esc(k[0]) + '</p><div class="v">' + esc(k[1]) + '</div></div>'; }).join('');
+
+    content.innerHTML = '<div class="section"><div><h2>Dashboard SDR</h2><p>Indicadores em tempo real da operação de cadências.</p></div></div>' +
+      filtrosHtml +
+      '<div class="grid cols4" style="margin-bottom:18px">' + kpiHtml + '</div>' +
+      '<div class="grid cols3">' +
+        '<div class="card pad"><h3>Produtividade por SDR</h3>' + tabelaGrupoReal(porSdr, 'SDR') + '</div>' +
+        '<div class="card pad"><h3>Conversão por origem</h3>' + tabelaGrupoReal(porOrigem, 'Origem') + '</div>' +
+        '<div class="card pad"><h3>Conversão por empreendimento</h3>' + tabelaGrupoReal(porEmpreendimento, 'Empreendimento') + '</div>' +
+      '</div>';
+  };
+
+  /* ================= registro de permissões, páginas e navegação ================= */
+  try{
+    if(typeof PERMS !== 'undefined'){
+      PERMS['sdr_cadencias_ver'] = 'Relacionamento - Cadências (executar)';
+      PERMS['sdr_gestao_ver'] = 'Relacionamento - Gestão de Cadências (configurar etapas)';
+      PERMS['sdr_templates_ver'] = 'Relacionamento - Templates de Mensagens (visualizar)';
+      PERMS['sdr_templates_gerenciar'] = 'Relacionamento - Templates de Mensagens (cadastrar/editar)';
+      PERMS['sdr_dashboard_ver'] = 'Relacionamento - Dashboard SDR';
+    }
+  }catch(e){ console.error('[SDR Cadências] Erro ao registrar permissões:', e); }
+
+  try{
+    if(typeof pages !== 'undefined'){
+      if(!pages.some(function(p){ return p[1] === 'sdr_cadencias'; })){
+        pages.push(['Relacionamento','sdr_cadencias','Cadências','☎','sdr_cadencias_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'sdr_gestao_cadencias'; })){
+        pages.push(['Relacionamento','sdr_gestao_cadencias','Gestão de Cadências','⚙','sdr_gestao_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'sdr_templates'; })){
+        pages.push(['Relacionamento','sdr_templates','Templates de Mensagens','✉','sdr_templates_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'sdr_dashboard'; })){
+        pages.push(['Relacionamento','sdr_dashboard','Dashboard SDR','📊','sdr_dashboard_ver']);
+      }
+      if(typeof window.pages !== 'undefined') window.pages = pages;
+    }
+  }catch(e){ console.error('[SDR Cadências] Erro ao registrar páginas:', e); }
+
+  try{
+    if(typeof renders !== 'undefined'){
+      renders['sdr_cadencias'] = window.render_sdr_cadencias;
+      renders['sdr_gestao_cadencias'] = window.render_sdr_gestao_cadencias;
+      renders['sdr_templates'] = window.render_sdr_templates;
+      renders['sdr_dashboard'] = window.render_sdr_dashboard;
+      window.renders = renders;
+    }
+    if(typeof window.renders !== 'undefined'){
+      window.renders['sdr_cadencias'] = window.render_sdr_cadencias;
+      window.renders['sdr_gestao_cadencias'] = window.render_sdr_gestao_cadencias;
+      window.renders['sdr_templates'] = window.render_sdr_templates;
+      window.renders['sdr_dashboard'] = window.render_sdr_dashboard;
+    }
+  }catch(e){ console.error('[SDR Cadências] Erro ao registrar renders:', e); }
+
+  /* ================= concede acesso automático a administradores/gestores ================= */
+  function sdrUsuarioEhGestor(u){
+    if(!u) return false;
+    var p = u.perms || u.permissoes || {};
+    if(p.view_all_users === true) return true;
+    var papel = String(u.role || u.perfil || '').toLowerCase();
+    return papel.indexOf('administrador') !== -1 || papel.indexOf('gestor') !== -1 || papel === 'admin';
+  }
+  function sdrConcederPermissoesGestores(){
+    try{
+      ensureSdrData();
+      var d = dbRef();
+      var chaves = ['sdr_cadencias_ver','sdr_gestao_ver','sdr_templates_ver','sdr_templates_gerenciar','sdr_dashboard_ver'];
+      var alterou = false;
+      (Array.isArray(d.users) ? d.users : []).forEach(function(u){
+        if(!sdrUsuarioEhGestor(u)) return;
+        if(!u.perms) u.perms = {};
+        chaves.forEach(function(k){ if(u.perms[k] !== true){ u.perms[k] = true; alterou = true; } });
+        if(u.permissoes){ chaves.forEach(function(k){ u.permissoes[k] = true; }); }
+      });
+      if(current && sdrUsuarioEhGestor(current)){
+        current.perms = current.perms || {};
+        var mudouAtual = false;
+        chaves.forEach(function(k){ if(current.perms[k] !== true){ current.perms[k] = true; mudouAtual = true; } });
+        if(current.permissoes){ chaves.forEach(function(k){ current.permissoes[k] = true; }); }
+        if(mudouAtual) alterou = true;
+      }
+      if(alterou){ doSave(); try{ if(typeof buildNav === 'function') buildNav(); }catch(e){} }
+    }catch(e){ console.error('[SDR Cadências] erro ao conceder permissões de gestor:', e); }
+  }
+  try{ sdrConcederPermissoesGestores(); }catch(e){}
+
+  try{ if(typeof buildNav === 'function') setTimeout(buildNav, 0); }catch(e){}
+
+  /* ================= preserva os dados no cloudToLocal (leitura do Firebase) =================
+     Sem isso, sempre que o app recarrega os dados da nuvem (sincronização em tempo real),
+     os campos que não estiverem listados aqui são descartados da memória local — mesmo que
+     já estejam salvos no Firebase. É esse o motivo de dados "sumirem" pouco depois de aparecerem.
+     Aproveitamos para proteger também os campos do módulo de Locação, que tinham o mesmo risco. */
+  var _oldCloudToLocalSdr = window.cloudToLocal || (typeof cloudToLocal === 'function' ? cloudToLocal : null);
+  if(_oldCloudToLocalSdr && !window.__npcSdrCloudToLocalWrapped){
+    window.__npcSdrCloudToLocalWrapped = true;
+    window.cloudToLocal = function(cloud){
+      var base = _oldCloudToLocalSdr.apply(this, arguments);
+      base.sdrCadencias = Array.isArray(cloud && cloud.sdrCadencias) ? cloud.sdrCadencias : (base.sdrCadencias || []);
+      base.sdrTemplates = Array.isArray(cloud && cloud.sdrTemplates) ? cloud.sdrTemplates : (base.sdrTemplates || []);
+      base.sdrLeadsCadencia = Array.isArray(cloud && cloud.sdrLeadsCadencia) ? cloud.sdrLeadsCadencia : (base.sdrLeadsCadencia || []);
+      base.sdrAtendimentosImportados = (cloud && cloud.sdrAtendimentosImportados && typeof cloud.sdrAtendimentosImportados === 'object' && !Array.isArray(cloud.sdrAtendimentosImportados)) ? cloud.sdrAtendimentosImportados : (base.sdrAtendimentosImportados || {});
+      base.locacaoPropostasColumns = Array.isArray(cloud && cloud.locacaoPropostasColumns) ? cloud.locacaoPropostasColumns : (base.locacaoPropostasColumns || []);
+      base.locacaoPropostasCards = Array.isArray(cloud && cloud.locacaoPropostasCards) ? cloud.locacaoPropostasCards : (base.locacaoPropostasCards || []);
+      base.locacaoChecklistTemplate = Array.isArray(cloud && cloud.locacaoChecklistTemplate) ? cloud.locacaoChecklistTemplate : (base.locacaoChecklistTemplate || []);
+      base.locacaoComissaoRegras = Array.isArray(cloud && cloud.locacaoComissaoRegras) ? cloud.locacaoComissaoRegras : (base.locacaoComissaoRegras || []);
+      base.locacaoKPIs = Array.isArray(cloud && cloud.locacaoKPIs) ? cloud.locacaoKPIs : (base.locacaoKPIs || []);
+      base.locacaoRegistrosDiarios = Array.isArray(cloud && cloud.locacaoRegistrosDiarios) ? cloud.locacaoRegistrosDiarios : (base.locacaoRegistrosDiarios || []);
+      base.locacaoInfoUteis = Array.isArray(cloud && cloud.locacaoInfoUteis) ? cloud.locacaoInfoUteis : (base.locacaoInfoUteis || []);
+      return base;
+    };
+    try{ cloudToLocal = window.cloudToLocal; }catch(e){}
+  }
+
+  /* ================= garantia extra de salvamento no Firebase ================= */
+  var _origSaveSdr = window.save;
+  window.save = function(){
+    var result = (typeof _origSaveSdr === 'function') ? _origSaveSdr.apply(this, arguments) : undefined;
+    try{
+      if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
+        var d = dbRef();
+        window.firebaseDb.ref('/').update({
+          sdrCadencias: d.sdrCadencias || [],
+          sdrTemplates: d.sdrTemplates || [],
+          sdrLeadsCadencia: d.sdrLeadsCadencia || [],
+          sdrAtendimentosImportados: d.sdrAtendimentosImportados || {}
+        }).catch(function(err){ console.error('[SDR Cadências] Erro ao salvar no Firebase:', err); });
+      }
+    }catch(e){ console.error('[SDR Cadências] Erro ao salvar (garantia extra):', e); }
+    return result;
+  };
+  try{ save = window.save; }catch(e){}
+
+  console.log('[Relacionamento] Módulo Cadências SDR instalado.');
 })();
 </script>
