@@ -6194,7 +6194,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       {id:'areas',title:'Áreas',items:[['vendas_ver','Ver conteúdos de vendas','Permite acessar área de vendas.'],['locacao_ver','Ver conteúdos de locação','Permite acessar área de locação.'],['captacao_ver','Ver conteúdos de captação','Permite acessar área de captação.'],['marketing_ver','Ver marketing','Permite acessar marketing.'],['juridico_ver','Ver jurídico','Permite acessar jurídico.']]},
       {id:'admin',title:'Administração',items:[[MANAGE_USERS_KEY,'Gerenciar usuários','Permite cadastrar, editar, excluir usuários e alterar permissões.'],[VIEW_ALL_KEY,'Ver informações de todos os usuários','Ativado: vê todos os dados. Desativado: vê apenas dados próprios ou atribuídos.'],['configuracoes','Configurações','Permite acessar configurações gerais.']]}
     ];
-    try{ if(typeof permissionGroups==='function'){ const old=permissionGroups(); if(Array.isArray(old)&&old.length){ const keys=new Set(base.flatMap(g=>g.items.map(i=>i[0]))); old.forEach(g=>(g.items||[]).forEach(i=>{if(i[0]&&!keys.has(i[0])&&i[0]!=='admin'){let target=base.find(x=>norm(x.title)===norm(g.title))||base[0];target.items.push(i);keys.add(i[0]);}})); } } }catch(e){}
+    try{ if(typeof permissionGroups==='function'){ const old=permissionGroups(); if(Array.isArray(old)&&old.length){ const keys=new Set(base.flatMap(g=>g.items.map(i=>i[0]))); old.forEach(g=>(g.items||[]).forEach(i=>{if(i[0]&&!keys.has(i[0])&&i[0]!=='admin'){let target=base.find(x=>norm(x.title)===norm(g.title));/* sem grupo correspondente pelo título: não força para 'Geral' — o módulo que criou essa permissão (ex.: Locação, Relacionamento, Capacitação de Áreas) já cria seu próprio grupo dedicado mais adiante na cadeia, então cair aqui só duplicaria a permissão em Geral. */if(target){target.items.push(i);keys.add(i[0]);}}})); } } }catch(e){}
     return base;
   }
   window.permissionGroups=permGroups; try{permissionGroups=permGroups;}catch(e){}
@@ -18070,6 +18070,13 @@ body:has(#login:not(.hidden)) #app.hidden{
       if(!Array.isArray(r.atividades)) r.atividades = [];
       if(!Array.isArray(r.timeline)) r.timeline = [];
       if(!r.situacao) r.situacao = 'Novo';
+      /* leads importados da base de Vendas sem um corretor correspondente a nenhum
+         usuário do sistema não devem ficar "presos" a quem por acaso estava logado
+         no momento da importação — ficam sem responsável definido, visíveis a
+         qualquer SDR (ver sdrCanAccessRegistro), até alguém assumir o atendimento. */
+      if(r.origemImportacao === 'atendimentos_vendas' && !r.corretorId && r.sdrResponsavelId){
+        r.sdrResponsavelId = '';
+      }
     });
   }
 
@@ -18080,6 +18087,11 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(!r) return false;
     if(sdrIsAdmin()) return true;
     var meuId = String((current && current.id) || '');
+    /* leads sem responsável definido (ex.: importados da base de Vendas sem um
+       corretor correspondente a nenhum usuário do sistema) ficam visíveis para
+       qualquer SDR, como uma fila de leads "não atribuídos", em vez de ficarem
+       presos a quem por acaso estava com a aba aberta no momento da importação. */
+    if(!r.sdrResponsavelId) return true;
     return String(r.sdrResponsavelId || '') === meuId;
   }
   function sdrCanAccessCadencia(){ return sdrIsAdmin(); }
@@ -18198,8 +18210,8 @@ body:has(#login:not(.hidden)) #app.hidden{
      caso são tratados como 'novos_leads' por padrão, para continuarem aparecendo
      exatamente onde já apareciam. */
   var SDR_PROGRAMAS = {
-    novos_leads: { pagina: 'sdr_cadencias', etapa: 'Novos Leads', label: 'Novos Leads' },
-    reativacao: { pagina: 'sdr_cadencias_reativacao', etapa: 'Reativar', label: 'Reativação' }
+    novos_leads: { pagina: 'sdr_cadencias', etapa: 'Novos Leads', label: 'Novos Leads', permissao: 'sdr_cadencias_ver' },
+    reativacao: { pagina: 'sdr_cadencias_reativacao', etapa: 'Reativar', label: 'Reativação', permissao: 'sdr_cadencias_reativacao_ver' }
   };
   function sdrProgramaDoRegistro(r){
     return (r && r.programa && SDR_PROGRAMAS[r.programa]) ? r.programa : 'novos_leads';
@@ -18256,8 +18268,8 @@ body:has(#login:not(.hidden)) #app.hidden{
         leadNome: cliente || '(sem nome)', leadTelefone: telefone, leadEmail: '',
         origem: origemAtendimento || '—', empreendimento: '',
         corretorId: corretorMatch ? (corretorMatch.id || corretorMatch.uid || '') : '', corretorNome: corretorNome,
-        sdrResponsavelId: corretorMatch ? (corretorMatch.id || corretorMatch.uid || '') : ((current && current.id) || ''),
-        sdrResponsavelNome: corretorMatch ? (corretorMatch.name || corretorMatch.nome || corretorNome) : ((current && (current.name||current.nome)) || ''),
+        sdrResponsavelId: corretorMatch ? (corretorMatch.id || corretorMatch.uid || '') : '',
+        sdrResponsavelNome: corretorMatch ? (corretorMatch.name || corretorMatch.nome || corretorNome) : (corretorNome || ''),
         cadenciaId: cadencia ? cadencia.id : '', cadenciaNome: cadencia ? cadencia.nome : '',
         etapaAtualIndex: 0, situacao: 'Novo', cadenciaEncerrada: !cadencia, proximaAtividade: null,
         motivoQualificacao: '', motivoPerda: '', qualificadoEm: '', perdidoEm: '',
@@ -18953,7 +18965,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     var cfgPrograma = SDR_PROGRAMAS[programa];
     var content = document.getElementById('content');
     if(!content) return;
-    if(typeof has === 'function' && !has('sdr_cadencias_ver')){
+    if(typeof has === 'function' && !has(cfgPrograma.permissao)){
       content.innerHTML = '<div class="empty">Você não possui permissão para acessar as Cadências.</div>';
       return;
     }
@@ -19375,7 +19387,8 @@ body:has(#login:not(.hidden)) #app.hidden{
   /* ================= registro de permissões, páginas e navegação ================= */
   try{
     if(typeof PERMS !== 'undefined'){
-      PERMS['sdr_cadencias_ver'] = 'Relacionamento - Cadências (executar)';
+      PERMS['sdr_cadencias_ver'] = 'Relacionamento - Cadências - Novos Leads (executar)';
+      PERMS['sdr_cadencias_reativacao_ver'] = 'Relacionamento - Cadências - Reativação (executar)';
       PERMS['sdr_gestao_ver'] = 'Relacionamento - Gestão de Cadências (configurar etapas)';
       PERMS['sdr_templates_ver'] = 'Relacionamento - Templates de Mensagens (visualizar)';
       PERMS['sdr_templates_gerenciar'] = 'Relacionamento - Templates de Mensagens (cadastrar/editar)';
@@ -19391,7 +19404,7 @@ body:has(#login:not(.hidden)) #app.hidden{
         pages.forEach(function(p){ if(p[1] === 'sdr_cadencias') p[2] = 'Cadências - Novos Leads'; });
       }
       if(!pages.some(function(p){ return p[1] === 'sdr_cadencias_reativacao'; })){
-        pages.push(['Relacionamento','sdr_cadencias_reativacao','Cadências - Reativação','☎','sdr_cadencias_ver']);
+        pages.push(['Relacionamento','sdr_cadencias_reativacao','Cadências - Reativação','☎','sdr_cadencias_reativacao_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'sdr_gestao_cadencias'; })){
         pages.push(['Relacionamento','sdr_gestao_cadencias','Gestão de Cadências','⚙','sdr_gestao_ver']);
@@ -19436,7 +19449,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     try{
       ensureSdrData();
       var d = dbRef();
-      var chaves = ['sdr_cadencias_ver','sdr_gestao_ver','sdr_templates_ver','sdr_templates_gerenciar','sdr_dashboard_ver'];
+      var chaves = ['sdr_cadencias_ver','sdr_cadencias_reativacao_ver','sdr_gestao_ver','sdr_templates_ver','sdr_templates_gerenciar','sdr_dashboard_ver'];
       var alterou = false;
       (Array.isArray(d.users) ? d.users : []).forEach(function(u){
         if(!sdrUsuarioEhGestor(u)) return;
@@ -19455,6 +19468,39 @@ body:has(#login:not(.hidden)) #app.hidden{
     }catch(e){ console.error('[SDR Cadências] erro ao conceder permissões de gestor:', e); }
   }
   try{ sdrConcederPermissoesGestores(); }catch(e){}
+
+  /* ================= migração única: separar a permissão de Cadências - Reativação =================
+     Até aqui, Novos Leads e Reativação usavam a MESMA permissão (sdr_cadencias_ver), então quem já
+     tinha acesso às Cadências enxergava as duas telas. Agora cada uma tem sua própria permissão
+     (sdr_cadencias_ver / sdr_cadencias_reativacao_ver), para poderem ser liberadas separadamente.
+     Esta migração roda uma única vez (marcada em d.sdrMigracaoPermissaoReativacaoV1) e apenas copia o
+     acesso que cada usuário já tinha, para ninguém perder acesso à Reativação nesta transição. */
+  function sdrMigrarPermissaoReativacaoUnica(){
+    try{
+      var d = dbRef();
+      if(d.sdrMigracaoPermissaoReativacaoV1) return;
+      d.sdrMigracaoPermissaoReativacaoV1 = true;
+      (Array.isArray(d.users) ? d.users : []).forEach(function(u){
+        var perms = u.perms || u.permissoes;
+        if(perms && perms['sdr_cadencias_ver'] === true && perms['sdr_cadencias_reativacao_ver'] !== true){
+          if(!u.perms) u.perms = {};
+          u.perms['sdr_cadencias_reativacao_ver'] = true;
+          if(u.permissoes) u.permissoes['sdr_cadencias_reativacao_ver'] = true;
+        }
+      });
+      if(current){
+        var curPerms = current.perms || current.permissoes;
+        if(curPerms && curPerms['sdr_cadencias_ver'] === true && curPerms['sdr_cadencias_reativacao_ver'] !== true){
+          current.perms = current.perms || {};
+          current.perms['sdr_cadencias_reativacao_ver'] = true;
+          if(current.permissoes) current.permissoes['sdr_cadencias_reativacao_ver'] = true;
+        }
+      }
+      doSave();
+      try{ if(typeof buildNav === 'function') buildNav(); }catch(e){}
+    }catch(e){ console.error('[SDR Cadências] erro na migração de permissão de Reativação:', e); }
+  }
+  try{ sdrMigrarPermissaoReativacaoUnica(); }catch(e){}
 
   try{ if(typeof buildNav === 'function') setTimeout(buildNav, 0); }catch(e){}
 
