@@ -1211,8 +1211,8 @@ firebaseAuth.onAuthStateChanged(async user=>{
   }
 });
 function toggleSide(){$('side').classList.toggle('open')}
-const pages=[['Geral','dashboard','Dashboard','◼','dashboard'],['Geral','institucional','Institucional','⌂','institucional'],['Comunicação','comunicados','Comunicados','●','comunicados_ver'],['Comunicação','agenda','Agenda','◷','agenda_ver'],['Comunicação','aniversariantes','Aniversariantes','★','aniversariantes_ver'],['Capacitação','treinamentos','Treinamentos','▣','treinamentos_ver'],['Capacitação','playbook','Playbook','▤','playbook_ver'],['Capacitação','processos','Processos','↻','processos_ver'],['Gestão','metas','Metas e KPIs','↗','metas_ver'],['Performance','perf_gerencial','Visão Gerencial','◉','performance_admin'],['Performance','perf_dashboard','Dashboard','↗','performance_dashboard'],['Performance','perf_base','Registros Realizados','▦','performance_base'],['Performance','perf_ranking','Ranking','★','performance_ranking'],['Áreas','vendas','Vendas','◆','vendas_ver'],['Áreas','locacao','Locação','◇','locacao_ver'],['Áreas','captacao','Captação','◎','captacao_ver'],['Áreas','marketing','Marketing','✺','marketing_ver'],['Áreas','juridico','Jurídico','⚖','juridico_ver'],['Biblioteca','biblioteca','Biblioteca NPC','▦','biblioteca_ver'],['Administração','usuarios','Usuários','⚙','usuarios_gerenciar'],['Administração','config','Configurações','☷','configuracoes']];
-function buildNav(){let last='',insidePerf=false,out='';pages.filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`;if(x[0]==='Performance'){out+='<div class="nav-sub">';insidePerf=true}}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
+const pages=[['Geral','dashboard','Dashboard','◼','dashboard'],['Geral','institucional','Institucional','⌂','institucional'],['Comunicação','comunicados','Comunicados','●','comunicados_ver'],['Comunicação','agenda','Agenda','◷','agenda_ver'],['Comunicação','aniversariantes','Aniversariantes','★','aniversariantes_ver'],['Capacitação','treinamentos','Treinamentos','▣','treinamentos_ver'],['Capacitação','playbook','Playbook','▤','playbook_ver'],['Capacitação','processos','Processos','↻','processos_ver'],['Gestão','metas','Metas e KPIs','','metas_ver'],['Performance','perf_gerencial','Visão Gerencial','','performance_admin'],['Performance','perf_dashboard','Dashboard','','performance_dashboard'],['Performance','perf_base','Registros Realizados','','performance_base'],['Performance','perf_ranking','Ranking','','performance_ranking'],['Áreas','vendas','Vendas','◆','vendas_ver'],['Áreas','locacao','Locação','◇','locacao_ver'],['Áreas','captacao','Captação','◎','captacao_ver'],['Áreas','marketing','Marketing','✺','marketing_ver'],['Áreas','juridico','Jurídico','⚖','juridico_ver'],['Biblioteca','biblioteca','Biblioteca NPC','▦','biblioteca_ver'],['Administração','usuarios','Usuários','⚙','usuarios_gerenciar'],['Administração','config','Configurações','☷','configuracoes']];
+function buildNav(){let last='',insidePerf=false,out='';pages.filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
 window.render=function(){try{const p=window.page||page;const fn=window.renders&&window.renders[p]||renders&&renders[p];if(typeof fn==='function')fn();}catch(e){console.warn('render() error:',e);}};
 function go(id){page=id; document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); const nb=$('nav_'+id); if(nb)nb.classList.add('active'); const label=pages.find(x=>x[1]===id)?.[2]||'Página'; $('crumb').textContent='Intranet / '+label; $('pageTitle').textContent=label; $('side').classList.remove('open'); (renders[id]||render_dashboard)()}
 const renders={dashboard:render_dashboard,institucional:render_institucional,comunicados:render_comunicados,agenda:render_agenda,aniversariantes:render_aniversariantes,treinamentos:render_treinamentos,playbook:render_playbook,processos:render_processos,metas:render_metas,perf_gerencial:render_perf_gerencial,perf_dashboard:render_perf_dashboard,perf_base:render_perf_base,perf_ranking:render_perf_ranking,vendas:()=>render_area('Vendas'),locacao:()=>render_area('Locação'),captacao:()=>render_area('Captação'),marketing:()=>render_area('Marketing'),juridico:()=>render_area('Jurídico'),biblioteca:render_biblioteca,usuarios:render_usuarios,config:render_config};
@@ -1673,9 +1673,9 @@ function render_dashboard(){
     if(typeof pages!=='undefined'){
       if(!pages.some(p=>p[1]==='hoje')) pages.splice(0,0,['Geral','hoje','Hoje na NPC','☀','dashboard']);
       if(!pages.some(p=>p[1]==='pendencias')) pages.splice(2,0,['Geral','pendencias','Minhas Pendências','!','dashboard']);
-      if(!pages.some(p=>p[1]==='radar')) pages.push(['Gestão','radar','Radar da Equipe','⌖','usuarios_gerenciar']);
+      if(!pages.some(p=>p[1]==='radar')) pages.push(['Gestão','radar','Radar da Equipe','','usuarios_gerenciar']);
       if(!pages.some(p=>p[1]==='reconhecimentos')) pages.push(['Geral','reconhecimentos','Reconhecimentos','🏅','dashboard']);
-      if(!pages.some(p=>p[1]==='modo_reuniao')) pages.push(['Gestão','modo_reuniao','Modo Reunião','▣','usuarios_gerenciar']);
+      if(!pages.some(p=>p[1]==='modo_reuniao')) pages.push(['Gestão','modo_reuniao','Modo Reunião','','usuarios_gerenciar']);
     }
     if(typeof renders!=='undefined'){
       renders.hoje=render_hoje;
@@ -2252,7 +2252,7 @@ function resetLeadQueue(qid){if(!has('leads_gerenciar_filas'))return;if(!confirm
 function defaultMenuSettings(){return {blockOrder:['Geral','Comunicação','Capacitação','Gestão','Performance','Leads','Áreas','Biblioteca','Administração'],navFontSize:16,titleFontSize:10,titleColor:'#878b96',navColor:'#d5d8de',activeBg:'#ffc71b',sidebarBg:'#101114'} }
 function applyMenuSettings(){ensureOpsData();const s={...defaultMenuSettings(),...(db.menuSettings||{})};let el=$('menuDynamicStyle');if(!el){el=document.createElement('style');el.id='menuDynamicStyle';document.head.appendChild(el)}el.textContent=`.side{background:${s.sidebarBg}!important}.nav button{font-size:${Number(s.navFontSize)||16}px;color:${s.navColor}!important}.nav button.active{background:${s.activeBg}!important;color:#111!important}.nav-title{font-size:${Number(s.titleFontSize)||10}px;color:${s.titleColor}!important}`}
 function getOrderedPages(){ensureOpsData();const s={...defaultMenuSettings(),...(db.menuSettings||{})};const order=s.blockOrder||defaultMenuSettings().blockOrder;return [...pages].sort((a,b)=>{const ia=order.indexOf(a[0]);const ib=order.indexOf(b[0]);return (ia<0?99:ia)-(ib<0?99:ib) || pages.indexOf(a)-pages.indexOf(b)})}
-function buildNav(){applyMenuSettings();let last='',insidePerf=false,out='';getOrderedPages().filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`;if(['Performance','Leads'].includes(x[0])){out+='<div class="nav-sub">';insidePerf=true}}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
+function buildNav(){applyMenuSettings();let last='',insidePerf=false,out='';getOrderedPages().filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`;if(['Leads'].includes(x[0])){out+='<div class="nav-sub">';insidePerf=true}}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
 function render_config(){
   if(!has('configuracoes')){$('content').innerHTML='<div class="empty">Você não possui permissão para acessar configurações.</div>';return}
   ensureOpsData();const s={...defaultMenuSettings(),...(db.menuSettings||{})};const blocks=[...new Set(pages.map(p=>p[0]))];const order=[...(s.blockOrder||defaultMenuSettings().blockOrder),...blocks.filter(b=>!(s.blockOrder||[]).includes(b))].filter((v,i,a)=>a.indexOf(v)===i);
@@ -3300,7 +3300,7 @@ ensureOpsData();
           if(insidePerf){out+='</div>'; insidePerf=false;}
           last=x[0];
           out+=`<div class="nav-title">${x[0]}</div>`;
-          if(x[0]==='Performance'){out+='<div class="nav-sub">'; insidePerf=true;}
+          if(false){out+='<div class="nav-sub">'; insidePerf=true;}
         }
         out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`;
       });
@@ -4448,8 +4448,8 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function installKanbanMenu(){
     if(typeof pages!=='undefined'){
-      if(!pages.some(p=>p[1]==='perf_kanban')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_ranking')+1),0,['Performance','perf_kanban','Kanban','▥','performance_kanban']);
-      if(!pages.some(p=>p[1]==='perf_kanban_gestao')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_kanban')+1),0,['Performance','perf_kanban_gestao','Gestão Kanban','☷','performance_kanban_gestao']);
+      if(!pages.some(p=>p[1]==='perf_kanban')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_ranking')+1),0,['Performance','perf_kanban','Kanban','','performance_kanban']);
+      if(!pages.some(p=>p[1]==='perf_kanban_gestao')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_kanban')+1),0,['Performance','perf_kanban_gestao','Gestão Kanban','','performance_kanban_gestao']);
       const kanbanPage=pages.find(p=>p[1]==='perf_kanban'); if(kanbanPage)kanbanPage[4]='performance_kanban';
       const kanbanGestaoPage=pages.find(p=>p[1]==='perf_kanban_gestao'); if(kanbanGestaoPage)kanbanGestaoPage[4]='performance_kanban_gestao';
     }
@@ -4696,7 +4696,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       if(x[0]!==last){
         if(openSub){out+='</div>';openSub=false;}
         last=x[0]; out+=`<div class="nav-title">${esc(x[0])}</div>`;
-        if(['Performance','Leads','Suporte'].includes(x[0])){out+='<div class="nav-sub">';openSub=true;}
+        if(['Leads','Suporte'].includes(x[0])){out+='<div class="nav-sub">';openSub=true;}
       }
       out+=`<button id="nav_${esc(x[1])}" onclick="go('${esc(x[1])}')"><span>${esc(x[3])}</span>${esc(x[2])}</button>`;
     });
@@ -4869,7 +4869,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       if(x[0]!==last){
         if(openSub){out+='</div>';openSub=false;}
         last=x[0];out+=`<div class="nav-title">${esc(x[0])}</div>`;
-        if(['Performance','Leads','Suporte'].includes(x[0])){out+='<div class="nav-sub">';openSub=true;}
+        if(['Leads','Suporte'].includes(x[0])){out+='<div class="nav-sub">';openSub=true;}
       }
       out+=`<button id="nav_${esc(x[1])}" onclick="go('${esc(x[1])}')"><span class="nav-ico">${esc(x[3])}</span>${esc(x[2])}</button>`;
     });
@@ -4995,7 +4995,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{
     if(typeof pages!=='undefined' && !pages.some(function(p){return p[1]==='perf_visitas'})){
       const idx=pages.findIndex(function(p){return p[1]==='perf_ranking'});
-      const item=['Performance','perf_visitas','Análise de Visitas','✓','performance_visitas_analise'];
+      const item=['Performance','perf_visitas','Análise de Visitas','','performance_visitas_analise'];
       if(idx>=0) pages.splice(idx+1,0,item); else pages.push(item);
     }
   }catch(e){}
@@ -5262,7 +5262,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       if(x[0]!==last){
         if(openSub){out+='</div>';openSub=false;}
         last=x[0];out+=`<div class="nav-title">${esc(x[0])}</div>`;
-        if(['Performance','Leads','Suporte'].includes(x[0])){out+='<div class="nav-sub">';openSub=true;}
+        if(['Leads','Suporte'].includes(x[0])){out+='<div class="nav-sub">';openSub=true;}
       }
       out+=`<button id="nav_${esc(x[1])}" onclick="go('${esc(x[1])}')"><span class="nav-ico">${esc(x[3])}</span>${esc(x[2])}</button>`;
     });
@@ -6114,9 +6114,9 @@ body:has(#login:not(.hidden)) #app.hidden{
   // Corrige páginas e textos do menu.
   function normalizePages(){try{
     const ps=window.pages||pages; if(!Array.isArray(ps))return;
-    ps.forEach(p=>{p[2]=userFacingName(p[2]); if(p[1]==='perf_kanban'){p[2]='Vendas';p[3]='▪';p[4]='performance_kanban';} if(p[1]==='perf_kanban_gestao'){p[2]='Gestão de Vendas';p[3]='☷';p[4]='performance_kanban_gestao';}});
-    if(!ps.some(p=>p[1]==='perf_kanban')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_ranking')+1),0,['Performance','perf_kanban','Vendas','▪','performance_kanban']);
-    if(!ps.some(p=>p[1]==='perf_kanban_gestao')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_kanban')+1),0,['Performance','perf_kanban_gestao','Gestão de Vendas','☷','performance_kanban_gestao']);
+    ps.forEach(p=>{p[2]=userFacingName(p[2]); if(p[1]==='perf_kanban'){p[2]='Vendas';p[3]='';p[4]='performance_kanban';} if(p[1]==='perf_kanban_gestao'){p[2]='Gestão de Vendas';p[3]='';p[4]='performance_kanban_gestao';}});
+    if(!ps.some(p=>p[1]==='perf_kanban')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_ranking')+1),0,['Performance','perf_kanban','Vendas','','performance_kanban']);
+    if(!ps.some(p=>p[1]==='perf_kanban_gestao')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_kanban')+1),0,['Performance','perf_kanban_gestao','Gestão de Vendas','','performance_kanban_gestao']);
   }catch(e){}}
   normalizePages();
 
@@ -6125,7 +6125,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     const nav=byId('nav'); if(!nav)return;
     let last='',insidePerf=false,out='';
     (window.pages||pages||[]).filter(x=>has(x[4])).forEach(x=>{
-      if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false;} last=x[0]; out+=`<div class="nav-title">${esc(x[0])}</div>`; if(x[0]==='Performance'){out+='<div class="nav-sub">';insidePerf=true;}}
+      if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false;} last=x[0]; out+=`<div class="nav-title">${esc(x[0])}</div>`; if(false){out+='<div class="nav-sub">';insidePerf=true;}}
       const label=userFacingName(x[2]); out+=`<button id="nav_${esc(x[1])}" onclick="go('${esc(x[1])}')"><span>${esc(x[3])}</span>${esc(label)}</button>`;
     });
     if(insidePerf)out+='</div>'; nav.innerHTML=out||'<div class="empty" style="padding:14px">Nenhum módulo liberado.</div>';
@@ -7148,10 +7148,10 @@ body:has(#login:not(.hidden)) #app.hidden{
         if(insidePerf){ out+='</div>'; insidePerf=false; }
         last=x[0];
         out+='<div class="nav-title">'+html(x[0])+'</div>';
-        if(x[0]==='Performance'){ out+='<div class="nav-sub">'; insidePerf=true; }
+        if(false){ out+='<div class="nav-sub">'; insidePerf=true; }
       }
       var label=(typeof userFacingName==='function') ? userFacingName(x[2]) : x[2];
-      out+='<button id="nav_'+html(x[1])+'" onclick="go(\''+html(x[1])+'\')"><span>'+html(x[3])+'</span>'+html(label)+'</button>';
+      out+='<button id="nav_'+html(x[1])+'" onclick="go(\''+html(x[1])+'\')">'+html(label)+'</button>';
     });
     if(insidePerf) out+='</div>';
     nav.innerHTML=out || '<div class="empty" style="padding:14px">Nenhum módulo liberado.</div>';
@@ -7466,7 +7466,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       var ps = window.pages || pages;
       if(!ps.some(function(p){ return p && p[1] === PAGE_ID; })){
         var idx = ps.findIndex(function(p){ return p && p[1] === 'perf_base'; });
-        var item = ['Performance', PAGE_ID, PAGE_TITLE, '▤', PAGE_PERM];
+        var item = ['Performance', PAGE_ID, PAGE_TITLE, '', PAGE_PERM];
         if(idx >= 0) ps.splice(idx + 1, 0, item); else ps.push(item);
       }
     }
@@ -7670,7 +7670,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(existing) existing[4]=KEY;
     else{
       var idx = ps.findIndex(function(p){return p && p[1] === 'perf_base';});
-      var item = ['Performance','perf_leads_distribuidos','Leads Distribuídos','▤',KEY];
+      var item = ['Performance','perf_leads_distribuidos','Leads Distribuídos','',KEY];
       if(idx >= 0) ps.splice(idx+1,0,item); else ps.push(item);
     }
   }catch(e){}
@@ -8193,7 +8193,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     try{ cloudToLocal=window.cloudToLocal; }catch(e){}
   }
 
-  window.openLeadModal=function(){
+  window.openLeadModal=function(prefill){
     if(!(typeof has === 'function' && has('leads_cadastrar'))){ toastSafe('Sem permissão.'); return; }
     if(typeof openModal !== 'function') return;
     ensureQualifiedOptions();
@@ -8216,7 +8216,25 @@ body:has(#login:not(.hidden)) #app.hidden{
       '<div class="field"><label>Observação</label><textarea id="leadObs" placeholder="Informações relevantes para o corretor"></textarea></div>'+
       '<div class="actions npc-lead-actions"><button class="primary" onclick="saveLead()">Salvar e distribuir</button><button class="secondary" onclick="closeModal()">Fechar</button></div>'
     );
-    setTimeout(function(){ try{ if(typeof updateLeadNextPreview === 'function') updateLeadNextPreview(); if(typeof renderLeadOriginExtra === 'function') renderLeadOriginExtra(); }catch(e){} },0);
+    setTimeout(function(){
+      try{ if(typeof updateLeadNextPreview === 'function') updateLeadNextPreview(); if(typeof renderLeadOriginExtra === 'function') renderLeadOriginExtra(); }catch(e){}
+      try{
+        if(prefill){
+          if(prefill.nome && byId('leadName')) byId('leadName').value = prefill.nome;
+          if(prefill.telefone && byId('leadPhone')) byId('leadPhone').value = prefill.telefone;
+          if(prefill.email && byId('leadEmail')) byId('leadEmail').value = prefill.email;
+          if(prefill.observacao && byId('leadObs')) byId('leadObs').value = prefill.observacao;
+          if(prefill.origem && byId('leadOrigin')){
+            var origemSelect = byId('leadOrigin');
+            var alvo = String(prefill.origem).trim().toLowerCase();
+            for(var i=0;i<origemSelect.options.length;i++){
+              if(origemSelect.options[i].value.trim().toLowerCase() === alvo){ origemSelect.value = origemSelect.options[i].value; break; }
+            }
+            if(typeof renderLeadOriginExtra === 'function') renderLeadOriginExtra();
+          }
+        }
+      }catch(e){}
+    },0);
   };
   try{ openLeadModal=window.openLeadModal; }catch(e){}
 
@@ -18748,7 +18766,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   function sdrFiltroState(programa){
     programa = programa || 'novos_leads';
     var todos = window.__sdrCadFiltro || (window.__sdrCadFiltro = {});
-    return todos[programa] || (todos[programa] = { tipo: 'hoje', busca: '' });
+    return todos[programa] || (todos[programa] = { tipo: 'hoje', busca: '', buscaTelefone: '' });
   }
   function sdrMesmoDia(iso, ref){
     if(!iso) return false;
@@ -18784,7 +18802,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     var horarioPrevisto = r.proximaAtividade && r.proximaAtividade.previstoPara ? new Date(r.proximaAtividade.previstoPara).toLocaleString('pt-BR') : '—';
     var atrasada = r.proximaAtividade && r.proximaAtividade.previstoPara && new Date(r.proximaAtividade.previstoPara) < new Date() && !terminal;
 
-    return '<div class="kanban-card' + (atrasada ? ' overdue' : '') + '" data-sdr-nome="' + escAttr(sdrNormTexto(r.leadNome || '')) + '" style="' + (atrasada ? 'border-color:#e0554f' : '') + '">' +
+    return '<div class="kanban-card' + (atrasada ? ' overdue' : '') + '" data-sdr-nome="' + escAttr(sdrNormTexto(r.leadNome || '')) + '" data-sdr-telefone="' + escAttr(String(r.leadTelefone||'').replace(/\D/g,'')) + '" style="' + (atrasada ? 'border-color:#e0554f' : '') + '">' +
       '<h4>' + esc(r.leadNome || 'Lead') + '</h4>' +
       '<p><b>Telefone:</b> ' + esc(r.leadTelefone || '—') + '</p>' +
       '<p><b>Origem:</b> ' + esc(r.origem || '—') + '</p>' +
@@ -19008,18 +19026,6 @@ body:has(#login:not(.hidden)) #app.hidden{
 
     var cardsHtml = registros.map(sdrRenderCardLead).join('') || '<p class="sub" style="padding:10px">Nenhum lead encontrado para este filtro.</p>';
 
-    var statusImportacaoHtml = '';
-    if(sdrIsAdmin()){
-      var contagem = sdrContarAtendimentosDisponiveis(programa);
-      if(contagem.total === 0){
-        statusImportacaoHtml = '<div class="callout" style="margin-bottom:16px"><b>Nenhum atendimento encontrado na base de Vendas para a etapa "' + esc(cfgPrograma.etapa) + '".</b> Faça o upload da planilha em <button class="kanban-mini" onclick="go(\'analise360_upload\')">Importar Análise 360°</button> — os leads dessa etapa entram automaticamente aqui assim que a planilha for enviada.</div>';
-      } else if(contagem.novos > 0){
-        statusImportacaoHtml = '<div class="callout" style="margin-bottom:16px"><b>Base de Atendimentos de Vendas</b> (apenas etapa "' + esc(cfgPrograma.etapa) + '"): ' + contagem.total + ' atendimento(s) encontrados · ' + contagem.jaImportados + ' já importado(s) · <b>' + contagem.novos + ' pendente(s) de importação</b> — serão importados automaticamente no próximo upload da planilha na Análise 360°.</div>';
-      } else {
-        statusImportacaoHtml = '<div class="callout" style="margin-bottom:16px"><b>Base de Atendimentos de Vendas</b> (apenas etapa "' + esc(cfgPrograma.etapa) + '"): ' + contagem.total + ' atendimento(s) encontrados, todos já importados. Novos uploads na Análise 360° são importados automaticamente para cá.</div>';
-      }
-    }
-
     var tituloTela = 'Cadências SDR — ' + cfgPrograma.label;
     var descricaoTela = programa === 'reativacao'
       ? 'Reativação de leads que voltaram para a etapa "Reativar". As cadências são criadas automaticamente a partir da base de Atendimentos de Vendas.'
@@ -19027,12 +19033,14 @@ body:has(#login:not(.hidden)) #app.hidden{
 
     content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>' + esc(tituloTela) + '</h2><p>' + esc(descricaoTela) + '</p></div>' +
       '</div>' +
-      statusImportacaoHtml +
       '<div style="margin-bottom:16px">' + abasHtml + '</div>' +
-      '<div class="field" style="max-width:340px;margin:0 0 16px"><input id="sdrBuscaNomeCadencia" value="' + escAttr(filtro.busca||'') + '" oninput="sdrFiltrarPorNomeCadencia(this.value,\'' + programa + '\')" placeholder="Buscar por nome..."></div>' +
+      '<div class="grid cols2" style="max-width:700px;margin:0 0 16px">' +
+        '<div class="field"><input id="sdrBuscaNomeCadencia" value="' + escAttr(filtro.busca||'') + '" oninput="sdrFiltrarPorNomeCadencia(this.value,\'' + programa + '\')" placeholder="Buscar por nome..."></div>' +
+        '<div class="field"><input id="sdrBuscaTelefoneCadencia" value="' + escAttr(filtro.buscaTelefone||'') + '" oninput="sdrFiltrarPorTelefoneCadencia(this.value,\'' + programa + '\')" placeholder="Buscar por telefone..."></div>' +
+      '</div>' +
       '<div class="grid cols3" id="sdrCadenciaCardsGrid">' + cardsHtml + '</div>';
 
-    if(filtro.busca) sdrFiltrarPorNomeCadencia(filtro.busca, programa);
+    if(filtro.busca || filtro.buscaTelefone) sdrAplicarFiltrosTextoCadencia(programa);
   }
 
   window.render_sdr_cadencias = function(){
@@ -19043,17 +19051,31 @@ body:has(#login:not(.hidden)) #app.hidden{
     sdrRenderListaCadencias('reativacao');
   };
 
-  window.sdrFiltrarPorNomeCadencia = function(valor, programa){
-    sdrFiltroState(programa || 'novos_leads').busca = valor || '';
-    var termo = sdrNormTexto(valor || '');
+  window.sdrAplicarFiltrosTextoCadencia = function(programa){
+    var filtro = sdrFiltroState(programa || 'novos_leads');
+    var termoNome = sdrNormTexto(filtro.busca || '');
+    var termoTelefone = String(filtro.buscaTelefone || '').replace(/\D/g,'');
     var grid = document.getElementById('sdrCadenciaCardsGrid');
     if(!grid) return;
     var cards = grid.querySelectorAll('[data-sdr-nome]');
     for(var i = 0; i < cards.length; i++){
       var card = cards[i];
       var nome = card.getAttribute('data-sdr-nome') || '';
-      card.style.display = (!termo || nome.indexOf(termo) !== -1) ? '' : 'none';
+      var telefone = card.getAttribute('data-sdr-telefone') || '';
+      var bateNome = !termoNome || nome.indexOf(termoNome) !== -1;
+      var bateTelefone = !termoTelefone || telefone.indexOf(termoTelefone) !== -1;
+      card.style.display = (bateNome && bateTelefone) ? '' : 'none';
     }
+  };
+
+  window.sdrFiltrarPorNomeCadencia = function(valor, programa){
+    sdrFiltroState(programa || 'novos_leads').busca = valor || '';
+    window.sdrAplicarFiltrosTextoCadencia(programa);
+  };
+
+  window.sdrFiltrarPorTelefoneCadencia = function(valor, programa){
+    sdrFiltroState(programa || 'novos_leads').buscaTelefone = valor || '';
+    window.sdrAplicarFiltrosTextoCadencia(programa);
   };
 
   window.sdrDefinirEmpreendimento = function(registroId){
@@ -19223,7 +19245,20 @@ body:has(#login:not(.hidden)) #app.hidden{
     }
     doSave();
     toastSafe('Lead qualificado.');
-    window.sdrAbrirDetalhesLead(registroId);
+    /* Encaminha direto para o cadastro oficial do lead (Novo registro de lead), já preenchido
+       com os dados que a Cadência SDR já tinha, para o usuário só completar fila/qualificado
+       por/observação e distribuir ao corretor — em vez de voltar para a tela de detalhes. */
+    if(typeof window.openLeadModal === 'function' && typeof has === 'function' && has('leads_cadastrar')){
+      window.openLeadModal({
+        nome: r.leadNome || '',
+        telefone: r.leadTelefone || '',
+        email: r.leadEmail || '',
+        origem: r.origem || '',
+        observacao: obs ? ('Qualificado via Cadências SDR — ' + motivo + ': ' + obs) : ('Qualificado via Cadências SDR — ' + motivo)
+      });
+    } else {
+      window.sdrAbrirDetalhesLead(registroId);
+    }
   };
 
   window.sdrAbrirPerdido = function(registroId){
