@@ -688,6 +688,14 @@ cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrin
 .npc-chat-input{width:100%;min-height:70px;margin-top:10px;border:1px solid #dfe3ea;border-radius:10px;padding:10px}
 .npc-chat-actions{text-align:right;margin-top:8px}
 
+/* Menu lateral em accordion (apenas visual, nao altera funcionalidades) */
+.nav-group{display:flex;flex-direction:column;}
+.nav-group .nav-title{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px;user-select:none;}
+.nav-group .nav-title .nav-caret{font-size:9px;opacity:.55;transition:transform .18s ease;flex:0 0 auto;}
+.nav-group.collapsed .nav-caret{transform:rotate(-90deg);}
+.nav-group-body{display:flex;flex-direction:column;gap:2px;overflow:hidden;}
+.nav-group.collapsed .nav-group-body{display:none;}
+
 </style>
 
 <script>
@@ -1211,7 +1219,7 @@ firebaseAuth.onAuthStateChanged(async user=>{
   }
 });
 function toggleSide(){$('side').classList.toggle('open')}
-const pages=[['Geral','dashboard','Dashboard','◼','dashboard'],['Geral','institucional','Institucional','⌂','institucional'],['Comunicação','comunicados','Comunicados','●','comunicados_ver'],['Comunicação','agenda','Agenda','◷','agenda_ver'],['Comunicação','aniversariantes','Aniversariantes','★','aniversariantes_ver'],['Capacitação','treinamentos','Treinamentos','▣','treinamentos_ver'],['Capacitação','playbook','Playbook','▤','playbook_ver'],['Capacitação','processos','Processos','↻','processos_ver'],['Gestão','metas','Metas e KPIs','','metas_ver'],['Performance','perf_gerencial','Visão Gerencial','','performance_admin'],['Performance','perf_dashboard','Dashboard','','performance_dashboard'],['Performance','perf_base','Registros Realizados','','performance_base'],['Performance','perf_ranking','Ranking','','performance_ranking'],['Áreas','vendas','Vendas','◆','vendas_ver'],['Áreas','locacao','Locação','◇','locacao_ver'],['Áreas','captacao','Captação','◎','captacao_ver'],['Áreas','marketing','Marketing','✺','marketing_ver'],['Áreas','juridico','Jurídico','⚖','juridico_ver'],['Biblioteca','biblioteca','Biblioteca NPC','▦','biblioteca_ver'],['Administração','usuarios','Usuários','⚙','usuarios_gerenciar'],['Administração','config','Configurações','☷','configuracoes']];
+const pages=[['Geral','dashboard','Dashboard','◼','dashboard'],['Geral','institucional','Institucional','⌂','institucional'],['Comunicação','comunicados','Comunicados','●','comunicados_ver'],['Comunicação','agenda','Agenda','◷','agenda_ver'],['Comunicação','aniversariantes','Aniversariantes','★','aniversariantes_ver'],['Capacitação','treinamentos','Treinamentos','▣','treinamentos_ver'],['Capacitação','playbook','Playbook','▤','playbook_ver'],['Capacitação','processos','Processos','↻','processos_ver'],['Gestão','metas','Metas e KPIs','','metas_ver'],['Vendas','perf_gerencial','Visão Gerencial','','performance_admin'],['Vendas','perf_dashboard','Dashboard','','performance_dashboard'],['Vendas','perf_base','Registros Realizados','','performance_base'],['Vendas','perf_ranking','Ranking','','performance_ranking'],['Áreas','vendas','Vendas','◆','vendas_ver'],['Áreas','locacao','Locação','◇','locacao_ver'],['Áreas','captacao','Captação','◎','captacao_ver'],['Áreas','marketing','Marketing','✺','marketing_ver'],['Áreas','juridico','Jurídico','⚖','juridico_ver'],['Biblioteca','biblioteca','Biblioteca NPC','▦','biblioteca_ver'],['Administração','usuarios','Usuários','⚙','usuarios_gerenciar'],['Administração','config','Configurações','☷','configuracoes']];
 function buildNav(){let last='',insidePerf=false,out='';pages.filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
 window.render=function(){try{const p=window.page||page;const fn=window.renders&&window.renders[p]||renders&&renders[p];if(typeof fn==='function')fn();}catch(e){console.warn('render() error:',e);}};
 function go(id){page=id; document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); const nb=$('nav_'+id); if(nb)nb.classList.add('active'); const label=pages.find(x=>x[1]===id)?.[2]||'Página'; $('crumb').textContent='Intranet / '+label; $('pageTitle').textContent=label; $('side').classList.remove('open'); (renders[id]||render_dashboard)()}
@@ -2249,7 +2257,7 @@ function restoreLeadQueueAll(qid){
 }
 function resetLeadQueue(qid){if(!has('leads_gerenciar_filas'))return;if(!confirm('Reiniciar esta fila para o primeiro corretor da ordem configurada?'))return;leadQueueState(qid).currentIndex=0;logAudit('Fila de leads reiniciada',leadQueueLabel(qid));save();render_leads_filas();toast('Fila reiniciada.')}
 
-function defaultMenuSettings(){return {blockOrder:['Geral','Comunicação','Capacitação','Gestão','Performance','Leads','Áreas','Biblioteca','Administração'],navFontSize:16,titleFontSize:10,titleColor:'#878b96',navColor:'#d5d8de',activeBg:'#ffc71b',sidebarBg:'#101114'} }
+function defaultMenuSettings(){return {blockOrder:['Geral','Comunicação','Capacitação','Gestão','Vendas','Leads','Áreas','Biblioteca','Administração'],navFontSize:16,titleFontSize:10,titleColor:'#878b96',navColor:'#d5d8de',activeBg:'#ffc71b',sidebarBg:'#101114'} }
 function applyMenuSettings(){ensureOpsData();const s={...defaultMenuSettings(),...(db.menuSettings||{})};let el=$('menuDynamicStyle');if(!el){el=document.createElement('style');el.id='menuDynamicStyle';document.head.appendChild(el)}el.textContent=`.side{background:${s.sidebarBg}!important}.nav button{font-size:${Number(s.navFontSize)||16}px;color:${s.navColor}!important}.nav button.active{background:${s.activeBg}!important;color:#111!important}.nav-title{font-size:${Number(s.titleFontSize)||10}px;color:${s.titleColor}!important}`}
 function getOrderedPages(){ensureOpsData();const s={...defaultMenuSettings(),...(db.menuSettings||{})};const order=s.blockOrder||defaultMenuSettings().blockOrder;return [...pages].sort((a,b)=>{const ia=order.indexOf(a[0]);const ib=order.indexOf(b[0]);return (ia<0?99:ia)-(ib<0?99:ib) || pages.indexOf(a)-pages.indexOf(b)})}
 function buildNav(){applyMenuSettings();let last='',insidePerf=false,out='';getOrderedPages().filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`;if(['Leads'].includes(x[0])){out+='<div class="nav-sub">';insidePerf=true}}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
@@ -2589,7 +2597,7 @@ function permissionGroups(){
       ['modo_reuniao','Ver Modo Reunião','Permite acessar painel para alinhamentos.'],
       ['auditoria','Ver Auditoria','Permite consultar logs de ações.']
     ]},
-    {id:'performance',title:'Performance',desc:'Lançamentos, dashboards e ranking de performance.',items:[
+    {id:'performance',title:'Vendas',desc:'Lançamentos, dashboards e ranking de performance.',items:[
       ['performance_admin','Visão gerencial','Permite ver dados consolidados da equipe.'],
       ['performance_dashboard','Dashboard individual','Permite ver dashboard de performance.'],
       ['performance_base','Registros realizados','Permite consultar e lançar registros próprios/autorizados.'],
@@ -4448,8 +4456,8 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function installKanbanMenu(){
     if(typeof pages!=='undefined'){
-      if(!pages.some(p=>p[1]==='perf_kanban')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_ranking')+1),0,['Performance','perf_kanban','Kanban','','performance_kanban']);
-      if(!pages.some(p=>p[1]==='perf_kanban_gestao')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_kanban')+1),0,['Performance','perf_kanban_gestao','Gestão Kanban','','performance_kanban_gestao']);
+      if(!pages.some(p=>p[1]==='perf_kanban')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_ranking')+1),0,['Vendas','perf_kanban','Registros de Vendas','','performance_kanban']);
+      if(!pages.some(p=>p[1]==='perf_kanban_gestao')) pages.splice(Math.max(0,pages.findIndex(p=>p[1]==='perf_kanban')+1),0,['Vendas','perf_kanban_gestao','Gestão Kanban','','performance_kanban_gestao']);
       const kanbanPage=pages.find(p=>p[1]==='perf_kanban'); if(kanbanPage)kanbanPage[4]='performance_kanban';
       const kanbanGestaoPage=pages.find(p=>p[1]==='perf_kanban_gestao'); if(kanbanGestaoPage)kanbanGestaoPage[4]='performance_kanban_gestao';
     }
@@ -4995,7 +5003,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{
     if(typeof pages!=='undefined' && !pages.some(function(p){return p[1]==='perf_visitas'})){
       const idx=pages.findIndex(function(p){return p[1]==='perf_ranking'});
-      const item=['Performance','perf_visitas','Análise de Visitas','','performance_visitas_analise'];
+      const item=['Vendas','perf_visitas','Análise de Visitas','','performance_visitas_analise'];
       if(idx>=0) pages.splice(idx+1,0,item); else pages.push(item);
     }
   }catch(e){}
@@ -6114,9 +6122,9 @@ body:has(#login:not(.hidden)) #app.hidden{
   // Corrige páginas e textos do menu.
   function normalizePages(){try{
     const ps=window.pages||pages; if(!Array.isArray(ps))return;
-    ps.forEach(p=>{p[2]=userFacingName(p[2]); if(p[1]==='perf_kanban'){p[2]='Vendas';p[3]='';p[4]='performance_kanban';} if(p[1]==='perf_kanban_gestao'){p[2]='Gestão de Vendas';p[3]='';p[4]='performance_kanban_gestao';}});
-    if(!ps.some(p=>p[1]==='perf_kanban')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_ranking')+1),0,['Performance','perf_kanban','Vendas','','performance_kanban']);
-    if(!ps.some(p=>p[1]==='perf_kanban_gestao')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_kanban')+1),0,['Performance','perf_kanban_gestao','Gestão de Vendas','','performance_kanban_gestao']);
+    ps.forEach(p=>{p[2]=userFacingName(p[2]); if(p[1]==='perf_kanban'){p[2]='Registros de Vendas';p[3]='';p[4]='performance_kanban';} if(p[1]==='perf_kanban_gestao'){p[2]='Gestão de Vendas';p[3]='';p[4]='performance_kanban_gestao';}});
+    if(!ps.some(p=>p[1]==='perf_kanban')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_ranking')+1),0,['Vendas','perf_kanban','Registros de Vendas','','performance_kanban']);
+    if(!ps.some(p=>p[1]==='perf_kanban_gestao')) ps.splice(Math.max(0,ps.findIndex(p=>p[1]==='perf_kanban')+1),0,['Vendas','perf_kanban_gestao','Gestão de Vendas','','performance_kanban_gestao']);
   }catch(e){}}
   normalizePages();
 
@@ -6188,7 +6196,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       {id:'comunicacao',title:'Comunicação',items:[['comunicados_ver','Ver comunicados','Permite consultar comunicados.'],['comunicados_gerenciar','Gerenciar comunicados','Permite criar e editar comunicados.'],['agenda_ver','Ver agenda','Permite consultar agenda.'],['agenda_gerenciar','Gerenciar agenda','Permite criar e editar eventos.'],['aniversariantes_ver','Ver aniversariantes','Permite consultar aniversariantes.'],['aniversariantes_gerenciar','Gerenciar aniversariantes','Permite editar aniversariantes.']]},
       {id:'capacitacao',title:'Capacitação',items:[['treinamentos_ver','Ver treinamentos','Permite acessar treinamentos.'],['treinamentos_gerenciar','Gerenciar treinamentos','Permite editar treinamentos.'],['biblioteca_ver','Ver biblioteca NPC','Permite acessar biblioteca.'],['playbook_ver','Ver playbook','Permite acessar playbook.'],['processos_ver','Ver processos','Permite acessar processos.']]},
       {id:'gestao',title:'Gestão',items:[['metas_ver','Ver metas e KPIs','Permite acessar metas e indicadores.']]},
-      {id:'performance',title:'Performance',items:[['performance_admin','Ver visão gerencial','Permite acessar visão gerencial respeitando escopo.'],['performance_dashboard','Ver dashboard de performance','Permite acessar dashboard de performance.'],['performance_base','Ver registros realizados','Permite lançar e consultar registros.'],['performance_ranking','Ver ranking','Permite acessar ranking.'],['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.'],['performance_kanban','Ver vendas','Permite acessar quadro de vendas.'],['performance_kanban_gestao','Gerenciar vendas','Permite configurar colunas/opções de vendas.']]},
+      {id:'performance',title:'Vendas',items:[['performance_admin','Ver visão gerencial','Permite acessar visão gerencial respeitando escopo.'],['performance_dashboard','Ver dashboard de performance','Permite acessar dashboard de performance.'],['performance_base','Ver registros realizados','Permite lançar e consultar registros.'],['performance_ranking','Ver ranking','Permite acessar ranking.'],['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.'],['performance_kanban','Ver vendas','Permite acessar quadro de vendas.'],['performance_kanban_gestao','Gerenciar vendas','Permite configurar colunas/opções de vendas.']]},
       {id:'leads',title:'Leads',items:[['leads_ver','Ver módulo de leads','Libera o bloco Leads no menu.'],['leads_cadastrar','Cadastrar leads','Permite criar novo lead e acionar rodízio.'],['leads_consultar','Consultar registros de leads','Permite ver registros cadastrados.'],['leads_inativar','Inativar leads','Permite excluir/inativar registros.'],['leads_dashboard','Dashboard de leads','Permite ver gráficos e visão gerencial.'],['leads_filas_configurar','Configurações de Leads','Permite configurar filas de rodízio e origens dos leads.'],['leads_pular_corretor','Pular corretor','Permite pular corretor com justificativa.']]},
       {id:'chamados',title:'Chamados',items:[['chamados_ver','Ver chamados','Permite consultar chamados próprios/atribuídos.'],['chamados_gerenciar','Gerenciar chamados','Permite gerenciar chamados.']]},
       {id:'areas',title:'Áreas',items:[['vendas_ver','Ver conteúdos de vendas','Permite acessar área de vendas.'],['locacao_ver','Ver conteúdos de locação','Permite acessar área de locação.'],['captacao_ver','Ver conteúdos de captação','Permite acessar área de captação.'],['marketing_ver','Ver marketing','Permite acessar marketing.'],['juridico_ver','Ver jurídico','Permite acessar jurídico.']]},
@@ -7014,7 +7022,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     try{ if(typeof window.ensureOpsData==='function') window.ensureOpsData(); }catch(e){}
     if(!window.db) window.db={};
     var def=(typeof window.defaultMenuSettings==='function') ? window.defaultMenuSettings() : {
-      blockOrder:['Geral','Comunicação','Capacitação','Gestão','Performance','Leads','Áreas','Biblioteca','Administração'],
+      blockOrder:['Geral','Comunicação','Capacitação','Gestão','Vendas','Leads','Áreas','Biblioteca','Administração'],
       navFontSize:16,titleFontSize:10,titleColor:'#878b96',navColor:'#d5d8de',activeBg:'#ffc71b',sidebarBg:'#101114'
     };
     window.db.menuSettings={...def,...(window.db.menuSettings||{})};
@@ -7029,7 +7037,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       }
     }catch(e){}
     if(!blocks.length){
-      blocks=['Geral','Comunicação','Capacitação','Gestão','Performance','Leads','Áreas','Biblioteca','Administração'];
+      blocks=['Geral','Comunicação','Capacitação','Gestão','Vendas','Leads','Áreas','Biblioteca','Administração'];
     }
     return blocks;
   }
@@ -7466,7 +7474,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       var ps = window.pages || pages;
       if(!ps.some(function(p){ return p && p[1] === PAGE_ID; })){
         var idx = ps.findIndex(function(p){ return p && p[1] === 'perf_base'; });
-        var item = ['Performance', PAGE_ID, PAGE_TITLE, '', PAGE_PERM];
+        var item = ['Vendas', PAGE_ID, PAGE_TITLE, '', PAGE_PERM];
         if(idx >= 0) ps.splice(idx + 1, 0, item); else ps.push(item);
       }
     }
@@ -7670,7 +7678,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(existing) existing[4]=KEY;
     else{
       var idx = ps.findIndex(function(p){return p && p[1] === 'perf_base';});
-      var item = ['Performance','perf_leads_distribuidos','Leads Distribuídos','',KEY];
+      var item = ['Vendas','perf_leads_distribuidos','Leads Distribuídos','',KEY];
       if(idx >= 0) ps.splice(idx+1,0,item); else ps.push(item);
     }
   }catch(e){}
@@ -8804,7 +8812,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     'Comunicação':{id:'comunicacao',title:'Comunicação',desc:'Comunicados, agenda e aniversariantes.'},
     'Capacitação':{id:'capacitacao',title:'Capacitação',desc:'Treinamentos, playbook e processos internos.'},
     'Gestão':{id:'gestao',title:'Gestão',desc:'Rotina gerencial, metas, radar e auditoria.'},
-    Performance:{id:'performance',title:'Performance',desc:'Lançamentos, dashboards, vendas, visitas e ranking de performance.'},
+    Vendas:{id:'performance',title:'Vendas',desc:'Lançamentos, dashboards, vendas, visitas e ranking de performance.'},
     Leads:{id:'leads',title:'Leads',desc:'Cadastro, consulta, dashboard e configurações de leads.'},
     Suporte:{id:'chamados',title:'Chamados',desc:'Chamados internos, suporte e acompanhamento de demandas.'},
     Chamados:{id:'chamados',title:'Chamados',desc:'Chamados internos, suporte e acompanhamento de demandas.'},
@@ -8938,7 +8946,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       try{ if(typeof renders!=='undefined') renders.capacitacao_areas=window.render_capacitacao_areas; }catch(e){}
       var d=getDb();
       d.menuSettings=d.menuSettings||{};
-      d.menuSettings.blockOrder=d.menuSettings.blockOrder||['Geral','Comunicação','Capacitação','Gestão','Performance','Leads','Suporte','Biblioteca','Administração'];
+      d.menuSettings.blockOrder=d.menuSettings.blockOrder||['Geral','Comunicação','Capacitação','Gestão','Vendas','Leads','Suporte','Biblioteca','Administração'];
       if(d.menuSettings.blockOrder.indexOf('Capacitação')<0){
         var pos=d.menuSettings.blockOrder.indexOf('Comunicação');
         d.menuSettings.blockOrder.splice(pos>=0?pos+1:2,0,'Capacitação');
@@ -19434,21 +19442,21 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{
     if(typeof pages !== 'undefined'){
       if(!pages.some(function(p){ return p[1] === 'sdr_cadencias'; })){
-        pages.push(['Relacionamento','sdr_cadencias','Cadências - Novos Leads','☎','sdr_cadencias_ver']);
+        pages.push(['Cadências','sdr_cadencias','Cadências - Novos Leads','☎','sdr_cadencias_ver']);
       } else {
         pages.forEach(function(p){ if(p[1] === 'sdr_cadencias') p[2] = 'Cadências - Novos Leads'; });
       }
       if(!pages.some(function(p){ return p[1] === 'sdr_cadencias_reativacao'; })){
-        pages.push(['Relacionamento','sdr_cadencias_reativacao','Cadências - Reativação','☎','sdr_cadencias_reativacao_ver']);
+        pages.push(['Cadências','sdr_cadencias_reativacao','Cadências - Reativação','☎','sdr_cadencias_reativacao_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'sdr_gestao_cadencias'; })){
-        pages.push(['Relacionamento','sdr_gestao_cadencias','Gestão de Cadências','⚙','sdr_gestao_ver']);
+        pages.push(['Cadências','sdr_gestao_cadencias','Gestão de Cadências','⚙','sdr_gestao_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'sdr_templates'; })){
-        pages.push(['Relacionamento','sdr_templates','Templates de Mensagens','✉','sdr_templates_ver']);
+        pages.push(['Cadências','sdr_templates','Templates de Mensagens','✉','sdr_templates_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'sdr_dashboard'; })){
-        pages.push(['Relacionamento','sdr_dashboard','Dashboard SDR','📊','sdr_dashboard_ver']);
+        pages.push(['Cadências','sdr_dashboard','Dashboard SDR','📊','sdr_dashboard_ver']);
       }
       if(typeof window.pages !== 'undefined') window.pages = pages;
     }
@@ -19653,5 +19661,70 @@ body:has(#login:not(.hidden)) #app.hidden{
   })();
 
   console.log('[Relacionamento] Módulo Cadências SDR instalado.');
+})();
+
+</script>
+<script>
+/* ===== PATCH: Menu lateral em Accordion (somente visual, nao mexe em permissoes/navegacao) ===== */
+(function(){
+  function npcAccordionizeNav(){
+    var nav = document.getElementById('nav');
+    if(!nav) return;
+    var children = Array.prototype.slice.call(nav.children);
+    if(!children.length) return;
+
+    var groups = [];
+    var current = null;
+    children.forEach(function(el){
+      if(el.classList && el.classList.contains('nav-title')){
+        current = {title: el, items: []};
+        groups.push(current);
+      } else {
+        if(!current){ current = {title: null, items: []}; groups.push(current); }
+        current.items.push(el);
+      }
+    });
+
+    var wraps = [];
+    var frag = document.createDocumentFragment();
+    groups.forEach(function(g){
+      var wrap = document.createElement('div');
+      wrap.className = 'nav-group collapsed';
+      wraps.push(wrap);
+
+      if(g.title){
+        var caret = document.createElement('span');
+        caret.className = 'nav-caret';
+        caret.textContent = '▾';
+        g.title.appendChild(caret);
+        g.title.addEventListener('click', function(){
+          var wasCollapsed = wrap.classList.contains('collapsed');
+          wraps.forEach(function(w){ w.classList.add('collapsed'); });
+          if(wasCollapsed) wrap.classList.remove('collapsed');
+        });
+        wrap.appendChild(g.title);
+      }
+
+      var body = document.createElement('div');
+      body.className = 'nav-group-body';
+      g.items.forEach(function(it){ body.appendChild(it); });
+      wrap.appendChild(body);
+
+      frag.appendChild(wrap);
+    });
+
+    nav.innerHTML = '';
+    nav.appendChild(frag);
+  }
+
+  var oldBuildNavForAccordion = window.buildNav || (typeof buildNav === 'function' ? buildNav : null);
+  window.buildNav = function(){
+    var r = oldBuildNavForAccordion ? oldBuildNavForAccordion.apply(this, arguments) : undefined;
+    try{ npcAccordionizeNav(); }catch(e){ console.error('[Menu Accordion] erro:', e); }
+    return r;
+  };
+  try{ buildNav = window.buildNav; }catch(e){}
+
+  try{ if(document.getElementById('nav') && document.getElementById('nav').children.length){ npcAccordionizeNav(); } }catch(e){}
 })();
 </script>
