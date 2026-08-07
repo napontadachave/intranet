@@ -2100,6 +2100,7 @@ function cloudToLocal(cloud){
   base.locacaoComissaoRegras = Array.isArray(cloud?.locacaoComissaoRegras) ? cloud.locacaoComissaoRegras : (cloud?.locacaoComissaoRegras ? Object.values(cloud.locacaoComissaoRegras) : (base.locacaoComissaoRegras || []));
   base.locacaoKPIs = Array.isArray(cloud?.locacaoKPIs) ? cloud.locacaoKPIs : (cloud?.locacaoKPIs ? Object.values(cloud.locacaoKPIs) : (base.locacaoKPIs || []));
   base.locacaoRegistrosDiarios = Array.isArray(cloud?.locacaoRegistrosDiarios) ? cloud.locacaoRegistrosDiarios : (cloud?.locacaoRegistrosDiarios ? Object.values(cloud.locacaoRegistrosDiarios) : (base.locacaoRegistrosDiarios || []));
+  base.locacaoRegistrosAtendimento = Array.isArray(cloud?.locacaoRegistrosAtendimento) ? cloud.locacaoRegistrosAtendimento : (cloud?.locacaoRegistrosAtendimento ? Object.values(cloud.locacaoRegistrosAtendimento) : (base.locacaoRegistrosAtendimento || []));
   base.locacaoInfoUteis = Array.isArray(cloud?.locacaoInfoUteis) ? cloud.locacaoInfoUteis : (cloud?.locacaoInfoUteis ? Object.values(cloud.locacaoInfoUteis) : (base.locacaoInfoUteis || []));
   if(!base.comunicados || !base.comunicados.length) base.comunicados = structuredClone(DEFAULT_COMUNICADOS);
   return base;
@@ -16973,6 +16974,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     d.locacaoComissaoRegras = Array.isArray(d.locacaoComissaoRegras) ? d.locacaoComissaoRegras : [];
     d.locacaoKPIs = Array.isArray(d.locacaoKPIs) ? d.locacaoKPIs : [];
     d.locacaoRegistrosDiarios = Array.isArray(d.locacaoRegistrosDiarios) ? d.locacaoRegistrosDiarios : [];
+    d.locacaoRegistrosAtendimento = Array.isArray(d.locacaoRegistrosAtendimento) ? d.locacaoRegistrosAtendimento : [];
     d.locacaoInfoUteis = Array.isArray(d.locacaoInfoUteis) ? d.locacaoInfoUteis : [];
     d.locacaoPropostasCards.forEach(ensureLocCardDefaults);
   }
@@ -17784,7 +17786,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     var content = document.getElementById('content');
     if(!content) return;
     if(typeof has === 'function' && !has('locacao_registro_ver')){
-      content.innerHTML = '<div class="empty">Você não possui permissão para acessar o Registro Diário.</div>';
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar o Registro Diário - Captação.</div>';
       return;
     }
     ensureLocacaoData();
@@ -17805,7 +17807,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
     var linhasTabela = listaRegistros.map(function(r){
       return '<tr><td>' + esc((r.data||'').split('-').reverse().join('/')) + '</td>' + (podeVerTodos ? '<td>' + esc(r.userName||'—') + '</td>' : '') +
-        '<td>' + esc(r.contatos||0) + '</td><td>' + esc(r.conversasQualificadas||0) + '</td><td>' + esc(r.avaliacoesAgendadas||0) + '</td><td>' + esc(r.avaliacoesRealizadas||0) + '</td><td>' + esc(r.dificuldades||'—') + '</td>' +
+        '<td>' + esc(r.contatos||0) + '</td><td>' + esc(r.conversasQualificadas||0) + '</td><td>' + esc(r.avaliacoesAgendadas||0) + '</td><td>' + esc(r.avaliacoesRealizadas||0) + '</td><td>' + esc(r.captacoesFinalizadas||0) + '</td><td>' + esc(r.dificuldades||'—') + '</td>' +
         (podeExcluir ? '<td><button class="danger kanban-mini" onclick="locExcluirRegistro(\'' + escAttr(r.id) + '\')">Excluir</button></td>' : '') +
       '</tr>';
     }).join('');
@@ -17816,11 +17818,11 @@ body:has(#login:not(.hidden)) #app.hidden{
       '<div class="field"><label>Data até</label><input type="date" id="locRegFiltroAte" value="' + escAttr(filtro.dataAte) + '" onchange="window.locAtualizarFiltroRegistro(\'dataAte\', this.value)"></div>' +
       '</div><button class="secondary" style="margin-top:10px" onclick="locLimparFiltroRegistro()">Limpar filtros</button></div>';
 
-    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Registro Diário</h2><p>Preencha os números do dia. Salvar de novo no mesmo dia atualiza o registro (não duplica).</p></div>' +
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Registro Diário - Captação</h2><p>Preencha os números do dia. Salvar de novo no mesmo dia atualiza o registro (não duplica).</p></div>' +
       '<div class="kanban-actions-row"><button class="primary" onclick="locOpenRegistroModal()">Novo registro</button></div></div>' +
       filtrosHtml +
       '<div class="card pad"><h3>Histórico' + (podeVerTodos ? ' (toda a equipe)' : ' (meus registros)') + '</h3>' +
-        (linhasTabela ? '<table class="table"><thead><tr><th>Data</th>' + (podeVerTodos ? '<th>Corretor(a)</th>' : '') + '<th>Contatos</th><th>Conv. Qualificadas</th><th>Aval. Agendadas</th><th>Aval. Realizadas</th><th>Dificuldades</th>' + (podeExcluir ? '<th>Ações</th>' : '') + '</tr></thead><tbody>' + linhasTabela + '</tbody></table>' : '<p class="sub">Nenhum registro encontrado para o filtro selecionado.</p>') +
+        (linhasTabela ? '<table class="table"><thead><tr><th>Data</th>' + (podeVerTodos ? '<th>Corretor(a)</th>' : '') + '<th>Contatos</th><th>Conv. Qualificadas</th><th>Aval. Agendadas</th><th>Aval. Realizadas</th><th>Captações Finalizadas</th><th>Dificuldades</th>' + (podeExcluir ? '<th>Ações</th>' : '') + '</tr></thead><tbody>' + linhasTabela + '</tbody></table>' : '<p class="sub">Nenhum registro encontrado para o filtro selecionado.</p>') +
       '</div>';
   };
 
@@ -17831,11 +17833,12 @@ body:has(#login:not(.hidden)) #app.hidden{
     var meuId = (current && current.id) || '';
     var existente = locRegistroExistente(meuId, hojeISO);
     var html = '<div class="field" style="max-width:220px"><label>Data</label><input type="date" id="locRegData" value="' + hojeISO + '" max="' + hojeISO + '" onchange="window.locAtualizarCamposRegistro()"></div>' +
-      '<div class="grid cols4">' +
-        '<div class="field"><label>Contatos</label><input type="number" min="0" id="locRegContatos" value="' + (existente ? escAttr(existente.contatos) : '') + '"></div>' +
+      '<div class="grid cols3">' +
+        '<div class="field"><label>Contatos Realizados</label><input type="number" min="0" id="locRegContatos" value="' + (existente ? escAttr(existente.contatos) : '') + '"></div>' +
         '<div class="field"><label>Conversas Qualificadas</label><input type="number" min="0" id="locRegConversas" value="' + (existente ? escAttr(existente.conversasQualificadas) : '') + '"></div>' +
         '<div class="field"><label>Avaliações/Fotos Agendadas</label><input type="number" min="0" id="locRegAgendadas" value="' + (existente ? escAttr(existente.avaliacoesAgendadas) : '') + '"></div>' +
         '<div class="field"><label>Avaliações/Fotos Realizadas</label><input type="number" min="0" id="locRegRealizadas" value="' + (existente ? escAttr(existente.avaliacoesRealizadas) : '') + '"></div>' +
+        '<div class="field"><label>Captações Finalizadas</label><input type="number" min="0" id="locRegCaptacoes" value="' + (existente ? escAttr(existente.captacoesFinalizadas) : '') + '"></div>' +
       '</div>' +
       '<div class="field"><label>Quais dificuldades encontrou?</label><textarea id="locRegDificuldades" rows="3">' + esc(existente ? existente.dificuldades : '') + '</textarea></div>' +
       '<div class="actions kanban-form-actions"><button class="primary" onclick="locSalvarRegistro()">Salvar registro</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
@@ -17853,11 +17856,13 @@ body:has(#login:not(.hidden)) #app.hidden{
     var conversasEl = document.getElementById('locRegConversas');
     var agendadasEl = document.getElementById('locRegAgendadas');
     var realizadasEl = document.getElementById('locRegRealizadas');
+    var captacoesEl = document.getElementById('locRegCaptacoes');
     var dificuldadesEl = document.getElementById('locRegDificuldades');
     if(contatosEl) contatosEl.value = existente ? existente.contatos : '';
     if(conversasEl) conversasEl.value = existente ? existente.conversasQualificadas : '';
     if(agendadasEl) agendadasEl.value = existente ? existente.avaliacoesAgendadas : '';
     if(realizadasEl) realizadasEl.value = existente ? existente.avaliacoesRealizadas : '';
+    if(captacoesEl) captacoesEl.value = existente ? existente.captacoesFinalizadas : '';
     if(dificuldadesEl) dificuldadesEl.value = existente ? (existente.dificuldades||'') : '';
   };
 
@@ -17873,17 +17878,20 @@ body:has(#login:not(.hidden)) #app.hidden{
     var conversas = Number((document.getElementById('locRegConversas')||{}).value || 0) || 0;
     var agendadas = Number((document.getElementById('locRegAgendadas')||{}).value || 0) || 0;
     var realizadas = Number((document.getElementById('locRegRealizadas')||{}).value || 0) || 0;
+    var captacoes = Number((document.getElementById('locRegCaptacoes')||{}).value || 0) || 0;
     var dificuldades = ((document.getElementById('locRegDificuldades')||{}).value || '').trim();
 
     var existente = locRegistroExistente(meuId, dataISO);
     if(existente){
       existente.contatos = contatos; existente.conversasQualificadas = conversas;
       existente.avaliacoesAgendadas = agendadas; existente.avaliacoesRealizadas = realizadas;
+      existente.captacoesFinalizadas = captacoes;
       existente.dificuldades = dificuldades; existente.updatedAt = new Date().toISOString();
     } else {
       d.locacaoRegistrosDiarios.push({
         id: uid(), data: dataISO, userId: meuId, userName: meuNome,
         contatos: contatos, conversasQualificadas: conversas, avaliacoesAgendadas: agendadas, avaliacoesRealizadas: realizadas,
+        captacoesFinalizadas: captacoes,
         dificuldades: dificuldades, createdAt: new Date().toISOString()
       });
     }
@@ -17891,6 +17899,177 @@ body:has(#login:not(.hidden)) #app.hidden{
     try{ closeModal(); }catch(e){}
     try{ toast('Registro salvo.'); }catch(e){}
     window.render_locacao_registro();
+  };
+
+  /* ================= Registro Diário - Atendimento e Visitas ================= */
+  function locRegistroAtendExistente(userId, dataISO){
+    var d = dbRef();
+    return (d.locacaoRegistrosAtendimento||[]).find(function(r){ return r.userId === userId && r.data === dataISO; });
+  }
+
+  /* estado do filtro (usuário + período), mantido em memória entre as renderizações da tela */
+  function locRegAtendFiltroState(){
+    return window.__locRegAtendFiltro || (window.__locRegAtendFiltro = {userId:'', dataDe:'', dataAte:''});
+  }
+
+  window.locAtualizarFiltroRegistroAtend = function(campo, valor){
+    var filtro = locRegAtendFiltroState();
+    filtro[campo] = valor || '';
+    window.render_locacao_registro_atendimento();
+  };
+
+  window.locLimparFiltroRegistroAtend = function(){
+    window.__locRegAtendFiltro = {userId:'', dataDe:'', dataAte:''};
+    window.render_locacao_registro_atendimento();
+  };
+
+  window.locExcluirRegistroAtend = function(regId){
+    if(!locIsAdmin()){ try{ toast('Sem permissão para excluir registros.'); }catch(e){} return; }
+    ensureLocacaoData();
+    var d = dbRef();
+    var reg = (d.locacaoRegistrosAtendimento||[]).find(function(r){ return r.id === regId; });
+    if(!reg) return;
+    var dataFmt = (reg.data||'').split('-').reverse().join('/');
+    if(!confirm('Excluir o registro de ' + (reg.userName||'—') + ' em ' + dataFmt + '?')) return;
+    d.locacaoRegistrosAtendimento = d.locacaoRegistrosAtendimento.filter(function(r){ return r.id !== regId; });
+    doSave();
+    try{ toast('Registro excluído.'); }catch(e){}
+    window.render_locacao_registro_atendimento();
+  };
+
+  window.render_locacao_registro_atendimento = function(){
+    var content = document.getElementById('content');
+    if(!content) return;
+    if(typeof has === 'function' && !has('locacao_registro_atend_ver')){
+      content.innerHTML = '<div class="empty">Você não possui permissão para acessar o Registro Diário - Atendimento e Visitas.</div>';
+      return;
+    }
+    ensureLocacaoData();
+    var d = dbRef();
+    var podeVerTodos = locIsAdmin();
+    var podeExcluir = podeVerTodos;
+    var meuId = (current && current.id) || '';
+    var filtro = locRegAtendFiltroState();
+    if(!podeVerTodos) filtro.userId = '';
+
+    var listaRegistros = (d.locacaoRegistrosAtendimento||[]).filter(function(r){
+      if(!podeVerTodos && r.userId !== meuId) return false;
+      if(podeVerTodos && filtro.userId && r.userId !== filtro.userId) return false;
+      if(filtro.dataDe && (r.data||'') < filtro.dataDe) return false;
+      if(filtro.dataAte && (r.data||'') > filtro.dataAte) return false;
+      return true;
+    }).sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); }).slice(0,500);
+
+    var linhasTabela = listaRegistros.map(function(r){
+      return '<tr><td>' + esc((r.data||'').split('-').reverse().join('/')) + '</td>' + (podeVerTodos ? '<td>' + esc(r.userName||'—') + '</td>' : '') +
+        '<td>' + esc(r.leadsRecebidos||0) + '</td><td>' + esc(r.leadsAtendidos||0) + '</td><td>' + esc(r.leadsQualificados||0) + '</td>' +
+        '<td>' + esc(r.visitasAgendadas||0) + '</td><td>' + esc(r.visitasRealizadas||0) + '</td>' +
+        '<td>' + esc(r.propostasEnviadas||0) + '</td><td>' + esc(r.propostasAprovadas||0) + '</td><td>' + esc(r.locacoesConcluidas||0) + '</td>' +
+        '<td>' + esc(r.dificuldades||'—') + '</td>' +
+        (podeExcluir ? '<td><button class="danger kanban-mini" onclick="locExcluirRegistroAtend(\'' + escAttr(r.id) + '\')">Excluir</button></td>' : '') +
+      '</tr>';
+    }).join('');
+
+    var filtrosHtml = '<div class="card pad" style="margin-bottom:18px"><h3>Filtros</h3><div class="grid ' + (podeVerTodos ? 'cols3' : 'cols2') + '">' +
+      (podeVerTodos ? '<div class="field"><label>Usuário</label><select id="locRegAtendFiltroUsuario" onchange="window.locAtualizarFiltroRegistroAtend(\'userId\', this.value)">' + locUsuariosOptionsRegistro(filtro.userId) + '</select></div>' : '') +
+      '<div class="field"><label>Data de</label><input type="date" id="locRegAtendFiltroDe" value="' + escAttr(filtro.dataDe) + '" onchange="window.locAtualizarFiltroRegistroAtend(\'dataDe\', this.value)"></div>' +
+      '<div class="field"><label>Data até</label><input type="date" id="locRegAtendFiltroAte" value="' + escAttr(filtro.dataAte) + '" onchange="window.locAtualizarFiltroRegistroAtend(\'dataAte\', this.value)"></div>' +
+      '</div><button class="secondary" style="margin-top:10px" onclick="locLimparFiltroRegistroAtend()">Limpar filtros</button></div>';
+
+    content.innerHTML = '<div class="kanban-header-row"><div class="kanban-title-area"><h2>Registro Diário - Atendimento e Visitas</h2><p>Preencha os números do dia. Salvar de novo no mesmo dia atualiza o registro (não duplica).</p></div>' +
+      '<div class="kanban-actions-row"><button class="primary" onclick="locOpenRegistroAtendModal()">Novo registro</button></div></div>' +
+      filtrosHtml +
+      '<div class="card pad"><h3>Histórico' + (podeVerTodos ? ' (toda a equipe)' : ' (meus registros)') + '</h3>' +
+        (linhasTabela ? '<div style="overflow:auto"><table class="table"><thead><tr><th>Data</th>' + (podeVerTodos ? '<th>Corretor(a)</th>' : '') + '<th>Leads Recebidos</th><th>Leads Atendidos</th><th>Leads Qualificados</th><th>Visitas Agendadas</th><th>Visitas Realizadas</th><th>Propostas Enviadas</th><th>Propostas Aprovadas</th><th>Locações Concluídas</th><th>Dificuldades</th>' + (podeExcluir ? '<th>Ações</th>' : '') + '</tr></thead><tbody>' + linhasTabela + '</tbody></table></div>' : '<p class="sub">Nenhum registro encontrado para o filtro selecionado.</p>') +
+      '</div>';
+  };
+
+  /* ================= Registro Diário - Atendimento e Visitas: pop-up de novo registro ================= */
+  window.locOpenRegistroAtendModal = function(){
+    ensureLocacaoData();
+    var hojeISO = new Date().toISOString().slice(0,10);
+    var meuId = (current && current.id) || '';
+    var existente = locRegistroAtendExistente(meuId, hojeISO);
+    var html = '<div class="field" style="max-width:220px"><label>Data</label><input type="date" id="locRegAtendData" value="' + hojeISO + '" max="' + hojeISO + '" onchange="window.locAtualizarCamposRegistroAtend()"></div>' +
+      '<div class="grid cols4">' +
+        '<div class="field"><label>Leads Recebidos</label><input type="number" min="0" id="locRegAtendLeadsRecebidos" value="' + (existente ? escAttr(existente.leadsRecebidos) : '') + '"></div>' +
+        '<div class="field"><label>Leads Atendidos</label><input type="number" min="0" id="locRegAtendLeadsAtendidos" value="' + (existente ? escAttr(existente.leadsAtendidos) : '') + '"></div>' +
+        '<div class="field"><label>Leads Qualificados</label><input type="number" min="0" id="locRegAtendLeadsQualificados" value="' + (existente ? escAttr(existente.leadsQualificados) : '') + '"></div>' +
+        '<div class="field"><label>Visitas Agendadas</label><input type="number" min="0" id="locRegAtendVisitasAgendadas" value="' + (existente ? escAttr(existente.visitasAgendadas) : '') + '"></div>' +
+        '<div class="field"><label>Visitas Realizadas</label><input type="number" min="0" id="locRegAtendVisitasRealizadas" value="' + (existente ? escAttr(existente.visitasRealizadas) : '') + '"></div>' +
+        '<div class="field"><label>Propostas Enviadas</label><input type="number" min="0" id="locRegAtendPropostasEnviadas" value="' + (existente ? escAttr(existente.propostasEnviadas) : '') + '"></div>' +
+        '<div class="field"><label>Propostas Aprovadas</label><input type="number" min="0" id="locRegAtendPropostasAprovadas" value="' + (existente ? escAttr(existente.propostasAprovadas) : '') + '"></div>' +
+        '<div class="field"><label>Locações Concluídas</label><input type="number" min="0" id="locRegAtendLocacoesConcluidas" value="' + (existente ? escAttr(existente.locacoesConcluidas) : '') + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>Quais dificuldades encontrou?</label><textarea id="locRegAtendDificuldades" rows="3">' + esc(existente ? existente.dificuldades : '') + '</textarea></div>' +
+      '<div class="actions kanban-form-actions"><button class="primary" onclick="locSalvarRegistroAtend()">Salvar registro</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Novo registro diário', html);
+  };
+
+  /* ao trocar a data dentro do pop-up, carrega o registro já existente daquele dia (se houver),
+     sem duplicar registro ao salvar */
+  window.locAtualizarCamposRegistroAtend = function(){
+    var dataEl = document.getElementById('locRegAtendData');
+    var dataISO = dataEl ? dataEl.value : '';
+    var meuId = (current && current.id) || '';
+    var existente = dataISO ? locRegistroAtendExistente(meuId, dataISO) : null;
+    var campos = {
+      locRegAtendLeadsRecebidos: 'leadsRecebidos',
+      locRegAtendLeadsAtendidos: 'leadsAtendidos',
+      locRegAtendLeadsQualificados: 'leadsQualificados',
+      locRegAtendVisitasAgendadas: 'visitasAgendadas',
+      locRegAtendVisitasRealizadas: 'visitasRealizadas',
+      locRegAtendPropostasEnviadas: 'propostasEnviadas',
+      locRegAtendPropostasAprovadas: 'propostasAprovadas',
+      locRegAtendLocacoesConcluidas: 'locacoesConcluidas'
+    };
+    Object.keys(campos).forEach(function(inputId){
+      var el = document.getElementById(inputId);
+      if(el) el.value = existente ? existente[campos[inputId]] : '';
+    });
+    var dificuldadesEl = document.getElementById('locRegAtendDificuldades');
+    if(dificuldadesEl) dificuldadesEl.value = existente ? (existente.dificuldades||'') : '';
+  };
+
+  window.locSalvarRegistroAtend = function(){
+    ensureLocacaoData();
+    var d = dbRef();
+    var dataEl = document.getElementById('locRegAtendData');
+    var dataISO = dataEl ? dataEl.value : new Date().toISOString().slice(0,10);
+    if(!dataISO) return;
+    var meuId = (current && current.id) || '';
+    var meuNome = (current && (current.name || current.nome)) || '';
+    var leadsRecebidos = Number((document.getElementById('locRegAtendLeadsRecebidos')||{}).value || 0) || 0;
+    var leadsAtendidos = Number((document.getElementById('locRegAtendLeadsAtendidos')||{}).value || 0) || 0;
+    var leadsQualificados = Number((document.getElementById('locRegAtendLeadsQualificados')||{}).value || 0) || 0;
+    var visitasAgendadas = Number((document.getElementById('locRegAtendVisitasAgendadas')||{}).value || 0) || 0;
+    var visitasRealizadas = Number((document.getElementById('locRegAtendVisitasRealizadas')||{}).value || 0) || 0;
+    var propostasEnviadas = Number((document.getElementById('locRegAtendPropostasEnviadas')||{}).value || 0) || 0;
+    var propostasAprovadas = Number((document.getElementById('locRegAtendPropostasAprovadas')||{}).value || 0) || 0;
+    var locacoesConcluidas = Number((document.getElementById('locRegAtendLocacoesConcluidas')||{}).value || 0) || 0;
+    var dificuldades = ((document.getElementById('locRegAtendDificuldades')||{}).value || '').trim();
+
+    var existente = locRegistroAtendExistente(meuId, dataISO);
+    if(existente){
+      existente.leadsRecebidos = leadsRecebidos; existente.leadsAtendidos = leadsAtendidos; existente.leadsQualificados = leadsQualificados;
+      existente.visitasAgendadas = visitasAgendadas; existente.visitasRealizadas = visitasRealizadas;
+      existente.propostasEnviadas = propostasEnviadas; existente.propostasAprovadas = propostasAprovadas;
+      existente.locacoesConcluidas = locacoesConcluidas;
+      existente.dificuldades = dificuldades; existente.updatedAt = new Date().toISOString();
+    } else {
+      d.locacaoRegistrosAtendimento.push({
+        id: uid(), data: dataISO, userId: meuId, userName: meuNome,
+        leadsRecebidos: leadsRecebidos, leadsAtendidos: leadsAtendidos, leadsQualificados: leadsQualificados,
+        visitasAgendadas: visitasAgendadas, visitasRealizadas: visitasRealizadas,
+        propostasEnviadas: propostasEnviadas, propostasAprovadas: propostasAprovadas,
+        locacoesConcluidas: locacoesConcluidas,
+        dificuldades: dificuldades, createdAt: new Date().toISOString()
+      });
+    }
+    doSave();
+    try{ closeModal(); }catch(e){}
+    try{ toast('Registro salvo.'); }catch(e){}
+    window.render_locacao_registro_atendimento();
   };
 
   /* ================= Informações Úteis ================= */
@@ -17973,7 +18152,8 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(typeof PERMS !== 'undefined'){
       PERMS['locacao_propostas_ver'] = 'Locação - Propostas (visualizar)';
       PERMS['locacao_gestao'] = 'Locação - Gestão (etapas, checklist, comissão, KPIs)';
-      PERMS['locacao_registro_ver'] = 'Locação - Registro Diário (preencher)';
+      PERMS['locacao_registro_ver'] = 'Locação - Registro Diário - Captação (preencher)';
+      PERMS['locacao_registro_atend_ver'] = 'Locação - Registro Diário - Atendimento e Visitas (preencher)';
       PERMS['locacao_info_ver'] = 'Locação - Informações Úteis (visualizar)';
       PERMS['locacao_info_gerenciar'] = 'Locação - Informações Úteis (cadastrar/editar)';
     }
@@ -17985,7 +18165,10 @@ body:has(#login:not(.hidden)) #app.hidden{
         pages.push(['Locação','locacao_propostas','Propostas','🏠','locacao_propostas_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'locacao_registro'; })){
-        pages.push(['Locação','locacao_registro','Registro Diário','📋','locacao_registro_ver']);
+        pages.push(['Locação','locacao_registro','Registro Diário - Captação','📋','locacao_registro_ver']);
+      }
+      if(!pages.some(function(p){ return p[1] === 'locacao_registro_atend'; })){
+        pages.push(['Locação','locacao_registro_atend','Registro Diário - Atendimento e Visitas','📋','locacao_registro_atend_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'locacao_gestao'; })){
         pages.push(['Locação','locacao_gestao','Gestão de Locação','⚙','locacao_gestao']);
@@ -18001,6 +18184,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(typeof renders !== 'undefined'){
       renders['locacao_propostas'] = window.render_locacao_propostas;
       renders['locacao_registro'] = window.render_locacao_registro;
+      renders['locacao_registro_atend'] = window.render_locacao_registro_atendimento;
       renders['locacao_gestao'] = window.render_locacao_gestao;
       renders['locacao_info'] = window.render_locacao_info;
       window.renders = renders;
@@ -18008,6 +18192,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(typeof window.renders !== 'undefined'){
       window.renders['locacao_propostas'] = window.render_locacao_propostas;
       window.renders['locacao_registro'] = window.render_locacao_registro;
+      window.renders['locacao_registro_atend'] = window.render_locacao_registro_atendimento;
       window.renders['locacao_gestao'] = window.render_locacao_gestao;
       window.renders['locacao_info'] = window.render_locacao_info;
     }
@@ -18029,6 +18214,7 @@ body:has(#login:not(.hidden)) #app.hidden{
           locacaoComissaoRegras: d.locacaoComissaoRegras || [],
           locacaoKPIs: d.locacaoKPIs || [],
           locacaoRegistrosDiarios: d.locacaoRegistrosDiarios || [],
+          locacaoRegistrosAtendimento: d.locacaoRegistrosAtendimento || [],
           locacaoInfoUteis: d.locacaoInfoUteis || []
         }).catch(function(err){ console.error('[Locação] Erro ao salvar no Firebase:', err); });
       }
@@ -19567,6 +19753,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       base.locacaoComissaoRegras = Array.isArray(cloud && cloud.locacaoComissaoRegras) ? cloud.locacaoComissaoRegras : (base.locacaoComissaoRegras || []);
       base.locacaoKPIs = Array.isArray(cloud && cloud.locacaoKPIs) ? cloud.locacaoKPIs : (base.locacaoKPIs || []);
       base.locacaoRegistrosDiarios = Array.isArray(cloud && cloud.locacaoRegistrosDiarios) ? cloud.locacaoRegistrosDiarios : (base.locacaoRegistrosDiarios || []);
+      base.locacaoRegistrosAtendimento = Array.isArray(cloud && cloud.locacaoRegistrosAtendimento) ? cloud.locacaoRegistrosAtendimento : (base.locacaoRegistrosAtendimento || []);
       base.locacaoInfoUteis = Array.isArray(cloud && cloud.locacaoInfoUteis) ? cloud.locacaoInfoUteis : (base.locacaoInfoUteis || []);
       return base;
     };
@@ -20357,6 +20544,1581 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{ if(typeof buildNav === 'function') setTimeout(buildNav, 0); }catch(e){}
 
   console.log('[Marketing] Módulo Planejamento (Kanban) instalado.');
+})();
+</script>
+<style>
+.aval-escala-legenda{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.aval-escala-chip{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:999px;font-size:11.5px;font-weight:800}
+.aval-item{padding:14px 0;border-bottom:1px solid var(--linha)}
+.aval-item:last-child{border-bottom:none}
+.aval-item-nome{font-weight:800;font-size:14.5px;margin-bottom:3px}
+.aval-item-auto{font-weight:700;font-size:11.5px;color:var(--muted);text-transform:none;margin-left:6px}
+.aval-item-desc{color:var(--muted);font-size:12.5px;line-height:1.5;margin-bottom:10px;max-width:760px}
+.aval-scale{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.aval-scale-row{display:flex;gap:6px;flex-wrap:wrap}
+.aval-nota-btn{width:34px;height:34px;border-radius:10px;border:1.5px solid #d8dbe2;background:white;font-weight:800;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.aval-nota-btn:hover{transform:translateY(-1px)}
+.aval-nota-btn.active{box-shadow:0 3px 10px rgba(0,0,0,.18)}
+.aval-scale-nivel{font-size:12.5px;font-weight:800}
+</style>
+<script type="application/json" id="avalSeedData">{"competenciasG": [{"id": "cg_A_1", "cat": "A", "catNome": "Capacidade de gestão", "nome": "Capacidade de Mobilização", "desc": "Mobiliza, envolve e compromete seus colaboradores, visando a realização dos objetivos e metas definidas e estimulando a equipe a valorizar o que faz."}, {"id": "cg_A_2", "cat": "A", "catNome": "Capacidade de gestão", "nome": "Delegação / Feedback", "desc": "Delega e compartilha responsabilidades, tarefas e decisões. Exerce o feedback, praticando o elogio e a crítica, reconhecendo e compartilhando resultados com a equipe."}, {"id": "cg_A_3", "cat": "A", "catNome": "Capacidade de gestão", "nome": "Monitoramento", "desc": "Interpreta e repassa informações recebidas, com agilidade, confiabilidade e clareza. Comunica-se com a equipe, visando monitorar seu desempenho e atingir os objetivos pretendidos. Mantém a equipe a par de problemas que possam afetar os processos da área e de suas consequências, estimulando a proposição de sugestões para solução dos mesmos."}, {"id": "cg_A_4", "cat": "A", "catNome": "Capacidade de gestão", "nome": "Visão Estratégica", "desc": "Influencia estratégias e viabiliza sua aplicação, considerando as tendências dos ambientes interno e externo e as expectativas dos públicos envolvidos. Antecipa e gerencia riscos e oportunidades."}, {"id": "cg_A_5", "cat": "A", "catNome": "Capacidade de gestão", "nome": "Desenvolvimento / Formação de Sucessores", "desc": "Auxilia os colaboradores no desenvolvimento dos seus potenciais, gera um clima organizacional favorável ao desenvolvimento e desempenho dos profissionais e forma sucessores."}, {"id": "cg_A_6", "cat": "A", "catNome": "Capacidade de gestão", "nome": "Tratamento de Conflitos", "desc": "Trata conflitos, ouvindo, avaliando e decidindo com  imparcialidade, dando espaço para a equipe discordar e influenciar em decisões e processos."}, {"id": "cg_B_1", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Capacidade de Orientação", "desc": "Conhece as atividades e processos da área, assegurando corretas orientações para a sua equipe. Facilita a introdução de novas tarefas ou processos, esclarecendo dúvidas. Acompanha os trabalhos, intervindo quando necessário, explicando detalhes e orientando sobre o solicitado."}, {"id": "cg_B_2", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Planejamento ", "desc": "Estrutura e sistematiza processos visando o planejamento, acompanhamento e organização das atividades e do ambiente de trabalho para melhor utilização dos recursos."}, {"id": "cg_B_3", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Comunicação", "desc": "Escuta atentamente e expressa suas ideias, verbalmente e por escrito, usando uma linguagem clara e objetiva e certificando-se do entendimento das mensagens transmitidas ou recebidas. Adota o meio de comunicação adequado ao conteúdo e contexto da informação."}, {"id": "cg_B_4", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Capacidade de Negociação", "desc": "Negocia com habilidade com fornecedores, prestadores de serviços e usuários, observando regras, acordos e contratos."}, {"id": "cg_B_5", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Geração de Conhecimento", "desc": "Busca, sistematiza, registra e dissemina o conhecimento, de modo a transformá-lo em vantagem para a entidade."}, {"id": "cg_B_6", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Autodesenvolvimento", "desc": "Procura evoluir pessoal, profissional e intelectualmente, buscando aperfeiçoamento e atualização contínua de seus conhecimentos."}, {"id": "cg_C_1", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Interação", "desc": "Interage e mantém bom relacionamento com seus pares, superiores e outras equipes,  contribuindo para o trabalho das outras áreas. Atende ao cliente interno e externo, de forma prestativa, segura e com competência técnica, dando resposta aos seus pedidos e sugestões, de modo a valorizar o relacionamento."}, {"id": "cg_C_2", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Interlocução", "desc": "Expressa-se de maneira clara e objetiva, ouve os outros e dá respostas consistentes e educadas. Escuta e transmite ideias de forma efetiva, utilizando procedimentos formais e informais e proporcionando dados concretos para apoiar  observações e conclusões."}, {"id": "cg_C_3", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Cooperação", "desc": "Coopera no compartilhamento de ideias, atividades e soluções com os membros da equipe e das demais áreas. Põe-se à disposição espontaneamente para executar outros serviços e auxiliar colegas, de acordo com as necessidades e possibilidades."}, {"id": "cg_C_4", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Motivação", "desc": "Demonstra capacidade de motivar seus colegas e colaboradores."}, {"id": "cg_D_1", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Orientação para Eficiência e Eficácia", "desc": "Concretiza com eficácia e eficiência os objetivos de seu trabalho, cumprindo as tarefas que lhe são atribuídas com qualidade, sem erros e nos prazos estipulados. Preocupa-se com os custos e atua para o uso racional dos recursos da entidade, atendendo ao padrão final de qualidade, sem desperdícios de material e nos prazos pactuados."}, {"id": "cg_D_2", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Foco em Objetivos e Metas ", "desc": "Estabelece prioridades, organiza as atividades e as executa adequadamente, de forma metódica e no prazo previsto, para assegurar os objetivos. Define indicadores (prazos, informações, qualidade), objetivos e metas para os processos em que atua e/ou que dependem de sua ação gerencial, com o objetivo de alcançar os resultados esperados."}, {"id": "cg_D_3", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Capacidade Analítica", "desc": "Faz apreciações minuciosas, com discernimento e critério. Tem senso crítico e ponderação, reconhecendo as variáveis envolvidas, as ameaças e aproveitando as oportunidades que repercutem na efetividade do negócio. Elabora soluções e toma decisões considerando as variáveis e os riscos inerentes. Identifica causas de problemas existentes e potenciais para ação preventiva."}, {"id": "cg_D_4", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Busca de Orientação", "desc": "Busca orientação para solucionar problemas/dúvidas do dia-a-dia diante de situações imprevistas."}, {"id": "cg_D_5", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Foco em Superação", "desc": "Esforça-se sempre para superar os resultados estabelecidos previamente, levando em consideração recursos, prazos, custos e qualidade."}, {"id": "cg_E_1", "cat": "E", "catNome": "Visão institucional", "nome": "Interesse pela Instituição", "desc": "Procura conhecer a estrutura e funcionamento da entidade e os principais produtos e serviços por ela oferecidos. Compreende seu papel nos processos da entidade e tem uma visão global da dinâmica organizacional e das relações entre os processos. Conhece os impactos de seu trabalho nas atividades dos outros colegas/áreas."}, {"id": "cg_E_2", "cat": "E", "catNome": "Visão institucional", "nome": "Compromisso com Valores", "desc": "Compromete-se com os valores e princípios da entidade e com sua disseminação."}, {"id": "cg_E_3", "cat": "E", "catNome": "Visão institucional", "nome": "Visão dos Clientes", "desc": "Identifica e compreende as necessidades dos clientes e suas expectativas com relação à qualidade dos produtos e serviços da entidade. Busca alternativas para atender participantes e outras partes interessadas, sempre observando as leis, contratos e regulamentos pertinentes."}, {"id": "cg_E_4", "cat": "E", "catNome": "Visão institucional", "nome": "Articulação", "desc": "Articula-se com a equipe e promove a melhoria do relacionamento profissional com as outras áreas, buscando parcerias internas e externas para solução de problemas e consecução dos objetivos da entidade."}, {"id": "cg_E_5", "cat": "E", "catNome": "Visão institucional", "nome": "Normas", "desc": "Demonstra conhecimento das normas e procedimentos da entidade e compreende a importância de seu cumprimento e atua nesse sentido."}, {"id": "cg_F_1", "cat": "F", "catNome": "Características comportamentais", "nome": "Equilíbrio", "desc": "Realiza seu trabalho de forma equilibrada e convive bem com adversidades, pressões, imprevistos, obstáculos e conflitos. Recebe bem críticas e as trata adequadamente, admitindo erros sem \"caçar culpados\", apresentando baixo índice de desculpas ou pretextos."}, {"id": "cg_F_2", "cat": "F", "catNome": "Características comportamentais", "nome": "Relacionamento Interpessoal", "desc": "Trata a todos com respeito, simpatia, presteza e educação, independentemente da hierarquia e do público, buscando um clima de harmonia, confiança e cooperação. Demonstra paciência e capacidade de conviver com diferenças (ritmo, estilo, pensamentos, etc). Tem habilidade para dizer “o que precisa ser dito”."}, {"id": "cg_F_3", "cat": "F", "catNome": "Características comportamentais", "nome": "Iniciativa", "desc": "Antecipa-se, tirando proveito de oportunidades e não deixando acontecer falhas que possam ser evitadas. Demonstra iniciativa diante de imprevistos e pressões."}, {"id": "cg_F_4", "cat": "F", "catNome": "Características comportamentais", "nome": "Automotivação", "desc": "Demonstra capacidade de automotivação e apresenta energia para implantação de mudanças."}, {"id": "cg_F_5", "cat": "F", "catNome": "Características comportamentais", "nome": "Inovação", "desc": "Está aberto às inovações e melhores práticas do mercado, visando implementar novas técnicas e procedimentos em sua área. Propõe ideias e soluções inovadoras e possíveis de executar e administra eventuais dificuldade para sua implantação."}, {"id": "cg_F_6", "cat": "F", "catNome": "Características comportamentais", "nome": "Empatia", "desc": "Consegue colocar-se no lugar do outro para compreendê-lo sob o ponto de vista dele."}, {"id": "cg_F_7", "cat": "F", "catNome": "Características comportamentais", "nome": "Discrição", "desc": "Trata com confidencialidade os dados da entidade."}, {"id": "cg_F_8", "cat": "F", "catNome": "Características comportamentais", "nome": "Capacidade de Concentração", "desc": "Mantém, durante o tempo necessário, a atenção focada nos processos e nos assuntos que estão sendo tratados."}], "competenciasNG": [{"id": "cng_B_1", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Conhecimento Técnico", "desc": "Detém os conhecimentos, habilidades e experiência necessários às suas atividades, aplicando recursos teóricos e práticos para sua realização. Expressa autoconfiança nas informações, atividades e serviços prestados sob a sua responsabilidade."}, {"id": "cng_B_2", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Capacidade Analítica", "desc": "Identifica, interpreta e avalia diferentes tipos de dados, relacionando-os de forma lógica e com sentido crítico. Sabe como avaliar a qualidade dos registros internos."}, {"id": "cng_B_3", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Organização ", "desc": "Planeja e organiza adequadamente suas tarefas, materiais, documentos e outros que utiliza para realização de seu trabalho."}, {"id": "cng_B_4", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Comunicação", "desc": "Escuta atentamente e expressa suas ideias, verbalmente e por escrito, usando uma linguagem clara e objetiva e certificando-se do entendimento das mensagens transmitidas ou recebidas. Adota o meio de comunicação adequado ao conteúdo e contexto da informação."}, {"id": "cng_B_5", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Capacidade de Negociação", "desc": "Negocia com habilidade com fornecedores, prestadores de serviços e usuários, observando regras, acordos e contratos."}, {"id": "cng_B_6", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Introdução de Novas Práticas", "desc": "Executa atividades de forma crítica, sugere e implanta novas práticas de trabalho visando a melhoria das atividades e processos."}, {"id": "cng_B_7", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Geração de Conhecimento", "desc": "Busca, sistematiza, registra e dissemina o conhecimento, de modo a transformá-lo em vantagem para a entidade."}, {"id": "cng_B_8", "cat": "B", "catNome": "Preparo e qualificação", "nome": "Autodesenvolvimento", "desc": "Procura evoluir pessoal, profissional e intelectualmente, buscando aperfeiçoamento e atualização contínua de seus conhecimentos."}, {"id": "cng_C_1", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Interação", "desc": "Interage e mantém bom relacionamento com seus pares, superiores e outras equipes,  contribuindo para o trabalho das outras áreas. Atende aos clientes interno e externo, de forma prestativa, segura e com competência técnica, dando resposta aos seus pedidos e sugestões, de modo a valorizar o relacionamento."}, {"id": "cng_C_2", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Interlocução", "desc": "Expressa-se de maneira clara e objetiva, ouve os outros e dá respostas consistentes e educadas. Escuta e transmite ideias de forma efetiva, utilizando procedimentos formais e informais e proporcionando dados concretos para apoiar  observações e conclusões."}, {"id": "cng_C_3", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Cooperação", "desc": "Coopera no compartilhamento de ideias, atividades e soluções com os membros da equipe e das demais áreas. Põe-se à disposição espontaneamente para executar outros serviços e auxiliar colegas, de acordo com as necessidades e possibilidades."}, {"id": "cng_C_4", "cat": "C", "catNome": "Capacidade de trabalho em equipe", "nome": "Motivação", "desc": "Demonstra capacidade de motivar seus colegas e colaboradores."}, {"id": "cng_D_1", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Orientação para Eficiência e Eficácia", "desc": "Concretiza com eficácia e eficiência os objetivos de seu trabalho, cumprindo as tarefas que lhe são atribuídas com qualidade, sem erros e nos prazos estipulados. Preocupa-se com os custos e atua para o uso racional dos recursos da entidade, atendendo ao padrão final de qualidade, sem desperdícios de material e nos prazos pactuados."}, {"id": "cng_D_2", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Busca de Orientação", "desc": "Busca orientação para solucionar problemas/dúvidas do dia-a-dia diante de situações imprevistas."}, {"id": "cng_D_3", "cat": "D", "catNome": "Compromisso com resultados", "nome": "Foco em Superação", "desc": "Esforça-se sempre para superar os resultados estabelecidos previamente, levando em consideração recursos, prazos, custos e qualidade."}, {"id": "cng_E_1", "cat": "E", "catNome": "Visão institucional", "nome": "Interesse pela Instituição", "desc": "Procura conhecer a estrutura e funcionamento da entidade e os principais produtos e serviços por ela oferecidos. Compreende seu papel nos processos da entidade e tem uma visão global da dinâmica organizacional e das relações entre os processos. Conhece os impactos de seu trabalho nas atividades dos outros colegas/áreas."}, {"id": "cng_E_2", "cat": "E", "catNome": "Visão institucional", "nome": "Compromisso com Valores", "desc": "Compromete-se com os valores e princípios da entidade e com sua disseminação."}, {"id": "cng_E_3", "cat": "E", "catNome": "Visão institucional", "nome": "Visão dos Clientes", "desc": "Identifica e compreende as necessidades dos clientes e suas expectativas com relação à qualidade dos produtos e serviços da entidade. Busca alternativas para atender participantes e outras partes interessadas, sempre observando as leis, contratos e regulamentos pertinentes."}, {"id": "cng_E_4", "cat": "E", "catNome": "Visão institucional", "nome": "Articulação", "desc": "Articula-se com a equipe e promove a melhoria do relacionamento profissional com as outras áreas, buscando parcerias internas e externas para solução de problemas e consecução dos objetivos da entidade."}, {"id": "cng_F_1", "cat": "F", "catNome": "Características comportamentais", "nome": "Equilíbrio", "desc": "Realiza seu trabalho de forma equilibrada e convive bem com adversidades, pressões, imprevistos, obstáculos e conflitos. Recebe bem críticas e as trata adequadamente, admitindo erros sem \"caçar culpados\", apresentando baixo índice de desculpas ou pretextos."}, {"id": "cng_F_2", "cat": "F", "catNome": "Características comportamentais", "nome": "Relacionamento Interpessoal", "desc": "Trata a todos com respeito, simpatia, presteza e educação, independentemente da hierarquia e do público, buscando um clima de harmonia, confiança e cooperação. Demonstra paciência e capacidade de conviver com diferenças (ritmo, estilo, pensamentos, etc). Tem habilidade para dizer “o que precisa ser dito”."}, {"id": "cng_F_3", "cat": "F", "catNome": "Características comportamentais", "nome": "Iniciativa", "desc": "Antecipa-se, tirando proveito de oportunidades e não deixando acontecer falhas que possam ser evitadas. Demonstra iniciativa diante de imprevistos e pressões."}, {"id": "cng_F_4", "cat": "F", "catNome": "Características comportamentais", "nome": "Automotivação", "desc": "Demonstra capacidade de automotivação e apresenta energia para implantação de mudanças."}, {"id": "cng_F_5", "cat": "F", "catNome": "Características comportamentais", "nome": "Empatia", "desc": "Consegue colocar-se no lugar do outro para compreendê-lo sob o ponto de vista dele."}, {"id": "cng_F_6", "cat": "F", "catNome": "Características comportamentais", "nome": "Discrição", "desc": "Trata com confidencialidade os dados da entidade."}, {"id": "cng_F_7", "cat": "F", "catNome": "Características comportamentais", "nome": "Disciplina", "desc": "Apresenta-se em seu local de trabalho no horário. Cumpre as normas da entidade e os compromissos de trabalho (reuniões, treinamentos, etc).  Zela pelos bens da entidade."}, {"id": "cng_F_8", "cat": "F", "catNome": "Características comportamentais", "nome": "Capacidade de Concentração", "desc": "Mantém, durante o tempo necessário, a atenção focada nos processos e nos assuntos que estão sendo tratados."}], "potencialG": [{"id": "pg_1", "nome": "Orientação para o Aprendizado", "desc": "Apresenta curiosidade e interesse em aprender coisas novas, não necessariamente ligadas ao trabalho atual. Demonstra capacidade para tirar proveito de situações e oportunidades de aprendizado."}, {"id": "pg_2", "nome": "Abrangência de Análise", "desc": "Traz pontos de vista diferentes, mantendo abertura a novas ideias, agregando variáveis não contempladas por outros."}, {"id": "pg_3", "nome": "Compreensão Interpessoal", "desc": "Tem capacidade de ouvir e compreender as percepções e perspectivas dos demais, procurando alinhar os interesses de ambas as partes."}, {"id": "pg_4", "nome": "Capacidade de Progressão", "desc": "Demonstra capacidade de assumir, no curto, médio e longo prazos, uma posição ou atividades de maior amplitude e responsabilidade."}, {"id": "pg_5", "nome": "Maturidade Emocional", "desc": "Apresenta capacidade de lidar com situações de stress e/ou pressão e de receber feedbacks como uma oportunidade para aprender e crescer."}, {"id": "pg_6", "nome": "Flexibilidade / Adaptabilidade", "desc": "Adapta-se a mudanças, a adversidades, a oportunidades e a desafios de mercado, desenvolvendo-se diante de novos cenários."}, {"id": "pg_7", "nome": "Comunicação Escrita", "desc": "Redige, de forma clara, precisa e com profundidade adequada e concisão, textos contendo informações coletadas, percepções, análises, recomendações e outros conteúdos.  Consolida informações, colocando foco no essencial e sistematizando em poucas palavras."}], "potencialNG": [{"id": "png_1", "nome": "Orientação para o Aprendizado", "desc": "Apresenta curiosidade e interesse em aprender coisas novas, não necessariamente ligadas ao trabalho atual. Demonstra capacidade para tirar proveito de situações e oportunidades de aprendizado."}, {"id": "png_2", "nome": "Abrangência de Análise", "desc": "Traz pontos de vista diferentes, mantendo abertura a novas ideias, agregando variáveis não contempladas por outros."}, {"id": "png_3", "nome": "Compreensão Interpessoal", "desc": "Tem capacidade de ouvir e compreender as percepções e perspectivas dos demais, procurando alinhar os interesses de ambas as partes."}, {"id": "png_4", "nome": "Capacidade de Progressão", "desc": "Demonstra capacidade de assumir, no curto, médio e longo prazos, uma posição ou atividades de maior amplitude e responsabilidade."}, {"id": "png_5", "nome": "Maturidade Emocional", "desc": "Apresenta capacidade de lidar com situações de stress e/ou pressão e de receber feedbacks como uma oportunidade para aprender e crescer."}, {"id": "png_6", "nome": "Flexibilidade / Adaptabilidade", "desc": "Adapta-se a mudanças, a adversidades, a oportunidades e a desafios de mercado, desenvolvendo-se diante de novos cenários."}, {"id": "png_7", "nome": "Comunicação Escrita e Verbal", "desc": "Redige, de forma clara, precisa e com profundidade adequada e concisão, textos contendo informações coletadas, percepções, análises, recomendações e outros conteúdos.  Consolida informações, colocando foco no essencial e sistematizando em poucas palavras."}], "departamentos": ["Comercial", "Marketing", "Jurídico"], "equipes": [{"departamento": "Comercial", "nome": "Vendas"}, {"departamento": "Comercial", "nome": "Locação"}, {"departamento": "Comercial", "nome": "Captação"}, {"departamento": "Marketing", "nome": "Marketing"}, {"departamento": "Marketing", "nome": "SDR"}, {"departamento": "Marketing", "nome": "Cadastro"}, {"departamento": "Jurídico", "nome": "Jurídico"}, {"departamento": "Jurídico", "nome": "Administrativo e Financeiro"}], "cargos": ["Analista Administrativo e Financeiro Jr.", "Analista de Marketing Jr.", "Diretor Comercial", "Gestor de Marketing", "Diretora Jurídico", "Corretor", "Gestor de Locações", "Cadastro", "Captador", "SDR", "Analista Jurídico Pleno", "Sales OPS", "Coordenadora de Marketing"], "colaboradores": [{"nome": "Gregory Nobre", "perfil": "gestor", "cargo": "Diretor Comercial", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Isabel Nobre", "perfil": "gestor", "cargo": "Diretora Jurídico", "equipe": "Jurídico", "departamento": "Jurídico"}, {"nome": "João Luiz", "perfil": "gestor", "cargo": "Gestor de Locações", "equipe": "Locação", "departamento": "Comercial"}, {"nome": "Yngrid Albano", "perfil": "nao_gestor", "cargo": "SDR", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Nataly Reis", "perfil": "nao_gestor", "cargo": "Corretora", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Murilo Zagatto", "perfil": "nao_gestor", "cargo": "Analista Jurídico Pleno", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Ana Caroline", "perfil": "nao_gestor", "cargo": "Sales OPS", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Josiel Valverde Meira", "perfil": "nao_gestor", "cargo": "Corretor", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Lauriene Soares", "perfil": "nao_gestor", "cargo": "Corretora", "equipe": "Vendas", "departamento": "Comercial"}, {"nome": "Rafaela Santana Lima", "perfil": "gestor", "cargo": "Coordenadora de Marketing", "equipe": "Marketing", "departamento": "Marketing"}, {"nome": "Alycia Alvarez", "perfil": "nao_gestor", "cargo": "SDR", "equipe": "Locação", "departamento": "Comercial"}], "escalaCompetencia": [{"nota": 1, "nivel": "Insatisfatório", "desc": "Não atende às expectativas de desempenho. As evidências são claras sobre o não atendimento aos indicadores avaliados. Apresenta total desinteresse em melhorar a competência avaliada."}, {"nota": 2, "nivel": "Insatisfatório", "desc": "Muito abaixo das expectativas de desempenho. São raras as evidências de atendimento aos indicadores avaliados. Apresenta muito pouco interesse para melhorar a competência avaliada ."}, {"nota": 3, "nivel": "Insatisfatório", "desc": "Abaixo das expectativas de desempenho. Há poucas evidências de atendimento aos indicadores avaliados. Apresenta pouco interesse para melhorar a competência avaliada."}, {"nota": 4, "nivel": "Insatisfatório", "desc": "Ainda abaixo das expectativas de desempenho. As evidências de atendimento aos indicadores ainda são insuficientes. Apresenta algum interesse e empenho para melhorar  a competência avaliada. O desempenho oscila entre Insatisfatório e Regular."}, {"nota": 5, "nivel": "Regular", "desc": "Demonstra resultado de desempenho abaixo do esperado. As evidências de atendimento aos indicadores avaliados deixam a desejar. Apresenta pouco empenho para desenvolver-se na competência."}, {"nota": 6, "nivel": "Regular", "desc": "Demonstra resultado de desempenho parcialmente satisfatório. As evidências de atendimento aos indicadores avaliados, ora apresentam-se conforme esperado, ora deixam a desejar. Apresenta empenho para desenvolver-se na competência. O desempenho oscila entre Regular e Bom."}, {"nota": 7, "nivel": "Bom", "desc": "Demonstra resultado de desempenho satisfatório. Faz normalmente o que se espera. As evidências de atendimento aos indicadores avaliados revelam alcance das expectativas quanto ao padrão esperado de desempenho."}, {"nota": 8, "nivel": "Bom", "desc": "Demonstra resultado de desempenho plenamente satisfatório. Faz sempre o que se espera. As evidências são claras e objetivas e confirmam o atendimento pleno às expectativas quanto ao padrão esperado de desempenho para os indicadores avaliados, cujo empenho indica possibilidade de mover-se para o nível seguinte. Por vezes realiza mais do que se espera. O desempenho oscila entre Bom e Excelente."}, {"nota": 9, "nivel": "Excelente", "desc": "Demonstra resultado de desempenho acima do esperado. Faz normalmente mais do que se espera. Há evidências claras e objetivas de que excede às expectativas quanto ao padrão esperado de desempenho para os Indicadores avaliados. Revela uma ótima qualidade de desempenho nos resultados apresentados."}, {"nota": 10, "nivel": "Excelente", "desc": "Demonstra resultado de desempenho muito acima do esperado. Faz sempre mais do que se espera. Há evidências claras e objetivas de que supera constantemente e consistentemente as expectativas quanto ao padrão esperado de desempenho para os Indicadores avaliados. Desempenho especialmente relevante. Revela uma excelente qualidade de desempenho nos resultados apresentados e potencial para assunção de novas responsabilidades e novos desafios."}], "escalaPotencial": [{"nota": 1, "nivel": "Discorda", "desc": "O gestor discorda que o colaborador avaliado tem potencial de evoluir no indicador:"}, {"nota": 2, "nivel": "Concorda parcialmente", "desc": "O gestor concorda parcialmente que o avaliado tem potencial de evoluir no indicador:"}, {"nota": 3, "nivel": "Concorda plenamente", "desc": "O gestor concorda plenamente que o avaliado tem potencial de evoluir no indicador:"}]}</script>
+<!-- PATCH: Módulo PDI - Plano de Desenvolvimento Individual (reuniões de feedback) -->
+<script>
+(function(){
+  if(window.__npcPdiModulo) return;
+  window.__npcPdiModulo = true;
+
+  /* ================= helpers ================= */
+  function dbRef(){ return (typeof db!=='undefined' && db) ? db : (window.db = window.db||{}); }
+  function doSave(){ try{ if(typeof save==='function') save(); else if(typeof window.save==='function') window.save(); }catch(e){ console.error('[PDI]', e); } }
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function escAttr(v){ return esc(v); }
+  function uid(pref){ return (pref||'pdi_') + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function cur(){ return (typeof current!=='undefined') ? current : null; }
+  function toastSafe(msg, kind){ try{ toast(msg, kind); }catch(e){} }
+  function todayISO(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function horaAtual(){ var d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+  function fmtDateBR(iso){ if(!iso) return ''; var p = String(iso).split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : iso; }
+  function pdiEhGestor(){ return !!(typeof has==='function' && has('pdi_gestor')); }
+
+  /* ================= dados ================= */
+  function ensurePdiData(){
+    var d = dbRef();
+    if(!Array.isArray(d.pdiReunioes)) d.pdiReunioes = [];
+    if(!Array.isArray(d.pdiPontos)) d.pdiPontos = [];
+    return d;
+  }
+
+  function pdiUsuarios(){
+    var d = dbRef();
+    return (Array.isArray(d.users) ? d.users : []).filter(function(u){ return u.active!==false; }).map(function(u){
+      return {id: u.id, name: u.name || u.nome || u.email || 'Usuário'};
+    });
+  }
+  function pdiUsuarioNome(id){
+    if(!id) return '';
+    var u = pdiUsuarios().find(function(x){ return x.id===id; });
+    return u ? u.name : '';
+  }
+
+  function pdiPontosDoColaborador(colaboradorId){
+    var d = ensurePdiData();
+    return d.pdiPontos.filter(function(p){ return p.colaboradorId===colaboradorId; })
+      .sort(function(a,b){ return (b.criadoEm||'').localeCompare(a.criadoEm||''); });
+  }
+  function pdiPontosPendentes(colaboradorId){
+    return pdiPontosDoColaborador(colaboradorId).filter(function(p){ return p.status!=='resolvido'; });
+  }
+  function pdiReunioesDoColaborador(colaboradorId){
+    var d = ensurePdiData();
+    return d.pdiReunioes.filter(function(r){ return r.colaboradorId===colaboradorId; })
+      .sort(function(a,b){ return (b.data||'').localeCompare(a.data||'') || (b.hora||'').localeCompare(a.hora||''); });
+  }
+
+  /* ================= render principal ================= */
+  window.render_pdi = function(){
+    if(typeof has === 'function' && !has('pdi_ver')){
+      document.getElementById('content').innerHTML = '<div class="empty">Você não possui permissão para acessar o PDI.</div>';
+      return;
+    }
+    ensurePdiData();
+    if(typeof ensureAvalData === 'function') ensureAvalData();
+    var tab = window.__pdiTabAtual || 'reunioes';
+    var tabsHtml = '<div class="tabs" style="margin-bottom:18px">' +
+      '<button class="tab '+(tab==='reunioes'?'active':'')+'" onclick="window.pdiMudarTab(\'reunioes\')">Reuniões de Feedback</button>' +
+      '<button class="tab '+(tab==='avaliacao'?'active':'')+'" onclick="window.pdiMudarTab(\'avaliacao\')">Avaliação de Desempenho</button>' +
+    '</div>';
+    document.getElementById('content').innerHTML = tabsHtml + '<div id="pdiTabBody"></div>';
+    window.pdiRenderTabBody();
+  };
+
+  window.pdiMudarTab = function(tab){ window.__pdiTabAtual = tab; window.render_pdi(); };
+
+  function pdiTabEl(){ return document.getElementById('pdiTabBody') || document.getElementById('content'); }
+
+  window.pdiRenderTabBody = function(){
+    var tab = window.__pdiTabAtual || 'reunioes';
+    var me = cur();
+    if(tab==='avaliacao' && typeof render_aval_gestor === 'function'){
+      if(pdiEhGestor()) render_aval_gestor();
+      else render_aval_colaborador(me ? me.id : null);
+    } else {
+      if(pdiEhGestor()) render_pdi_gestor();
+      else render_pdi_colaborador(me ? me.id : null);
+    }
+  };
+
+  function pdiIniciais(nome){
+    nome = String(nome||'').trim();
+    if(!nome) return '?';
+    var partes = nome.split(/\s+/).filter(Boolean);
+    if(partes.length===1) return partes[0].slice(0,2).toUpperCase();
+    return (partes[0][0]+partes[partes.length-1][0]).toUpperCase();
+  }
+
+  function render_pdi_gestor(){
+    var usuarios = pdiUsuarios();
+    var linhas = usuarios.map(function(u){
+      var pontosPend = pdiPontosPendentes(u.id).length;
+      var reunioes = pdiReunioesDoColaborador(u.id);
+      var ultima = reunioes.length ? reunioes[0] : null;
+      var ultimaTxt = ultima ? (fmtDateBR(ultima.data) + (ultima.hora ? (' às '+ultima.hora) : '')) : 'Nenhuma reunião registrada';
+      return '<div class="card pad" style="cursor:pointer" onclick="window.pdiAbrirColaborador(\''+escAttr(u.id)+'\')">' +
+        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">' +
+          '<div class="bullet" style="background:#eef0f3;color:#454953">'+esc(pdiIniciais(u.name))+'</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<h4 style="margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.name)+'</h4>' +
+            '<p class="sub" style="margin:0;font-size:12px">Última reunião: '+esc(ultimaTxt)+'</p>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+          (pontosPend ? '<span class="badge y">'+pontosPend+' pendente'+(pontosPend>1?'s':'')+'</span>' : '<span class="badge g">Em dia</span>') +
+          '<button class="secondary" onclick="event.stopPropagation();window.pdiAbrirColaborador(\''+escAttr(u.id)+'\')">Ver PDI</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') || '<p class="sub">Nenhum colaborador ativo.</p>';
+
+    pdiTabEl().innerHTML =
+      '<div class="section"><div><h2>PDI — Plano de Desenvolvimento Individual</h2><p>Acompanhe reuniões de feedback e pontos de desenvolvimento de cada colaborador.</p></div></div>' +
+      '<div class="grid cols3">' + linhas + '</div>';
+  }
+
+  function render_pdi_colaborador(colaboradorId){
+    if(!colaboradorId){
+      pdiTabEl().innerHTML = '<div class="empty">Não foi possível identificar seu usuário.</div>';
+      return;
+    }
+    var pontos = pdiPontosDoColaborador(colaboradorId);
+    var pendentes = pontos.filter(function(p){ return p.status!=='resolvido'; });
+    var resolvidos = pontos.filter(function(p){ return p.status==='resolvido'; });
+
+    pdiTabEl().innerHTML =
+      '<div class="section"><div><h2>Meu PDI</h2><p>Pontos discutidos nas suas reuniões de feedback.</p></div></div>' +
+      '<div class="grid cols3" style="margin-bottom:20px">' +
+        '<div class="card kpi"><div class="l">Pontos pendentes</div><div class="v" style="color:'+(pendentes.length?'#c0392b':'#111')+'">'+pendentes.length+'</div></div>' +
+        '<div class="card kpi"><div class="l">Pontos resolvidos</div><div class="v">'+resolvidos.length+'</div></div>' +
+        '<div class="card kpi"><div class="l">Total de pontos</div><div class="v">'+pontos.length+'</div></div>' +
+      '</div>' +
+      '<h3 style="margin-bottom:10px">Pendentes</h3><div class="list">' + pdiPontoItemHtml(pendentes, true) + '</div>' +
+      '<div style="height:18px"></div><h3 style="margin-bottom:10px">Resolvidos</h3><div class="list">' + pdiPontoItemHtml(resolvidos, false) + '</div>';
+  }
+
+  function pdiPontoItemHtml(pontos, permitirAcao){
+    if(!pontos.length) return '<p class="sub">Nenhum ponto aqui.</p>';
+    return '<div style="display:grid;gap:10px">' + pontos.map(function(p){
+      var resolvido = p.status==='resolvido';
+      return '<div class="item" style="align-items:flex-start;border-left:4px solid '+(resolvido?'#34C38F':'#ffc71b')+'">' +
+        '<div class="bullet" style="background:'+(resolvido?'#e8f7ef':'#fff3bf')+'">'+(resolvido?'✓':'⚠')+'</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+            '<h4 style="margin:0 0 4px;'+(resolvido?'text-decoration:line-through;color:#9aa1ac':'')+'">'+esc(p.texto)+'</h4>' +
+            (!resolvido ? '<span class="badge y" style="flex:0 0 auto">Pendente</span>' : '<span class="badge g" style="flex:0 0 auto">Resolvido</span>') +
+          '</div>' +
+          '<p class="sub" style="margin:0 0 8px">'+(resolvido ?
+            ('Resolvido em '+esc(new Date(p.resolvidoEm).toLocaleString('pt-BR'))+' por '+esc(p.resolvidoPorNome||'—')+(p.tratativa?(': "'+esc(p.tratativa)+'"'):'')) :
+            ('Levantado em '+esc(new Date(p.criadoEm).toLocaleDateString('pt-BR'))+' por '+esc(p.criadoPorNome||'—'))
+          )+'</p>' +
+          (!resolvido && permitirAcao ? '<button class="primary" onclick="window.pdiAbrirTratativa(\''+escAttr(p.id)+'\')">Registrar tratativa</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function pdiPontoLinhaHtml(pontos){
+    if(!pontos.length) return '<p class="sub" style="margin:10px 0 0">Nenhum ponto novo registrado nesta reunião.</p>';
+    return '<div style="margin-top:8px;display:grid;gap:8px">' + pontos.map(function(p){
+      var resolvido = p.status==='resolvido';
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--linha);border-left:3px solid '+(resolvido?'#34C38F':'#ffc71b')+';border-radius:10px;background:#fafbfc">' +
+        '<span style="width:20px;height:20px;border-radius:50%;background:'+(resolvido?'#e8f7ef':'#fff3bf')+';display:flex;align-items:center;justify-content:center;font-size:10px;flex:0 0 auto;margin-top:1px;color:'+(resolvido?'#136b3a':'#7a5b00')+'">'+(resolvido?'✓':'!')+'</span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<span style="font-size:13.5px;display:block;'+(resolvido?'text-decoration:line-through;color:#9aa1ac':'')+'">'+esc(p.texto)+'</span>' +
+          (resolvido ? '<span class="sub" style="font-size:11.5px;display:block;margin-top:3px">Resolvido em '+esc(new Date(p.resolvidoEm).toLocaleString('pt-BR'))+' por '+esc(p.resolvidoPorNome||'—')+(p.tratativa?(' — "'+esc(p.tratativa)+'"'):'')+'</span>' : '') +
+        '</div>' +
+        (resolvido ? '<span class="badge g" style="flex:0 0 auto">Resolvido</span>' : '<span class="badge y" style="flex:0 0 auto">Pendente</span>') +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  /* ================= gestor: detalhe do colaborador ================= */
+  window.pdiAbrirColaborador = function(colaboradorId){
+    var u = pdiUsuarios().find(function(x){ return x.id===colaboradorId; });
+    if(!u) return;
+    var pendentes = pdiPontosPendentes(colaboradorId);
+    var reunioes = pdiReunioesDoColaborador(colaboradorId);
+    var todosPontos = pdiPontosDoColaborador(colaboradorId);
+    var ultima = reunioes.length ? reunioes[0] : null;
+    var ultimaTxt = ultima ? (fmtDateBR(ultima.data) + (ultima.hora ? (' às '+ultima.hora) : '')) : '—';
+
+    var podeExcluirReuniao = pdiEhGestor();
+    var historico = reunioes.length ? '<div class="timeline">' + reunioes.map(function(r){
+      var pontosDaReuniao = todosPontos.filter(function(p){ return p.reuniaoOrigemId===r.id; });
+      var rotulo = 'font-weight:900;text-transform:uppercase;font-size:10.5px;letter-spacing:.06em;color:#8a8f99;margin:0 0 6px';
+      return '<div class="step">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:'+(r.observacoesGerais||pontosDaReuniao.length?'12px':'0')+'">' +
+          '<div><p style="margin:0;font-size:15px;font-weight:900">'+esc(fmtDateBR(r.data))+(r.hora?(' às '+esc(r.hora)):'')+'</p><p class="sub" style="margin:2px 0 0">Conduzida por '+esc(r.conduzidaPorNome||'—')+'</p></div>' +
+          (podeExcluirReuniao ? '<button class="danger" onclick="window.pdiExcluirReuniao(\''+escAttr(colaboradorId)+'\',\''+escAttr(r.id)+'\')">Excluir reunião</button>' : '') +
+        '</div>' +
+        (r.observacoesGerais ? '<div style="margin-bottom:12px"><p style="'+rotulo+'">Observações</p><p style="margin:0">'+esc(r.observacoesGerais)+'</p></div>' : '') +
+        '<div><p style="'+rotulo+'">Pontos discutidos'+(pontosDaReuniao.length?(' ('+pontosDaReuniao.length+')'):'')+'</p>' + pdiPontoLinhaHtml(pontosDaReuniao) + '</div>' +
+      '</div>';
+    }).join('') + '</div>' : '<p class="sub">Nenhuma reunião registrada ainda.</p>';
+
+    var html =
+      '<div class="section" style="margin-bottom:16px">' +
+        '<div><h2 style="margin:0">'+esc(u.name)+'</h2><p class="sub" style="margin:4px 0 0">Plano de Desenvolvimento Individual</p></div>' +
+        '<button class="primary" onclick="window.pdiAbrirNovaReuniao(\''+escAttr(colaboradorId)+'\')">🗓 Registrar nova reunião de feedback</button>' +
+      '</div>' +
+      '<div class="grid cols3" style="margin-bottom:20px">' +
+        '<div class="card kpi"><div class="l">Pontos pendentes</div><div class="v" style="color:'+(pendentes.length?'#c0392b':'#111')+'">'+pendentes.length+'</div></div>' +
+        '<div class="card kpi"><div class="l">Reuniões registradas</div><div class="v">'+reunioes.length+'</div></div>' +
+        '<div class="card kpi"><div class="l">Última reunião</div><div class="v" style="font-size:18px">'+esc(ultimaTxt)+'</div></div>' +
+      '</div>' +
+      '<h3 style="margin:0 0 10px">Pontos pendentes</h3><div class="list">' + pdiPontoItemHtml(pendentes, true) + '</div>' +
+      '<div style="height:20px"></div><h3 style="margin:0 0 10px">Histórico de reuniões</h3>' + historico;
+
+    openModal('PDI — '+esc(u.name), html + '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+  };
+
+  /* ================= nova reunião ================= */
+  window.pdiAbrirNovaReuniao = function(colaboradorId){
+    var u = pdiUsuarios().find(function(x){ return x.id===colaboradorId; });
+    if(!u) return;
+    var pendentes = pdiPontosPendentes(colaboradorId);
+    window.__pdiNovosPontosTemp = [];
+
+    var html = '<p class="sub">Reunião de feedback com <b>'+esc(u.name)+'</b>.</p>' +
+      '<div class="grid cols2">' +
+        '<div class="field"><label>Data</label><input id="pdiReuData" type="date" value="'+todayISO()+'"></div>' +
+        '<div class="field"><label>Hora</label><input id="pdiReuHora" type="time" value="'+horaAtual()+'"></div>' +
+      '</div>' +
+      '<div class="field"><label>Observações gerais</label><textarea id="pdiReuObs" rows="2" placeholder="Resumo geral da conversa (opcional)"></textarea></div>' +
+      '<div class="field"><label>Pontos pendentes de reuniões anteriores</label>' +
+        (pendentes.length ? '<div class="card pad">'+pdiPontoLinhaHtml(pendentes)+'</div>' : '<p class="sub">Nenhum ponto pendente de reuniões anteriores.</p>') +
+      '</div>' +
+      '<div class="field" style="margin-top:6px"><label>Novos pontos desta reunião</label>' +
+        '<div id="pdiNovosPontosBox">' + pdiNovosPontosHtml([]) + '</div>' +
+        '<div class="actions" style="margin-top:8px"><input id="pdiNovoPontoInput" placeholder="Escreva um ponto e clique em Adicionar" style="flex:1"><button class="secondary" onclick="window.pdiAdicionarPontoTemp()">Adicionar</button></div>' +
+      '</div>' +
+      '<div class="actions kanban-form-actions" style="margin-top:16px">' +
+        '<button class="primary" onclick="window.pdiSalvarReuniao(\''+escAttr(colaboradorId)+'\')">Salvar reunião</button>' +
+        '<button class="secondary" onclick="window.pdiAbrirColaborador(\''+escAttr(colaboradorId)+'\')">Cancelar</button>' +
+      '</div>';
+    openModal('🗓 Nova reunião de feedback', html);
+  };
+
+  function pdiNovosPontosHtml(lista){
+    if(!lista.length) return '<p class="sub">Nenhum ponto novo adicionado ainda.</p>';
+    return '<div class="mkt-checklist-grid">' + lista.map(function(texto, i){
+      return '<div class="mkt-checklist-item"><span>'+esc(texto)+'</span><button class="mini danger" onclick="window.pdiRemoverPontoTemp('+i+')">×</button></div>';
+    }).join('') + '</div>';
+  }
+  window.pdiAdicionarPontoTemp = function(){
+    var input = document.getElementById('pdiNovoPontoInput');
+    var texto = (input.value||'').trim();
+    if(!texto) return;
+    window.__pdiNovosPontosTemp = window.__pdiNovosPontosTemp || [];
+    window.__pdiNovosPontosTemp.push(texto);
+    document.getElementById('pdiNovosPontosBox').innerHTML = pdiNovosPontosHtml(window.__pdiNovosPontosTemp);
+    input.value = '';
+    input.focus();
+  };
+  window.pdiRemoverPontoTemp = function(idx){
+    window.__pdiNovosPontosTemp.splice(idx,1);
+    document.getElementById('pdiNovosPontosBox').innerHTML = pdiNovosPontosHtml(window.__pdiNovosPontosTemp);
+  };
+
+  window.pdiSalvarReuniao = function(colaboradorId){
+    var d = ensurePdiData();
+    var u = pdiUsuarios().find(function(x){ return x.id===colaboradorId; });
+    var data = (document.getElementById('pdiReuData')||{}).value || todayISO();
+    var hora = (document.getElementById('pdiReuHora')||{}).value || '';
+    var obs = ((document.getElementById('pdiReuObs')||{}).value || '').trim();
+    var me = cur();
+
+    var reuniao = {
+      id: uid('pdi_reu_'), colaboradorId: colaboradorId, colaboradorNome: u?u.name:'',
+      data: data, hora: hora, conduzidaPorId: me?me.id:'', conduzidaPorNome: me?(me.name||me.nome):'',
+      observacoesGerais: obs, createdAt: new Date().toISOString()
+    };
+    d.pdiReunioes.push(reuniao);
+
+    (window.__pdiNovosPontosTemp||[]).forEach(function(texto){
+      d.pdiPontos.push({
+        id: uid('pdi_pt_'), colaboradorId: colaboradorId, colaboradorNome: u?u.name:'',
+        reuniaoOrigemId: reuniao.id, texto: texto, status: 'pendente', tratativa: '', resolvidoEm: '',
+        resolvidoPorId: '', resolvidoPorNome: '', criadoEm: new Date().toISOString(),
+        criadoPorId: me?me.id:'', criadoPorNome: me?(me.name||me.nome):''
+      });
+    });
+    window.__pdiNovosPontosTemp = [];
+    doSave();
+    toastSafe('Reunião registrada com sucesso.');
+    window.pdiAbrirColaborador(colaboradorId);
+  };
+
+  window.pdiExcluirReuniao = function(colaboradorId, reuniaoId){
+    if(!pdiEhGestor()){ toastSafe('Você não tem permissão para excluir reuniões.', 'warn'); return; }
+    if(!confirm('Excluir esta reunião? Os pontos registrados nela também serão removidos.')) return;
+    var d = ensurePdiData();
+    d.pdiReunioes = d.pdiReunioes.filter(function(r){ return r.id!==reuniaoId; });
+    d.pdiPontos = d.pdiPontos.filter(function(p){ return p.reuniaoOrigemId!==reuniaoId; });
+    doSave();
+    toastSafe('Reunião excluída.');
+    window.pdiAbrirColaborador(colaboradorId);
+  };
+
+  /* ================= tratativa (colaborador ou gestor) ================= */
+  window.pdiAbrirTratativa = function(pontoId){
+    var d = ensurePdiData();
+    var p = d.pdiPontos.find(function(x){ return x.id===pontoId; });
+    if(!p) return;
+    var html = '<p class="sub">Ponto: <b>'+esc(p.texto)+'</b></p>' +
+      '<div class="field"><label>O que foi feito / tratativa</label><textarea id="pdiTratativaTexto" rows="4" placeholder="Descreva a solução ou encaminhamento dado a este ponto">'+esc(p.tratativa||'')+'</textarea></div>' +
+      '<p class="sub">A data e o horário de resolução são registrados automaticamente ao salvar.</p>' +
+      '<div class="actions kanban-form-actions" style="margin-top:16px">' +
+        '<button class="primary" onclick="window.pdiSalvarTratativa(\''+escAttr(pontoId)+'\')">Marcar como resolvido</button>' +
+        '<button class="secondary" onclick="closeModal()">Cancelar</button>' +
+      '</div>';
+    openModal('Registrar tratativa', html);
+  };
+
+  window.pdiSalvarTratativa = function(pontoId){
+    var d = ensurePdiData();
+    var p = d.pdiPontos.find(function(x){ return x.id===pontoId; });
+    if(!p) return;
+    var texto = ((document.getElementById('pdiTratativaTexto')||{}).value || '').trim();
+    if(!texto){ toastSafe('Descreva a tratativa antes de salvar.', 'warn'); return; }
+    var me = cur();
+    p.tratativa = texto;
+    p.status = 'resolvido';
+    p.resolvidoEm = new Date().toISOString();
+    p.resolvidoPorId = me?me.id:'';
+    p.resolvidoPorNome = me?(me.name||me.nome):'';
+    doSave();
+    toastSafe('Tratativa registrada.');
+    if(typeof window.render_pdi === 'function') window.render_pdi();
+  };
+
+  /* ================= avaliação de desempenho (dados de referência) ================= */
+  window.__avalSeed = window.__avalSeed || (function(){
+    try{
+      var el = document.getElementById('avalSeedData');
+      return el ? JSON.parse(el.textContent || '{}') : {};
+    }catch(e){ console.error('[Avaliação] erro ao ler dados de referência:', e); return {}; }
+  })();
+
+  function ensureAvalData(){
+    var d = dbRef();
+    var seed = window.__avalSeed || {};
+    if(!Array.isArray(d.avalCompetenciasG)) d.avalCompetenciasG = (seed.competenciasG||[]).slice();
+    if(!Array.isArray(d.avalCompetenciasNG)) d.avalCompetenciasNG = (seed.competenciasNG||[]).slice();
+    if(!Array.isArray(d.avalPotencialG)) d.avalPotencialG = (seed.potencialG||[]).slice();
+    if(!Array.isArray(d.avalPotencialNG)) d.avalPotencialNG = (seed.potencialNG||[]).slice();
+    if(!Array.isArray(d.avalDepartamentos)) d.avalDepartamentos = (seed.departamentos||[]).slice();
+    if(!Array.isArray(d.avalEquipes)) d.avalEquipes = (seed.equipes||[]).slice();
+    if(!Array.isArray(d.avalCargos)) d.avalCargos = (seed.cargos||[]).slice();
+    if(!Array.isArray(d.avalGrupos)) d.avalGrupos = [];
+    if(!Array.isArray(d.avalCiclos)) d.avalCiclos = [];
+    if(!Array.isArray(d.avalAvaliacoes)) d.avalAvaliacoes = [];
+    if(!d.avalClassificacoes || typeof d.avalClassificacoes !== 'object') d.avalClassificacoes = {};
+    // o Firebase remove chaves cujo valor é um objeto vazio {} ao salvar; qualquer avaliação
+    // que ainda não tenha notas preenchidas volta como undefined após um reload. Normaliza aqui
+    // para garantir que essas três propriedades sejam sempre objetos utilizáveis.
+    d.avalAvaliacoes.forEach(function(av){
+      if(!av.notasAuto || typeof av.notasAuto !== 'object') av.notasAuto = {};
+      if(!av.notasGestor || typeof av.notasGestor !== 'object') av.notasGestor = {};
+      if(!av.notasPotencial || typeof av.notasPotencial !== 'object') av.notasPotencial = {};
+    });
+    avalClassificarAutomatico();
+    return d;
+  }
+
+  function avalClassificacao(colaboradorId){
+    var d = ensureAvalData();
+    return d.avalClassificacoes[colaboradorId] || {};
+  }
+
+  function avalClassificarAutomatico(){
+    try{
+      var d = dbRef();
+      var seed = window.__avalSeed || {};
+      var lista = seed.colaboradores || [];
+      if(!lista.length || d.avalClassificacaoAutoAplicada) return;
+      if(!d.avalClassificacoes || typeof d.avalClassificacoes !== 'object') d.avalClassificacoes = {};
+      var alterou = false;
+      (Array.isArray(d.users) ? d.users : []).forEach(function(u){
+        if(d.avalClassificacoes[u.id]) return;
+        var nomeNorm = String(u.name||'').trim().toLowerCase();
+        var match = lista.find(function(c){ return String(c.nome||'').trim().toLowerCase()===nomeNorm; });
+        if(match){
+          d.avalClassificacoes[u.id] = {
+            perfil: match.perfil, cargo: match.cargo||'', equipe: match.equipe||'', departamento: match.departamento||''
+          };
+          alterou = true;
+        }
+      });
+      d.avalClassificacaoAutoAplicada = true;
+      if(alterou) doSave();
+    }catch(e){ console.error('[Avaliação] erro na classificação automática:', e); }
+  }
+
+  window.avalClassificarColaborador = function(colaboradorId){
+    var d = ensureAvalData();
+    var u = (d.users||[]).find(function(x){ return x.id===colaboradorId; });
+    if(!u) return;
+    var c = avalClassificacao(colaboradorId);
+    var html = '<div class="grid cols2">' +
+      '<div class="field"><label>Perfil</label><select id="avalClassPerfil">' +
+        '<option value="">Selecione</option>' +
+        '<option value="gestor"'+(c.perfil==='gestor'?' selected':'')+'>Gestor</option>' +
+        '<option value="nao_gestor"'+(c.perfil==='nao_gestor'?' selected':'')+'>Não gestor</option>' +
+      '</select></div>' +
+      '<div class="field"><label>Cargo</label><input id="avalClassCargo" value="'+escAttr(c.cargo||'')+'" list="avalCargosList"></div>' +
+      '<div class="field"><label>Equipe</label><input id="avalClassEquipe" value="'+escAttr(c.equipe||'')+'" list="avalEquipesList"></div>' +
+      '<div class="field"><label>Departamento</label><input id="avalClassDepartamento" value="'+escAttr(c.departamento||'')+'" list="avalDepartamentosList"></div>' +
+    '</div>' +
+    '<datalist id="avalCargosList">' + d.avalCargos.map(function(x){return '<option value="'+escAttr(x)+'">';}).join('') + '</datalist>' +
+    '<datalist id="avalEquipesList">' + d.avalEquipes.map(function(x){return '<option value="'+escAttr(x.nome)+'">';}).join('') + '</datalist>' +
+    '<datalist id="avalDepartamentosList">' + d.avalDepartamentos.map(function(x){return '<option value="'+escAttr(x)+'">';}).join('') + '</datalist>' +
+    '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="primary" onclick="window.avalSalvarClassificacao(\''+escAttr(colaboradorId)+'\')">Salvar</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Classificar — '+esc(u.name), html);
+  };
+
+  window.avalSalvarClassificacao = function(colaboradorId){
+    var d = ensureAvalData();
+    var perfil = (document.getElementById('avalClassPerfil')||{}).value || '';
+    var cargo = ((document.getElementById('avalClassCargo')||{}).value || '').trim();
+    var equipe = ((document.getElementById('avalClassEquipe')||{}).value || '').trim();
+    var departamento = ((document.getElementById('avalClassDepartamento')||{}).value || '').trim();
+    d.avalClassificacoes[colaboradorId] = { perfil: perfil, cargo: cargo, equipe: equipe, departamento: departamento };
+    doSave();
+    toastSafe('Classificação salva.');
+    closeModal();
+    window.pdiRenderTabBody();
+  };
+
+  /* ================= competências / potencial / escala (helpers) ================= */
+  function avalCompetenciasDoPerfil(perfil){
+    var d = ensureAvalData();
+    return perfil==='gestor' ? d.avalCompetenciasG : d.avalCompetenciasNG;
+  }
+  function avalPotencialDoPerfil(perfil){
+    var d = ensureAvalData();
+    return perfil==='gestor' ? d.avalPotencialG : d.avalPotencialNG;
+  }
+  function avalCompetenciasAgrupadas(perfil){
+    var lista = avalCompetenciasDoPerfil(perfil);
+    var grupos = [], byCat = {};
+    (lista||[]).forEach(function(it){
+      if(!byCat[it.cat]){ byCat[it.cat] = {cat:it.cat, catNome:it.catNome, itens:[]}; grupos.push(byCat[it.cat]); }
+      byCat[it.cat].itens.push(it);
+    });
+    return grupos;
+  }
+  function avalNivelCompetencia(nota){
+    if(nota==null) return '';
+    if(nota<5) return 'Insatisfatório';
+    if(nota<7) return 'Regular';
+    if(nota<9) return 'Bom';
+    return 'Excelente';
+  }
+  function avalNivelPotencial(nota){
+    if(nota==null) return '';
+    if(nota<1.67) return 'Discorda';
+    if(nota<2.34) return 'Concorda parcialmente';
+    return 'Concorda plenamente';
+  }
+  function avalCorNivel(nivel){
+    return {
+      'Insatisfatório':'#c0392b', 'Regular':'#e08e00', 'Bom':'#1e49b7', 'Excelente':'#136b3a',
+      'Discorda':'#c0392b', 'Concorda parcialmente':'#e08e00', 'Concorda plenamente':'#136b3a'
+    }[nivel] || '#454953';
+  }
+  function avalMedia(obj){
+    var vals = Object.keys(obj||{}).map(function(k){ return Number(obj[k]); }).filter(function(v){ return !isNaN(v); });
+    if(!vals.length) return null;
+    return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+  }
+  function avalResultado(avaliacao){
+    var mediaAuto = avalMedia(avaliacao.notasAuto);
+    var mediaGestor = avalMedia(avaliacao.notasGestor);
+    var mediaPotencial = avalMedia(avaliacao.notasPotencial);
+    var desempenhoGeral = (mediaGestor!=null && mediaPotencial!=null) ? (mediaGestor*3)+(mediaPotencial*10) : null;
+    return {mediaAuto:mediaAuto, mediaGestor:mediaGestor, mediaPotencial:mediaPotencial, desempenhoGeral:desempenhoGeral};
+  }
+  function avalNivelPara(nota, tipo){
+    return tipo==='potencial' ? avalNivelPotencial(nota) : avalNivelCompetencia(nota);
+  }
+  function avalEscalaLegendaHtml(tipo){
+    tipo = tipo || 'competencia';
+    var faixas = tipo==='potencial' ? [
+      {rotulo:'1', nivel:'Discorda'},
+      {rotulo:'2', nivel:'Concorda parcialmente'},
+      {rotulo:'3', nivel:'Concorda plenamente'}
+    ] : [
+      {rotulo:'1-4', nivel:'Insatisfatório'},
+      {rotulo:'5-6', nivel:'Regular'},
+      {rotulo:'7-8', nivel:'Bom'},
+      {rotulo:'9-10', nivel:'Excelente'}
+    ];
+    return '<div class="aval-escala-legenda">' + faixas.map(function(f){
+      var cor = avalCorNivel(f.nivel);
+      return '<span class="aval-escala-chip" style="background:'+cor+'1a;color:'+cor+'"><b>'+esc(f.rotulo)+'</b>&nbsp;'+esc(f.nivel)+'</span>';
+    }).join('') + '</div>';
+  }
+  function avalSelectNota(inputId, min, max, valorAtual, tipo){
+    tipo = tipo || 'competencia';
+    var atual = (valorAtual!=null && valorAtual!=='' && !isNaN(Number(valorAtual))) ? Number(valorAtual) : null;
+    var botoes = '';
+    for(var n=min;n<=max;n++){
+      var nivel = avalNivelPara(n, tipo);
+      var cor = avalCorNivel(nivel);
+      var ativo = atual===n;
+      var estilo = ativo ? ('background:'+cor+';border-color:'+cor+';color:#fff') : ('border-color:'+cor);
+      botoes += '<button type="button" class="aval-nota-btn'+(ativo?' active':'')+'" data-val="'+n+'" style="'+estilo+'" onclick="window.avalMarcarNota(this)">'+n+'</button>';
+    }
+    var nivelAtualTxt = atual!=null ? avalNivelPara(atual, tipo) : 'Selecione uma nota';
+    var corAtual = atual!=null ? avalCorNivel(nivelAtualTxt) : '#9099a6';
+    return '<div class="aval-scale" data-input="'+inputId+'" data-tipo="'+tipo+'">' +
+        '<div class="aval-scale-row">'+botoes+'</div>' +
+        '<div class="aval-scale-nivel" style="color:'+corAtual+'">'+esc(nivelAtualTxt)+'</div>' +
+      '</div>' +
+      '<input type="hidden" id="'+inputId+'" value="'+(atual!=null?atual:'')+'">';
+  }
+  window.avalMarcarNota = function(btn){
+    var wrap = btn.closest ? btn.closest('.aval-scale') : null;
+    if(!wrap) return;
+    var inputId = wrap.getAttribute('data-input');
+    var tipo = wrap.getAttribute('data-tipo');
+    var val = Number(btn.getAttribute('data-val'));
+    var input = document.getElementById(inputId);
+    if(input) input.value = val;
+    var allBtns = wrap.querySelectorAll('.aval-nota-btn');
+    allBtns.forEach(function(b){
+      var n = Number(b.getAttribute('data-val'));
+      var nivel = avalNivelPara(n, tipo);
+      var cor = avalCorNivel(nivel);
+      if(n===val){
+        b.classList.add('active');
+        b.style.background = cor; b.style.borderColor = cor; b.style.color = '#fff';
+      } else {
+        b.classList.remove('active');
+        b.style.background = ''; b.style.borderColor = cor; b.style.color = '';
+      }
+    });
+    var nivelEl = wrap.querySelector('.aval-scale-nivel');
+    if(nivelEl){
+      var nivelAtual = avalNivelPara(val, tipo);
+      nivelEl.textContent = nivelAtual;
+      nivelEl.style.color = avalCorNivel(nivelAtual);
+    }
+  };
+
+  /* ================= ciclos de avaliação ================= */
+  window.avalNovoCiclo = function(){
+    var html = '<div class="field"><label>Identificador do ciclo</label><input id="avalCicloId" placeholder="Ex.: 1º Ciclo 2026"></div>' +
+      '<div class="field"><label>Data</label><input id="avalCicloData" type="date" value="'+todayISO()+'"></div>' +
+      '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="primary" onclick="window.avalSalvarCiclo()">Criar ciclo</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Novo ciclo de avaliação', html);
+  };
+  window.avalSalvarCiclo = function(){
+    var id = ((document.getElementById('avalCicloId')||{}).value || '').trim();
+    if(!id){ toastSafe('Informe um identificador para o ciclo.', 'warn'); return; }
+    var data = (document.getElementById('avalCicloData')||{}).value || todayISO();
+    var d = ensureAvalData();
+    var me = cur();
+    d.avalCiclos.push({ id: uid('aval_ciclo_'), identificador: id, data: data, createdAt: new Date().toISOString(), createdBy: me?me.id:'', createdByName: me?(me.name||me.nome):'' });
+    doSave();
+    toastSafe('Ciclo criado.');
+    closeModal();
+    window.pdiRenderTabBody();
+  };
+  window.avalExcluirCiclo = function(cicloId){
+    if(!pdiEhGestor()){ toastSafe('Você não tem permissão para excluir ciclos.', 'warn'); return; }
+    if(!confirm('Excluir este ciclo e todas as avaliações vinculadas a ele?')) return;
+    var d = ensureAvalData();
+    d.avalCiclos = d.avalCiclos.filter(function(c){ return c.id!==cicloId; });
+    d.avalAvaliacoes = d.avalAvaliacoes.filter(function(a){ return a.cicloId!==cicloId; });
+    doSave();
+    toastSafe('Ciclo excluído.');
+    window.pdiRenderTabBody();
+  };
+
+  window.avalAbrirCiclo = function(cicloId){
+    var d = ensureAvalData();
+    var ciclo = d.avalCiclos.find(function(c){ return c.id===cicloId; });
+    if(!ciclo) return;
+    var avaliacoesDoCiclo = d.avalAvaliacoes.filter(function(a){ return a.cicloId===cicloId; });
+    var usuarios = pdiUsuarios();
+    var idsNoCiclo = avaliacoesDoCiclo.map(function(a){ return a.colaboradorId; });
+    var disponiveis = usuarios.filter(function(u){ return idsNoCiclo.indexOf(u.id)<0; });
+
+    var linhas = avaliacoesDoCiclo.map(function(a){
+      var badge = a.status==='concluida' ? '<span class="badge g">Concluída</span>' : (a.status==='aguardando_gestor' ? '<span class="badge y">Aguardando gestor</span>' : '<span class="badge b">Aguardando autoavaliação</span>');
+      return '<div class="item">' +
+        '<div style="flex:1"><h4 style="margin:0 0 4px">'+esc(a.colaboradorNome)+'</h4><p class="sub" style="margin:0">'+(a.perfil==='gestor'?'Gestor':'Não gestor')+'</p></div>' +
+        badge +
+        '<button class="secondary" onclick="window.avalAbrirAvaliacao(\''+escAttr(a.id)+'\')">'+(a.status==='concluida'?'Ver resultado':'Abrir')+'</button>' +
+        '<button class="danger" onclick="window.avalRemoverAvaliacao(\''+escAttr(a.id)+'\')">×</button>' +
+      '</div>';
+    }).join('') || '<p class="sub">Nenhum colaborador adicionado a este ciclo ainda.</p>';
+
+    var selectAdicionar = disponiveis.length ? (
+      '<div class="actions" style="margin-top:12px">' +
+        '<select id="avalAddColaborador" style="flex:1">' + disponiveis.map(function(u){ return '<option value="'+escAttr(u.id)+'">'+esc(u.name)+'</option>'; }).join('') + '</select>' +
+        '<button class="secondary" onclick="window.avalAdicionarColaboradorCiclo(\''+escAttr(cicloId)+'\')">+ Adicionar</button>' +
+      '</div>'
+    ) : '<p class="sub" style="margin-top:12px">Todos os colaboradores ativos já estão neste ciclo.</p>';
+
+    var html = '<p class="sub">Data: '+esc(fmtDateBR(ciclo.data))+'</p>' +
+      '<div class="list" style="margin-top:10px">' + linhas + '</div>' +
+      selectAdicionar;
+    openModal('Ciclo — '+esc(ciclo.identificador), html + '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="secondary" onclick="closeModal()">Fechar</button></div>');
+  };
+
+  window.avalAdicionarColaboradorCiclo = function(cicloId){
+    var sel = document.getElementById('avalAddColaborador');
+    var colaboradorId = sel ? sel.value : '';
+    if(!colaboradorId) return;
+    var d = ensureAvalData();
+    var u = (d.users||[]).find(function(x){ return x.id===colaboradorId; });
+    if(!u) return;
+    var classif = avalClassificacao(colaboradorId);
+    if(!classif.perfil){ toastSafe('Classifique o perfil (gestor/não gestor) deste colaborador em Cadastros antes de avaliá-lo.', 'warn'); return; }
+    d.avalAvaliacoes.push({
+      id: uid('aval_'), cicloId: cicloId, colaboradorId: colaboradorId, colaboradorNome: u.name,
+      perfil: classif.perfil, avaliadorId: '', avaliadorNome: '', data: '',
+      notasAuto: {}, notasGestor: {}, notasPotencial: {},
+      status: 'aguardando_auto', createdAt: new Date().toISOString()
+    });
+    doSave();
+    toastSafe('Colaborador adicionado ao ciclo.');
+    window.avalAbrirCiclo(cicloId);
+  };
+
+  window.avalRemoverAvaliacao = function(avaliacaoId){
+    if(!pdiEhGestor()){ toastSafe('Você não tem permissão para excluir avaliações.', 'warn'); return; }
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    var mensagem = (av && av.status==='concluida') ? 'Excluir esta avaliação já concluída de '+av.colaboradorNome+'? Essa ação não pode ser desfeita.' : 'Remover esta avaliação do ciclo?';
+    if(!confirm(mensagem)) return;
+    var cicloId = av ? av.cicloId : null;
+    d.avalAvaliacoes = d.avalAvaliacoes.filter(function(a){ return a.id!==avaliacaoId; });
+    doSave();
+    toastSafe('Avaliação excluída.');
+    closeModal();
+    if(cicloId) window.avalAbrirCiclo(cicloId); else window.pdiRenderTabBody();
+  };
+
+  /* ================= formulário de autoavaliação ================= */
+  window.avalAbrirAvaliacao = function(avaliacaoId){
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    if(!av) return;
+    if(av.status==='concluida'){ window.avalVerResultado(avaliacaoId); return; }
+    if(av.status==='aguardando_auto'){ window.avalFormAuto(avaliacaoId); return; }
+    if(av.status==='aguardando_gestor'){
+      if(!pdiEhGestor()){ toastSafe('Aguardando a avaliação do gestor.', 'warn'); return; }
+      window.avalFormGestor(avaliacaoId);
+      return;
+    }
+  };
+
+  window.avalFormAuto = function(avaliacaoId){
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    if(!av) return;
+    var grupos = avalCompetenciasAgrupadas(av.perfil);
+    var html = '<p class="sub">Autoavaliação de <b>'+esc(av.colaboradorNome)+'</b>. Marque a nota de 1 a 10 para cada competência.</p>' +
+      avalEscalaLegendaHtml('competencia') +
+      grupos.map(function(g){
+        return '<div class="card pad" style="margin-top:14px"><h4 style="margin:0 0 6px">'+esc(g.catNome||g.cat)+'</h4>' +
+          g.itens.map(function(it){
+            return '<div class="aval-item">' +
+              '<div class="aval-item-nome">'+esc(it.nome)+'</div>' +
+              (it.desc ? '<div class="aval-item-desc">'+esc(it.desc)+'</div>' : '') +
+              avalSelectNota('avalAuto_'+it.id, 1, 10, av.notasAuto[it.id], 'competencia') +
+            '</div>';
+          }).join('') +
+        '</div>';
+      }).join('') +
+      '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="primary" onclick="window.avalSalvarAuto(\''+escAttr(avaliacaoId)+'\')">Enviar autoavaliação</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Autoavaliação — '+esc(av.colaboradorNome), html);
+  };
+
+  window.avalSalvarAuto = function(avaliacaoId){
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    if(!av) return;
+    var grupos = avalCompetenciasAgrupadas(av.perfil);
+    var notas = {}, faltando = false;
+    grupos.forEach(function(g){
+      g.itens.forEach(function(it){
+        var el = document.getElementById('avalAuto_'+it.id);
+        var v = el ? el.value : '';
+        if(!v) faltando = true; else notas[it.id] = Number(v);
+      });
+    });
+    if(faltando){ toastSafe('Preencha a nota de todas as competências.', 'warn'); return; }
+    av.notasAuto = notas;
+    av.status = 'aguardando_gestor';
+    av.autoConcluidaEm = new Date().toISOString();
+    doSave();
+    toastSafe('Autoavaliação enviada.');
+    closeModal();
+    window.pdiRenderTabBody();
+  };
+
+  /* ================= formulário de avaliação do gestor + potencial ================= */
+  window.avalFormGestor = function(avaliacaoId){
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    if(!av) return;
+    var gruposComp = avalCompetenciasAgrupadas(av.perfil);
+    var potenciais = avalPotencialDoPerfil(av.perfil);
+    var html = '<p class="sub">Avaliação do gestor para <b>'+esc(av.colaboradorNome)+'</b>. A nota da autoavaliação aparece ao lado, como referência.</p>' +
+      avalEscalaLegendaHtml('competencia') +
+      '<h3 style="margin:16px 0 6px">Competências</h3>' +
+      gruposComp.map(function(g){
+        return '<div class="card pad" style="margin-top:10px"><h4 style="margin:0 0 6px">'+esc(g.catNome||g.cat)+'</h4>' +
+          g.itens.map(function(it){
+            var autoVal = av.notasAuto[it.id];
+            return '<div class="aval-item">' +
+              '<div class="aval-item-nome">'+esc(it.nome)+' <span class="aval-item-auto">Autoavaliação: '+(autoVal!=null?autoVal:'—')+'</span></div>' +
+              (it.desc ? '<div class="aval-item-desc">'+esc(it.desc)+'</div>' : '') +
+              avalSelectNota('avalGestor_'+it.id, 1, 10, av.notasGestor[it.id], 'competencia') +
+            '</div>';
+          }).join('') +
+        '</div>';
+      }).join('') +
+      '<h3 style="margin:20px 0 6px">Avaliação de potencial</h3>' +
+      avalEscalaLegendaHtml('potencial') +
+      '<p class="sub" style="margin:8px 0 0">O quanto o gestor concorda que o colaborador tem potencial de evoluir em cada indicador.</p>' +
+      '<div class="card pad" style="margin-top:10px">' +
+        potenciais.map(function(it){
+          return '<div class="aval-item">' +
+            '<div class="aval-item-nome">'+esc(it.nome)+'</div>' +
+            (it.desc ? '<div class="aval-item-desc">'+esc(it.desc)+'</div>' : '') +
+            avalSelectNota('avalPot_'+it.id, 1, 3, av.notasPotencial[it.id], 'potencial') +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="primary" onclick="window.avalSalvarGestor(\''+escAttr(avaliacaoId)+'\')">Concluir avaliação</button><button class="secondary" onclick="closeModal()">Cancelar</button></div>';
+    openModal('Avaliação do gestor — '+esc(av.colaboradorNome), html);
+  };
+
+  window.avalSalvarGestor = function(avaliacaoId){
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    if(!av) return;
+    var gruposComp = avalCompetenciasAgrupadas(av.perfil);
+    var potenciais = avalPotencialDoPerfil(av.perfil);
+    var notasGestor = {}, notasPotencial = {}, faltando = false;
+    gruposComp.forEach(function(g){ g.itens.forEach(function(it){
+      var el = document.getElementById('avalGestor_'+it.id);
+      var v = el ? el.value : '';
+      if(!v) faltando = true; else notasGestor[it.id] = Number(v);
+    }); });
+    potenciais.forEach(function(it){
+      var el = document.getElementById('avalPot_'+it.id);
+      var v = el ? el.value : '';
+      if(!v) faltando = true; else notasPotencial[it.id] = Number(v);
+    });
+    if(faltando){ toastSafe('Preencha todas as notas antes de concluir.', 'warn'); return; }
+    var me = cur();
+    av.notasGestor = notasGestor;
+    av.notasPotencial = notasPotencial;
+    av.avaliadorId = me ? me.id : '';
+    av.avaliadorNome = me ? (me.name||me.nome) : '';
+    av.data = todayISO();
+    av.status = 'concluida';
+    av.gestorConcluidaEm = new Date().toISOString();
+    doSave();
+    toastSafe('Avaliação concluída.');
+    window.avalVerResultado(avaliacaoId);
+  };
+
+  /* ================= resultado individual ================= */
+  window.avalVerResultado = function(avaliacaoId){
+    var d = ensureAvalData();
+    var av = d.avalAvaliacoes.find(function(a){ return a.id===avaliacaoId; });
+    if(!av) return;
+    var res = avalResultado(av);
+    var gruposComp = avalCompetenciasAgrupadas(av.perfil);
+
+    function barra(label, valorAuto, valorGestor){
+      var pctGestor = valorGestor!=null ? Math.round(valorGestor/10*100) : 0;
+      return '<div style="margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px"><span>'+esc(label)+'</span><span class="sub">Auto: '+(valorAuto!=null?valorAuto:'—')+' · Gestor: '+(valorGestor!=null?valorGestor:'—')+'</span></div>' +
+        '<div style="background:#eef0f3;border-radius:999px;height:8px;position:relative;overflow:hidden">' +
+          '<div style="position:absolute;left:0;top:0;bottom:0;width:'+pctGestor+'%;background:var(--amarelo)"></div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    var porCategoria = gruposComp.map(function(g){
+      var autoObj = {}, gestorObj = {};
+      g.itens.forEach(function(it){
+        if(av.notasAuto[it.id]!=null) autoObj[it.id] = av.notasAuto[it.id];
+        if(av.notasGestor[it.id]!=null) gestorObj[it.id] = av.notasGestor[it.id];
+      });
+      var mA = avalMedia(autoObj), mG = avalMedia(gestorObj);
+      return barra(g.catNome||g.cat, mA!=null?mA.toFixed(1):null, mG!=null?mG.toFixed(1):null);
+    }).join('');
+
+    var nivelComp = avalNivelCompetencia(res.mediaGestor);
+    var nivelPot = avalNivelPotencial(res.mediaPotencial);
+
+    var html =
+      '<div class="grid cols3" style="margin-bottom:20px">' +
+        '<div class="card kpi"><div class="l">Nota de competências</div><div class="v" style="color:'+avalCorNivel(nivelComp)+'">'+(res.mediaGestor!=null?res.mediaGestor.toFixed(1):'—')+'</div><p class="sub" style="margin-top:4px">'+esc(nivelComp)+'</p></div>' +
+        '<div class="card kpi"><div class="l">Nota de potencial</div><div class="v" style="color:'+avalCorNivel(nivelPot)+'">'+(res.mediaPotencial!=null?res.mediaPotencial.toFixed(1):'—')+'</div><p class="sub" style="margin-top:4px">'+esc(nivelPot)+'</p></div>' +
+        '<div class="card kpi"><div class="l">Desempenho geral</div><div class="v">'+(res.desempenhoGeral!=null?res.desempenhoGeral.toFixed(1):'—')+'</div><p class="sub" style="margin-top:4px">Escala de 13 a 60</p></div>' +
+      '</div>' +
+      '<h3 style="margin:0 0 10px">Competências por categoria (auto x gestor)</h3>' + porCategoria +
+      '<div style="height:6px"></div>' +
+      '<p class="sub">Avaliador: '+esc(av.avaliadorNome||'—')+' · '+esc(fmtDateBR(av.data))+'</p>';
+
+    var botaoExcluir = pdiEhGestor() ? ('<button class="danger" onclick="window.avalRemoverAvaliacao(\''+escAttr(avaliacaoId)+'\')">Excluir avaliação</button>') : '';
+    openModal('Resultado — '+esc(av.colaboradorNome), html + '<div class="actions kanban-form-actions" style="margin-top:16px"><button class="secondary" onclick="closeModal()">Fechar</button>'+botaoExcluir+'</div>');
+  };
+
+  /* ================= matriz de orientação (desempenho x potencial) ================= */
+  function avalNivelDesempenhoMatriz(nota){
+    if(nota==null) return '';
+    if(nota<4) return 'Baixo';
+    if(nota<7) return 'Médio';
+    return 'Alto';
+  }
+  function avalNivelPotencialMatriz(nota){
+    if(nota==null) return '';
+    if(nota<1.67) return 'Baixo';
+    if(nota<2.34) return 'Médio';
+    return 'Alto';
+  }
+  var AVAL_MATRIZ = {
+    'Baixo': {'Baixo':'Colocar em Observação','Médio':'Desenvolver (Treinamento)','Alto':'Desenvolver (Treinamento)'},
+    'Médio': {'Baixo':'Verificar Outras Atividades','Médio':'Desenvolver (Treinamento)','Alto':'Aumentar Desafios'},
+    'Alto': {'Baixo':'Verificar Outras Atividades','Médio':'Aumentar Desafios','Alto':'Verificar Nova Posição'}
+  };
+  function avalOrientacao(mediaCompetencia, mediaPotencial){
+    var nc = avalNivelDesempenhoMatriz(mediaCompetencia);
+    var np = avalNivelPotencialMatriz(mediaPotencial);
+    if(!nc || !np) return '';
+    return (AVAL_MATRIZ[np] && AVAL_MATRIZ[np][nc]) || '';
+  }
+  function avalMatrizOrientacaoHtml(){
+    var niveisPot = ['Alto','Médio','Baixo'];
+    var niveisDes = ['Baixo','Médio','Alto'];
+    var rows = niveisPot.map(function(np){
+      return '<tr><td><b>Potencial '+np+'</b></td>' + niveisDes.map(function(nd){
+        return '<td style="text-align:center">'+esc(AVAL_MATRIZ[np][nd])+'</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    return '<h3 style="margin:0 0 8px">Matriz de Orientação — Desempenho x Potencial</h3>' +
+      '<p class="sub" style="margin:0 0 10px">Cruza a nota de competências (desempenho) com a nota de potencial de cada colaborador para sugerir uma orientação de desenvolvimento.</p>' +
+      '<div style="overflow:auto"><table class="table"><thead><tr><th></th><th>Desempenho Baixo</th><th>Desempenho Médio</th><th>Desempenho Alto</th></tr></thead><tbody>'+rows+'</tbody></table></div>' +
+      avalMatrizPosicoesHtml();
+  }
+  function avalMatrizPosicoesHtml(){
+    var ultimas = avalUltimaAvaliacaoPorColaborador();
+    if(!ultimas.length) return '<p class="sub" style="margin-top:14px">Nenhuma avaliação concluída para posicionar na matriz ainda.</p>';
+    var rows = ultimas.map(function(a){
+      var res = avalResultado(a);
+      var orient = avalOrientacao(res.mediaGestor, res.mediaPotencial);
+      return '<tr><td><b>'+esc(a.colaboradorNome)+'</b></td><td>'+(res.mediaGestor!=null?res.mediaGestor.toFixed(1):'—')+'</td><td>'+(res.mediaPotencial!=null?res.mediaPotencial.toFixed(1):'—')+'</td><td>'+esc(orient)+'</td></tr>';
+    }).join('');
+    return '<h3 style="margin:20px 0 8px">Posição atual dos colaboradores</h3>' +
+      '<div style="overflow:auto"><table class="table"><thead><tr><th>Colaborador</th><th>Competências</th><th>Potencial</th><th>Orientação</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+
+  /* ================= relatórios agregados ================= */
+  function avalUltimaAvaliacaoPorColaborador(){
+    var d = ensureAvalData();
+    var porColab = {};
+    d.avalAvaliacoes.filter(function(a){ return a.status==='concluida'; }).forEach(function(a){
+      var atual = porColab[a.colaboradorId];
+      if(!atual || (a.gestorConcluidaEm||'') > (atual.gestorConcluidaEm||'')) porColab[a.colaboradorId] = a;
+    });
+    return Object.keys(porColab).map(function(k){ return porColab[k]; });
+  }
+
+  function avalRankingHtml(){
+    var d = ensureAvalData();
+    var concluidas = d.avalAvaliacoes.filter(function(a){ return a.status==='concluida'; }).map(function(a){
+      var ciclo = d.avalCiclos.find(function(c){ return c.id===a.cicloId; });
+      return { a: a, res: avalResultado(a), cicloNome: ciclo ? ciclo.identificador : '—' };
+    }).sort(function(x,y){ return (y.res.desempenhoGeral||0)-(x.res.desempenhoGeral||0); });
+
+    if(!concluidas.length) return '<p class="sub">Nenhuma avaliação concluída ainda.</p>';
+
+    var rows = concluidas.map(function(x, i){
+      var orient = avalOrientacao(x.res.mediaGestor, x.res.mediaPotencial);
+      return '<tr><td>'+(i+1)+'</td><td><b>'+esc(x.a.colaboradorNome)+'</b></td><td>'+esc(x.cicloNome)+'</td>' +
+        '<td>'+(x.res.mediaGestor!=null?x.res.mediaGestor.toFixed(1):'—')+'</td>' +
+        '<td>'+(x.res.mediaPotencial!=null?x.res.mediaPotencial.toFixed(1):'—')+'</td>' +
+        '<td><b>'+(x.res.desempenhoGeral!=null?x.res.desempenhoGeral.toFixed(1):'—')+'</b></td>' +
+        '<td>'+esc(orient)+'</td>' +
+        '<td><button class="secondary" onclick="window.avalVerResultado(\''+escAttr(x.a.id)+'\')">Ver</button></td></tr>';
+    }).join('');
+
+    return '<div style="overflow:auto"><table class="table"><thead><tr><th>#</th><th>Colaborador</th><th>Ciclo</th><th>Competências</th><th>Potencial</th><th>Desempenho geral</th><th>Orientação</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+
+  function avalRelatorioCampoHtml(campo, titulo){
+    var ultimas = avalUltimaAvaliacaoPorColaborador();
+    if(!ultimas.length) return '<p class="sub">Nenhuma avaliação concluída ainda.</p>';
+    var grupos = {};
+    ultimas.forEach(function(a){
+      var classif = avalClassificacao(a.colaboradorId);
+      var chave = classif[campo] || 'Não classificado';
+      if(!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(avalResultado(a));
+    });
+    var linhas = Object.keys(grupos).sort().map(function(chave){
+      var lista = grupos[chave];
+      var compObj = {}, geralObj = {};
+      lista.forEach(function(r, i){
+        if(r.mediaGestor!=null) compObj[i] = r.mediaGestor;
+        if(r.desempenhoGeral!=null) geralObj[i] = r.desempenhoGeral;
+      });
+      var mediaComp = avalMedia(compObj);
+      var mediaGeral = avalMedia(geralObj);
+      return '<tr><td><b>'+esc(chave)+'</b></td><td>'+lista.length+'</td><td>'+(mediaComp!=null?mediaComp.toFixed(1):'—')+'</td><td>'+(mediaGeral!=null?mediaGeral.toFixed(1):'—')+'</td></tr>';
+    }).join('');
+    return '<h3 style="margin:0 0 10px">'+esc(titulo)+'</h3><div style="overflow:auto"><table class="table"><thead><tr><th>'+esc(titulo)+'</th><th>Colaboradores</th><th>Média competências</th><th>Média desempenho geral</th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+  }
+  function avalRelatorioGruposHtml(){
+    var d = ensureAvalData();
+    if(!d.avalGrupos || !d.avalGrupos.length){
+      return '<p class="sub">Nenhum grupo empresarial cadastrado. Cadastre em Configuração → Grupos caso a empresa faça parte de um grupo com múltiplas avaliações a comparar.</p>';
+    }
+    return avalRelatorioCampoHtml('grupo','Grupo');
+  }
+
+  function avalEvolucaoHtml(){
+    var d = ensureAvalData();
+    var usuarios = pdiUsuarios();
+    var selecionado = window.__avalEvolucaoColaborador || (usuarios[0] ? usuarios[0].id : '');
+    var seletor = '<div class="field" style="max-width:340px"><label>Colaborador</label><select onchange="window.avalMudarEvolucaoColaborador(this.value)">' +
+      usuarios.map(function(u){ return '<option value="'+escAttr(u.id)+'"'+(u.id===selecionado?' selected':'')+'>'+esc(u.name)+'</option>'; }).join('') +
+    '</select></div>';
+
+    var minhas = d.avalAvaliacoes.filter(function(a){ return a.colaboradorId===selecionado && a.status==='concluida'; })
+      .sort(function(a,b){ return (a.gestorConcluidaEm||'').localeCompare(b.gestorConcluidaEm||''); });
+
+    if(!minhas.length) return seletor + '<p class="sub" style="margin-top:14px">Nenhuma avaliação concluída para este colaborador ainda.</p>';
+
+    var rows = minhas.map(function(a){
+      var ciclo = d.avalCiclos.find(function(c){ return c.id===a.cicloId; });
+      var res = avalResultado(a);
+      return '<tr><td>'+esc(ciclo?ciclo.identificador:'—')+'</td><td>'+esc(fmtDateBR(a.data))+'</td>' +
+        '<td>'+(res.mediaGestor!=null?res.mediaGestor.toFixed(1):'—')+'</td>' +
+        '<td>'+(res.mediaPotencial!=null?res.mediaPotencial.toFixed(1):'—')+'</td>' +
+        '<td><b>'+(res.desempenhoGeral!=null?res.desempenhoGeral.toFixed(1):'—')+'</b></td>' +
+        '<td><button class="secondary" onclick="window.avalVerResultado(\''+escAttr(a.id)+'\')">Ver</button></td></tr>';
+    }).join('');
+
+    return seletor + '<div style="overflow:auto;margin-top:14px"><table class="table"><thead><tr><th>Ciclo</th><th>Data</th><th>Competências</th><th>Potencial</th><th>Desempenho geral</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+  window.avalMudarEvolucaoColaborador = function(id){ window.__avalEvolucaoColaborador = id; render_aval_gestor(); };
+
+  function avalIndividualHtml(){
+    var d = ensureAvalData();
+    var usuarios = pdiUsuarios();
+    var selecionado = window.__avalIndividualColaborador || (usuarios[0] ? usuarios[0].id : '');
+    var seletor = '<div class="field" style="max-width:340px"><label>Colaborador</label><select onchange="window.avalMudarIndividualColaborador(this.value)">' +
+      usuarios.map(function(u){ return '<option value="'+escAttr(u.id)+'"'+(u.id===selecionado?' selected':'')+'>'+esc(u.name)+'</option>'; }).join('') +
+    '</select></div>';
+
+    var minhas = d.avalAvaliacoes.filter(function(a){ return a.colaboradorId===selecionado && a.status==='concluida'; })
+      .sort(function(a,b){ return (b.gestorConcluidaEm||'').localeCompare(a.gestorConcluidaEm||''); });
+    var av = minhas[0];
+    if(!av) return seletor + '<p class="sub" style="margin-top:14px">Nenhuma avaliação concluída para este colaborador ainda.</p>';
+
+    var res = avalResultado(av);
+    var nivelComp = avalNivelCompetencia(res.mediaGestor);
+    var nivelDesc = (function(){
+      var seed = window.__avalSeed || {};
+      var item = (seed.escalaCompetencia||[]).find(function(e){ return e.nivel===nivelComp; });
+      return item ? item.desc : '';
+    })();
+    var orient = avalOrientacao(res.mediaGestor, res.mediaPotencial);
+    var classif = avalClassificacao(selecionado);
+    var ciclo = d.avalCiclos.find(function(c){ return c.id===av.cicloId; });
+
+    return seletor +
+      '<div class="card pad" style="margin-top:14px">' +
+        '<h3 style="margin:0 0 4px">'+esc(av.colaboradorNome)+'</h3>' +
+        '<p class="sub" style="margin:0 0 14px">'+esc(classif.cargo||'—')+' · '+esc(classif.equipe||'—')+' · '+esc(classif.departamento||'—')+' · Ciclo: '+esc(ciclo?ciclo.identificador:'—')+'</p>' +
+        '<div class="grid cols3" style="margin-bottom:16px">' +
+          '<div class="card kpi"><div class="l">Desempenho na avaliação de competências</div><div class="v">'+(res.mediaGestor!=null?res.mediaGestor.toFixed(1):'—')+'</div></div>' +
+          '<div class="card kpi"><div class="l">Desempenho na avaliação de potencial</div><div class="v">'+(res.mediaPotencial!=null?res.mediaPotencial.toFixed(1):'—')+'</div></div>' +
+          '<div class="card kpi"><div class="l">Desempenho geral</div><div class="v">'+(res.desempenhoGeral!=null?res.desempenhoGeral.toFixed(1):'—')+'</div></div>' +
+        '</div>' +
+        '<p class="sub" style="margin:0 0 14px">'+esc(nivelDesc)+'</p>' +
+        '<p style="margin:0"><b>Orientação ao gestor:</b> '+esc(orient)+'</p>' +
+      '</div>';
+  }
+  window.avalMudarIndividualColaborador = function(id){ window.__avalIndividualColaborador = id; render_aval_gestor(); };
+
+  /* ================= cadastros ================= */
+  function avalCadastrosHtml(){
+    var d = ensureAvalData();
+    var usuarios = pdiUsuarios();
+    var linhas = usuarios.map(function(u){
+      var c = avalClassificacao(u.id);
+      return '<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(c.perfil==='gestor'?'Gestor':(c.perfil==='nao_gestor'?'Não gestor':'—'))+'</td>' +
+        '<td>'+esc(c.cargo||'—')+'</td><td>'+esc(c.equipe||'—')+'</td><td>'+esc(c.departamento||'—')+'</td>' +
+        '<td><button class="secondary" onclick="window.avalClassificarColaborador(\''+escAttr(u.id)+'\')">Classificar</button></td></tr>';
+    }).join('');
+
+    return '<h3 style="margin:0 0 10px">Classificação dos colaboradores</h3>' +
+      '<p class="sub" style="margin:0 0 10px">Defina o perfil (gestor/não gestor), cargo, equipe e departamento de cada colaborador para liberar a avaliação.</p>' +
+      '<div style="overflow:auto"><table class="table"><thead><tr><th>Nome</th><th>Perfil</th><th>Cargo</th><th>Equipe</th><th>Departamento</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+  }
+
+  function avalListaCiclosHtml(){
+    var d = ensureAvalData();
+    var ciclos = d.avalCiclos.slice().sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); });
+    var linhas = ciclos.map(function(c){
+      var avs = d.avalAvaliacoes.filter(function(a){ return a.cicloId===c.id; });
+      var concluidas = avs.filter(function(a){ return a.status==='concluida'; }).length;
+      return '<div class="item" style="cursor:pointer" onclick="window.avalAbrirCiclo(\''+escAttr(c.id)+'\')">' +
+        '<div style="flex:1"><h4 style="margin:0 0 4px">'+esc(c.identificador)+'</h4><p class="sub" style="margin:0">'+esc(fmtDateBR(c.data))+' · '+concluidas+'/'+avs.length+' concluída(s)</p></div>' +
+        '<button class="danger" onclick="event.stopPropagation();window.avalExcluirCiclo(\''+escAttr(c.id)+'\')">Excluir</button>' +
+      '</div>';
+    }).join('') || '<p class="sub">Nenhum ciclo criado ainda.</p>';
+    return '<div class="actions" style="margin-bottom:14px"><button class="primary" onclick="window.avalNovoCiclo()">+ Novo ciclo de avaliação</button></div><div class="list">'+linhas+'</div>';
+  }
+
+  function avalCadastroDepartamentosHtml(){
+    var d = ensureAvalData();
+    var deps = d.avalDepartamentos.map(function(dep,i){
+      return '<div class="item"><div style="flex:1">'+esc(dep)+'</div><button class="danger" onclick="window.avalRemoverDepartamento('+i+')">Excluir</button></div>';
+    }).join('') || '<p class="sub">Nenhum departamento cadastrado.</p>';
+    var eqs = d.avalEquipes.map(function(eq,i){
+      return '<div class="item"><div style="flex:1"><b>'+esc(eq.nome)+'</b><p class="sub" style="margin:2px 0 0">'+esc(eq.departamento)+'</p></div><button class="danger" onclick="window.avalRemoverEquipe('+i+')">Excluir</button></div>';
+    }).join('') || '<p class="sub">Nenhuma equipe cadastrada.</p>';
+    return '<h3 style="margin:0 0 10px">Departamentos</h3>' +
+      '<div class="actions" style="margin-bottom:10px"><input id="avalNovoDepartamentoInput" placeholder="Novo departamento" style="flex:1"><button class="secondary" onclick="window.avalAdicionarDepartamento()">+ Adicionar</button></div>' +
+      '<div class="list">'+deps+'</div>' +
+      '<h3 style="margin:24px 0 10px">Equipes</h3>' +
+      '<div class="actions" style="margin-bottom:10px">' +
+        '<input id="avalNovaEquipeNome" placeholder="Nome da equipe" style="flex:1">' +
+        '<select id="avalNovaEquipeDepartamento">'+d.avalDepartamentos.map(function(x){return '<option value="'+escAttr(x)+'">'+esc(x)+'</option>';}).join('')+'</select>' +
+        '<button class="secondary" onclick="window.avalAdicionarEquipe()">+ Adicionar</button>' +
+      '</div>' +
+      '<div class="list">'+eqs+'</div>';
+  }
+  window.avalAdicionarDepartamento = function(){
+    var el = document.getElementById('avalNovoDepartamentoInput');
+    var v = el ? el.value.trim() : '';
+    if(!v) return;
+    var d = ensureAvalData();
+    if(d.avalDepartamentos.indexOf(v)<0) d.avalDepartamentos.push(v);
+    doSave(); render_aval_gestor();
+  };
+  window.avalRemoverDepartamento = function(i){
+    if(!confirm('Excluir este departamento?')) return;
+    var d = ensureAvalData();
+    d.avalDepartamentos.splice(i,1);
+    doSave(); render_aval_gestor();
+  };
+  window.avalAdicionarEquipe = function(){
+    var nomeEl = document.getElementById('avalNovaEquipeNome');
+    var depEl = document.getElementById('avalNovaEquipeDepartamento');
+    var nome = nomeEl ? nomeEl.value.trim() : '';
+    var departamento = depEl ? depEl.value : '';
+    if(!nome || !departamento) return;
+    var d = ensureAvalData();
+    d.avalEquipes.push({nome:nome, departamento:departamento});
+    doSave(); render_aval_gestor();
+  };
+  window.avalRemoverEquipe = function(i){
+    if(!confirm('Excluir esta equipe?')) return;
+    var d = ensureAvalData();
+    d.avalEquipes.splice(i,1);
+    doSave(); render_aval_gestor();
+  };
+
+  function avalCadastroCargosHtml(){
+    var d = ensureAvalData();
+    var linhas = d.avalCargos.map(function(c,i){
+      return '<div class="item"><div style="flex:1">'+esc(c)+'</div><button class="danger" onclick="window.avalRemoverCargo('+i+')">Excluir</button></div>';
+    }).join('') || '<p class="sub">Nenhum cargo cadastrado.</p>';
+    return '<h3 style="margin:0 0 10px">Cargos</h3>' +
+      '<div class="actions" style="margin-bottom:10px"><input id="avalNovoCargoInput" placeholder="Novo cargo" style="flex:1"><button class="secondary" onclick="window.avalAdicionarCargo()">+ Adicionar</button></div>' +
+      '<div class="list">'+linhas+'</div>';
+  }
+  window.avalAdicionarCargo = function(){
+    var el = document.getElementById('avalNovoCargoInput');
+    var v = el ? el.value.trim() : '';
+    if(!v) return;
+    var d = ensureAvalData();
+    if(d.avalCargos.indexOf(v)<0) d.avalCargos.push(v);
+    doSave(); render_aval_gestor();
+  };
+  window.avalRemoverCargo = function(i){
+    if(!confirm('Excluir este cargo?')) return;
+    var d = ensureAvalData();
+    d.avalCargos.splice(i,1);
+    doSave(); render_aval_gestor();
+  };
+
+  function avalCadastroGruposHtml(){
+    var d = ensureAvalData();
+    var linhas = (d.avalGrupos||[]).map(function(g,i){
+      return '<div class="item"><div style="flex:1">'+esc(g)+'</div><button class="danger" onclick="window.avalRemoverGrupo('+i+')">Excluir</button></div>';
+    }).join('') || '<p class="sub">Nenhum grupo empresarial cadastrado. Use esta área caso a empresa faça parte de um grupo com múltiplas avaliações a comparar.</p>';
+    return '<h3 style="margin:0 0 10px">Grupos Empresariais</h3>' +
+      '<div class="actions" style="margin-bottom:10px"><input id="avalNovoGrupoInput" placeholder="Novo grupo" style="flex:1"><button class="secondary" onclick="window.avalAdicionarGrupo()">+ Adicionar</button></div>' +
+      '<div class="list">'+linhas+'</div>';
+  }
+  window.avalAdicionarGrupo = function(){
+    var el = document.getElementById('avalNovoGrupoInput');
+    var v = el ? el.value.trim() : '';
+    if(!v) return;
+    var d = ensureAvalData();
+    if(!Array.isArray(d.avalGrupos)) d.avalGrupos = [];
+    if(d.avalGrupos.indexOf(v)<0) d.avalGrupos.push(v);
+    doSave(); render_aval_gestor();
+  };
+  window.avalRemoverGrupo = function(i){
+    if(!confirm('Excluir este grupo?')) return;
+    var d = ensureAvalData();
+    d.avalGrupos.splice(i,1);
+    doSave(); render_aval_gestor();
+  };
+
+  /* ================= indicadores (telas de referência) ================= */
+  function avalIndicadoresTabela(lista){
+    var grupos = [], byCat = {};
+    (lista||[]).forEach(function(it){
+      if(!byCat[it.cat]){ byCat[it.cat] = {cat:it.cat, catNome:it.catNome, itens:[]}; grupos.push(byCat[it.cat]); }
+      byCat[it.cat].itens.push(it);
+    });
+    return grupos.map(function(g){
+      return '<h3 style="margin:18px 0 8px">'+esc(g.catNome||g.cat)+'</h3>' +
+        '<div style="overflow:auto"><table class="table"><thead><tr><th style="width:220px">Indicador</th><th>Descrição</th></tr></thead><tbody>' +
+        g.itens.map(function(it){ return '<tr><td><b>'+esc(it.nome)+'</b></td><td>'+esc(it.desc||'')+'</td></tr>'; }).join('') +
+        '</tbody></table></div>';
+    }).join('') || '<p class="sub">Nenhum indicador cadastrado.</p>';
+  }
+  function avalIndicadoresTabelaPotencial(lista){
+    return '<div style="overflow:auto"><table class="table"><thead><tr><th style="width:260px">Indicador</th><th>Descrição</th></tr></thead><tbody>' +
+      (lista||[]).map(function(it){ return '<tr><td><b>'+esc(it.nome)+'</b></td><td>'+esc(it.desc||'')+'</td></tr>'; }).join('') +
+      '</tbody></table></div>';
+  }
+  function avalNiveisEscalaHtml(){
+    var seed = window.__avalSeed || {};
+    var ec = seed.escalaCompetencia || [];
+    var ep = seed.escalaPotencial || [];
+    return '<h3 style="margin:0 0 8px">Escala de Competências (1 a 10)</h3>' +
+      '<div style="overflow:auto"><table class="table"><thead><tr><th style="width:70px">Nota</th><th style="width:140px">Nível</th><th>Descrição</th></tr></thead><tbody>' +
+      ec.map(function(e){ return '<tr><td><b>'+e.nota+'</b></td><td><span style="color:'+avalCorNivel(e.nivel)+'">'+esc(e.nivel)+'</span></td><td>'+esc(e.desc)+'</td></tr>'; }).join('') +
+      '</tbody></table></div>' +
+      '<h3 style="margin:20px 0 8px">Escala de Potencial (1 a 3)</h3>' +
+      '<div style="overflow:auto"><table class="table"><thead><tr><th style="width:70px">Nota</th><th style="width:200px">Nível</th><th>Descrição</th></tr></thead><tbody>' +
+      ep.map(function(e){ return '<tr><td><b>'+e.nota+'</b></td><td><span style="color:'+avalCorNivel(e.nivel)+'">'+esc(e.nivel)+'</span></td><td>'+esc(e.desc)+'</td></tr>'; }).join('') +
+      '</tbody></table></div>';
+  }
+
+  /* ================= formulários (impressos / transição) ================= */
+  function avalTransicaoHtml(perfil){
+    var d = ensureAvalData();
+    var lista = d.avalAvaliacoes.filter(function(a){ return a.perfil===perfil && a.status==='concluida'; });
+    if(!lista.length) return '<p class="sub">Nenhuma avaliação concluída para transcrição.</p>';
+    return '<p class="sub">Fichas prontas para impressão/transcrição — mesmos dados já lançados no sistema.</p>' +
+      '<div class="list">' + lista.map(function(a){
+        return '<div class="item"><div style="flex:1">'+esc(a.colaboradorNome)+'</div><button class="secondary" onclick="window.avalVerResultado(\''+escAttr(a.id)+'\')">Ver ficha</button></div>';
+      }).join('') + '</div>';
+  }
+
+  /* ================= lançamentos (listas de pendências por tipo) ================= */
+  function avalListaLancamentos(perfil, estagio){
+    var d = ensureAvalData();
+    var lista = d.avalAvaliacoes.filter(function(a){ return a.perfil===perfil; });
+    if(estagio==='auto') lista = lista.filter(function(a){ return a.status==='aguardando_auto'; });
+    else if(estagio==='gestor') lista = lista.filter(function(a){ return a.status==='aguardando_gestor' || a.status==='concluida'; });
+    lista = lista.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+    if(!lista.length) return '<p class="sub">Nenhum lançamento pendente nesta categoria.</p>';
+    var rows = lista.map(function(a){
+      var ciclo = d.avalCiclos.find(function(c){ return c.id===a.cicloId; });
+      var badge = a.status==='concluida' ? '<span class="badge g">Concluída</span>' : (a.status==='aguardando_gestor' ? '<span class="badge y">Aguardando gestor</span>' : '<span class="badge b">Aguardando autoavaliação</span>');
+      var acaoLabel = a.status==='concluida' ? 'Ver' : (a.status==='aguardando_auto' ? 'Preencher autoavaliação' : 'Avaliar');
+      return '<div class="item">' +
+        '<div style="flex:1"><h4 style="margin:0 0 4px">'+esc(a.colaboradorNome)+'</h4><p class="sub" style="margin:0">'+esc(ciclo?ciclo.identificador:'—')+'</p></div>' +
+        badge +
+        '<button class="'+(a.status==='concluida'?'secondary':'primary')+'" onclick="window.avalAbrirAvaliacao(\''+escAttr(a.id)+'\')">'+acaoLabel+'</button>' +
+      '</div>';
+    }).join('');
+    return '<div class="list">'+rows+'</div>';
+  }
+
+  /* ================= instruções (textos estáticos) ================= */
+  function avalConteudoInstrucoes(sub){
+    var textos = {
+      videos: '<p>Esta seção reproduz a estrutura de instruções da planilha original. Vídeos de apoio podem ser adicionados aqui pela equipe de RH conforme necessário.</p>',
+      primeiros_passos: '<p>1. Cadastre departamentos, equipes e cargos em <b>Configuração</b>.</p><p>2. Classifique cada colaborador (gestor ou não gestor) em <b>Configuração → Colaboradores</b>.</p><p>3. Crie um novo ciclo em <b>Configuração → Avaliações</b> e adicione os colaboradores.</p><p>4. Cada colaborador preenche sua autoavaliação em <b>Lançamentos</b>.</p><p>5. O gestor preenche a avaliação de competências e potencial do colaborador.</p><p>6. Acompanhe os resultados em <b>Relatórios</b>.</p>',
+      metodo: '<p><b>Quem avalia?</b> Avaliação realizada pelo colaborador e seu gestor: o colaborador faz sua autoavaliação e o gestor faz a avaliação por competências e potencial do seu subordinado imediato.</p><p><b>Método:</b> avaliação por competências (conhecimentos, habilidades e atitudes), organizadas em áreas de competência independentes entre si. Também é avaliado o potencial de evolução de cada colaborador — sua capacidade de assumir maiores responsabilidades no curto, médio e longo prazo.</p>',
+      etapas: '<ol style="padding-left:18px;margin:0">' +
+        '<li>Defina a duração do ciclo (recomendado de 6 a 12 meses).</li>' +
+        '<li>Defina as competências e indicadores de potencial (já configurados no sistema).</li>' +
+        '<li>Cadastre colaboradores, departamentos, equipes e cargos.</li>' +
+        '<li>Decida a forma de aplicação da avaliação (impressa ou digital).</li>' +
+        '<li>O avaliado preenche a autoavaliação; em seguida o gestor faz a avaliação de competências e, isoladamente, a de potencial.</li>' +
+        '<li>Lance as notas no sistema (ou preencha diretamente pelo sistema).</li>' +
+        '<li>Gestores discutem os resultados com a Diretoria.</li>' +
+        '<li>Compartilhe os resultados com cada colaborador.</li>' +
+        '<li>Encerre o ciclo com uma análise das oportunidades de melhoria para o próximo ciclo.</li>' +
+      '</ol>'
+    };
+    return '<div class="card pad">' + (textos[sub] || '') + '</div>';
+  }
+
+  /* ================= navegação principal (espelha o menu da planilha) ================= */
+  var AVAL_TOPS = [
+    ['visao_geral','Visão Geral'],
+    ['ciclos','Ciclos & Avaliações'],
+    ['colaboradores','Colaboradores'],
+    ['criterios','Critérios de Avaliação'],
+    ['relatorios','Relatórios'],
+    ['configuracoes','Configurações']
+  ];
+  var AVAL_MENU = {
+    visao_geral: [],
+    ciclos: [
+      ['lista','Ciclos'],
+      ['pendencias_gestor','Pendências — Gestores'],
+      ['pendencias_nao_gestor','Pendências — Não Gestores']
+    ],
+    colaboradores: [],
+    criterios: [
+      ['comp_gestor','Competências — Gestores'],
+      ['comp_nao_gestor','Competências — Não Gestores'],
+      ['pot_gestor','Potencial — Gestores'],
+      ['pot_nao_gestor','Potencial — Não Gestores'],
+      ['niveis','Escalas de Avaliação'],
+      ['matriz','Matriz de Orientação']
+    ],
+    relatorios: [
+      ['geral','Ranking Geral'],
+      ['departamento','Por Departamento'],
+      ['equipes','Por Equipe'],
+      ['cargos','Por Cargo'],
+      ['grupos','Por Grupo'],
+      ['individual','Ficha Individual'],
+      ['evolucao','Evolução do Colaborador']
+    ],
+    configuracoes: [
+      ['departamentos','Departamentos & Equipes'],
+      ['cargos','Cargos'],
+      ['grupos','Grupos Empresariais']
+    ]
+  };
+
+  function avalDashboardHtml(){
+    var d = ensureAvalData();
+    var usuarios = pdiUsuarios();
+    var totalColab = usuarios.length;
+    var avaliados = avalUltimaAvaliacaoPorColaborador().length;
+    var todasPendentes = d.avalAvaliacoes.filter(function(a){ return a.status!=='concluida'; });
+    var concluidas = d.avalAvaliacoes.filter(function(a){ return a.status==='concluida'; });
+    var geralObj = {};
+    concluidas.forEach(function(a,i){ var r = avalResultado(a); if(r.desempenhoGeral!=null) geralObj[i]=r.desempenhoGeral; });
+    var mediaGeral = avalMedia(geralObj);
+
+    var kpis = '<div class="grid cols4" style="margin-bottom:22px">' +
+      '<div class="card kpi"><div class="l">Ciclos cadastrados</div><div class="v">'+d.avalCiclos.length+'</div></div>' +
+      '<div class="card kpi"><div class="l">Colaboradores avaliados</div><div class="v">'+avaliados+'/'+totalColab+'</div></div>' +
+      '<div class="card kpi"><div class="l">Avaliações pendentes</div><div class="v">'+todasPendentes.length+'</div></div>' +
+      '<div class="card kpi"><div class="l">Desempenho médio geral</div><div class="v">'+(mediaGeral!=null?mediaGeral.toFixed(1):'—')+'</div></div>' +
+    '</div>';
+
+    var ciclosOrdenados = d.avalCiclos.slice().sort(function(a,b){ return (b.data||'').localeCompare(a.data||''); });
+    var ciclosHtml = ciclosOrdenados.length ? ciclosOrdenados.map(function(c){
+      var avs = d.avalAvaliacoes.filter(function(a){ return a.cicloId===c.id; });
+      var conc = avs.filter(function(a){ return a.status==='concluida'; }).length;
+      var pct = avs.length ? Math.round(conc/avs.length*100) : 0;
+      return '<div class="item" style="cursor:pointer;flex-direction:column;align-items:stretch" onclick="window.avalAbrirCiclo(\''+escAttr(c.id)+'\')">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h4 style="margin:0">'+esc(c.identificador)+'</h4>' +
+          '<span style="display:flex;align-items:center;gap:10px"><span class="sub">'+conc+'/'+avs.length+'</span>' +
+          '<button class="danger" style="padding:5px 10px" onclick="event.stopPropagation();window.avalExcluirCiclo(\''+escAttr(c.id)+'\')" title="Excluir ciclo">Excluir</button></span></div>' +
+        '<div class="progress"><span style="width:'+pct+'%"></span></div>' +
+      '</div>';
+    }).join('') : '<p class="sub">Nenhum ciclo criado ainda.</p>';
+
+    var pendentesTop = todasPendentes.slice().sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); }).slice(0,6);
+    var pendHtml = pendentesTop.length ? pendentesTop.map(function(a){
+      var badge = a.status==='aguardando_gestor' ? '<span class="badge y">Aguardando gestor</span>' : '<span class="badge b">Aguardando autoavaliação</span>';
+      return '<div class="item"><div style="flex:1"><h4 style="margin:0 0 4px">'+esc(a.colaboradorNome)+'</h4><p class="sub" style="margin:0">'+(a.perfil==='gestor'?'Gestor':'Não gestor')+'</p></div>' + badge +
+        '<button class="primary" onclick="window.avalAbrirAvaliacao(\''+escAttr(a.id)+'\')">Preencher</button></div>';
+    }).join('') : '<p class="sub">Nenhuma pendência — todas as avaliações em dia.</p>';
+
+    return kpis +
+      '<div class="grid cols2">' +
+        '<div><h3 style="margin:0 0 12px">Ciclos</h3><div class="list">'+ciclosHtml+'</div>' +
+          '<div class="actions" style="margin-top:12px"><button class="primary" onclick="window.avalNovoCiclo()">+ Novo ciclo de avaliação</button></div>' +
+        '</div>' +
+        '<div><h3 style="margin:0 0 12px">Pendências recentes</h3><div class="list">'+pendHtml+'</div></div>' +
+      '</div>';
+  }
+
+  function avalConteudoCiclos(sub){
+    if(sub==='pendencias_gestor') return avalListaLancamentos('gestor', null);
+    if(sub==='pendencias_nao_gestor') return avalListaLancamentos('nao_gestor', null);
+    return avalListaCiclosHtml();
+  }
+  function avalConteudoCriterios(sub){
+    var d = ensureAvalData();
+    if(sub==='comp_gestor') return avalIndicadoresTabela(d.avalCompetenciasG);
+    if(sub==='comp_nao_gestor') return avalIndicadoresTabela(d.avalCompetenciasNG);
+    if(sub==='pot_gestor') return avalIndicadoresTabelaPotencial(d.avalPotencialG);
+    if(sub==='pot_nao_gestor') return avalIndicadoresTabelaPotencial(d.avalPotencialNG);
+    if(sub==='niveis') return avalNiveisEscalaHtml();
+    if(sub==='matriz') return avalMatrizOrientacaoHtml();
+    return '';
+  }
+  function avalConteudoRelatorios(sub){
+    if(sub==='geral') return avalRankingHtml();
+    if(sub==='grupos') return avalRelatorioGruposHtml();
+    if(sub==='departamento') return avalRelatorioCampoHtml('departamento','Departamento');
+    if(sub==='equipes') return avalRelatorioCampoHtml('equipe','Equipe');
+    if(sub==='cargos') return avalRelatorioCampoHtml('cargo','Cargo');
+    if(sub==='individual') return avalIndividualHtml();
+    if(sub==='evolucao') return avalEvolucaoHtml();
+    return '';
+  }
+  function avalConteudoConfiguracoes(sub){
+    if(sub==='departamentos') return avalCadastroDepartamentosHtml();
+    if(sub==='cargos') return avalCadastroCargosHtml();
+    if(sub==='grupos') return avalCadastroGruposHtml();
+    return '';
+  }
+  function avalRenderConteudo(top, sub){
+    if(top==='visao_geral') return avalDashboardHtml();
+    if(top==='ciclos') return avalConteudoCiclos(sub);
+    if(top==='colaboradores') return avalCadastrosHtml();
+    if(top==='criterios') return avalConteudoCriterios(sub);
+    if(top==='relatorios') return avalConteudoRelatorios(sub);
+    if(top==='configuracoes') return avalConteudoConfiguracoes(sub);
+    return '';
+  }
+
+  function render_aval_gestor(){
+    ensureAvalData();
+    var top = window.__avalTopTab || 'visao_geral';
+    if(!AVAL_MENU[top]) top = 'visao_geral';
+    window.__avalTopTab = top;
+    window.__avalSub = window.__avalSub || {};
+    var subDefs = AVAL_MENU[top] || [];
+    var sub = window.__avalSub[top] || (subDefs[0] ? subDefs[0][0] : '');
+    window.__avalSub[top] = sub;
+
+    var topHtml = '<div class="tabs" style="margin-bottom:10px">' + AVAL_TOPS.map(function(t){
+      return '<button class="tab '+(top===t[0]?'active':'')+'" onclick="window.avalIrTopTab(\''+t[0]+'\')">'+t[1]+'</button>';
+    }).join('') + '</div>';
+
+    var subHtml = subDefs.length ? ('<div class="tabs" style="margin-bottom:16px">' + subDefs.map(function(s){
+      return '<button class="tab '+(sub===s[0]?'active':'')+'" onclick="window.avalIrSubTab(\''+s[0]+'\')">'+s[1]+'</button>';
+    }).join('') + '</div>') : '';
+
+    var body = avalRenderConteudo(top, sub);
+
+    pdiTabEl().innerHTML =
+      '<div class="section"><div><h2>Avaliação de Desempenho</h2><p>Sistema de avaliação por competências e potencial, com autoavaliação, avaliação do gestor e relatórios de desempenho.</p></div></div>' +
+      topHtml + subHtml + '<div id="avalConteudo">' + body + '</div>';
+  }
+  window.avalIrTopTab = function(top){ window.__avalTopTab = top; render_aval_gestor(); };
+  window.avalIrSubTab = function(sub){
+    var top = window.__avalTopTab || 'visao_geral';
+    window.__avalSub = window.__avalSub || {};
+    window.__avalSub[top] = sub;
+    render_aval_gestor();
+  };
+
+  function render_aval_colaborador(colaboradorId){
+    if(!colaboradorId){ pdiTabEl().innerHTML = '<div class="empty">Não foi possível identificar seu usuário.</div>'; return; }
+    var d = ensureAvalData();
+    var minhas = d.avalAvaliacoes.filter(function(a){ return a.colaboradorId===colaboradorId; })
+      .sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
+
+    var linhas = minhas.map(function(a){
+      var ciclo = d.avalCiclos.find(function(c){ return c.id===a.cicloId; });
+      var badge = a.status==='concluida' ? '<span class="badge g">Concluída</span>' : (a.status==='aguardando_gestor' ? '<span class="badge y">Aguardando gestor</span>' : '<span class="badge b">Aguardando sua autoavaliação</span>');
+      var acao = a.status==='aguardando_auto' ? 'Preencher autoavaliação' : (a.status==='concluida' ? 'Ver resultado' : 'Aguardando gestor');
+      return '<div class="item">' +
+        '<div style="flex:1"><h4 style="margin:0 0 4px">'+esc(ciclo?ciclo.identificador:'Ciclo')+'</h4><p class="sub" style="margin:0">'+esc(fmtDateBR(ciclo?ciclo.data:''))+'</p></div>' +
+        badge +
+        '<button class="'+(a.status==='aguardando_auto'?'primary':'secondary')+'" onclick="window.avalAbrirAvaliacao(\''+escAttr(a.id)+'\')">'+acao+'</button>' +
+      '</div>';
+    }).join('') || '<p class="sub">Você ainda não foi incluído em nenhum ciclo de avaliação.</p>';
+
+    pdiTabEl().innerHTML =
+      '<div class="section"><div><h2>Minha Avaliação de Desempenho</h2><p>Acompanhe seus ciclos de avaliação por competências.</p></div></div>' +
+      '<div class="list">' + linhas + '</div>';
+  }
+
+  /* ================= blindagem de erros (Avaliação de Desempenho) ================= */
+  (function(){
+    var avalFnNames = [
+      'avalClassificarColaborador','avalSalvarClassificacao',
+      'avalNovoCiclo','avalSalvarCiclo','avalExcluirCiclo','avalAbrirCiclo','avalAdicionarColaboradorCiclo','avalRemoverAvaliacao',
+      'avalAbrirAvaliacao','avalFormAuto','avalSalvarAuto','avalFormGestor','avalSalvarGestor','avalVerResultado',
+      'avalMudarEvolucaoColaborador','avalMudarIndividualColaborador',
+      'avalAdicionarDepartamento','avalRemoverDepartamento','avalAdicionarEquipe','avalRemoverEquipe',
+      'avalAdicionarCargo','avalRemoverCargo','avalAdicionarGrupo','avalRemoverGrupo',
+      'avalIrTopTab','avalIrSubTab'
+    ];
+    avalFnNames.forEach(function(name){
+      var orig = window[name];
+      if(typeof orig !== 'function') return;
+      window[name] = function(){
+        try{
+          return orig.apply(this, arguments);
+        }catch(e){
+          console.error('[Avaliação de Desempenho] erro em '+name+':', e);
+          try{ toastSafe('Ocorreu um erro em "'+name+'". Detalhe: '+(e && e.message ? e.message : e), 'err'); }catch(e2){}
+        }
+      };
+    });
+  })();
+
+  /* ================= registro de permissões, páginas e navegação ================= */
+  try{
+    if(typeof PERMS !== 'undefined'){
+      PERMS['pdi_ver'] = 'PDI - Ver plano de desenvolvimento individual';
+    }
+  }catch(e){ console.error('[PDI] Erro ao registrar permissões:', e); }
+
+  try{
+    if(typeof pages !== 'undefined'){
+      if(!pages.some(function(p){ return p[1] === 'pdi'; })){
+        var lastCapIdx = -1;
+        for(var i=0;i<pages.length;i++){ if(pages[i][0]==='Capacitação') lastCapIdx=i; }
+        var entry = ['PDI','pdi','PDI','🧭','pdi_ver'];
+        if(lastCapIdx>=0) pages.splice(lastCapIdx+1,0,entry); else pages.push(entry);
+      }
+      if(typeof window.pages !== 'undefined') window.pages = pages;
+    }
+  }catch(e){ console.error('[PDI] Erro ao registrar páginas:', e); }
+
+  /* ================= posiciona o bloco "PDI" logo após "Capacitação" no menu ================= */
+  try{
+    if(typeof ensureOpsData === 'function') ensureOpsData();
+    var dPdiMenu = dbRef();
+    dPdiMenu.menuSettings = dPdiMenu.menuSettings || {};
+    var basePdiMenu = (typeof defaultMenuSettings==='function') ? defaultMenuSettings() : {blockOrder:['Geral','Comunicação','Capacitação','Gestão','Vendas','Leads','Áreas','Biblioteca','Administração']};
+    var orderPdiMenu = Array.isArray(dPdiMenu.menuSettings.blockOrder) ? dPdiMenu.menuSettings.blockOrder.slice() : basePdiMenu.blockOrder.slice();
+    if(orderPdiMenu.indexOf('PDI') < 0){
+      var posCapPdi = orderPdiMenu.indexOf('Capacitação');
+      orderPdiMenu.splice(posCapPdi >= 0 ? posCapPdi + 1 : orderPdiMenu.length, 0, 'PDI');
+      dPdiMenu.menuSettings.blockOrder = orderPdiMenu;
+      doSave();
+    }
+  }catch(e){ console.error('[PDI] Erro ao posicionar bloco no menu:', e); }
+
+  try{
+    if(typeof renders !== 'undefined'){
+      renders['pdi'] = window.render_pdi;
+      window.renders = renders;
+    }
+    if(typeof window.renders !== 'undefined'){
+      window.renders['pdi'] = window.render_pdi;
+    }
+  }catch(e){ console.error('[PDI] Erro ao registrar renders:', e); }
+
+  /* ================= expõe a permissão "pdi_gestor" na tela de permissões (Administração) ================= */
+  try{
+    if(typeof permissionGroups==='function' && !window.__npcPdiPermissionGroups){
+      window.__npcPdiPermissionGroups = true;
+      var oldPermissionGroups = window.permissionGroups || permissionGroups;
+      window.permissionGroups = function(){
+        var groups = oldPermissionGroups();
+        var admin = groups.find(function(g){ return g.id==='admin'; });
+        if(!admin){ admin = {id:'admin', title:'Administração', desc:'Usuários, permissões e escopo de visualização.', items:[]}; groups.push(admin); }
+        if(!admin.items.some(function(it){ return it[0]==='pdi_gestor'; })){
+          admin.items.push(['pdi_gestor','PDI - Gestão de colaboradores','Permite ver o PDI de todos os colaboradores e registrar reuniões de feedback. Sem essa permissão, o usuário só vê os próprios pontos.']);
+        }
+        return groups;
+      };
+      try{ permissionGroups = window.permissionGroups; }catch(e){}
+    }
+  }catch(e){ console.error('[PDI] Erro ao registrar grupo de permissão:', e); }
+
+  /* ================= concede "pdi_ver" a todos e "pdi_gestor" a quem já é admin ================= */
+  function pdiConcederAcessoBase(){
+    try{
+      var d = dbRef();
+      var alterou = false;
+      (Array.isArray(d.users) ? d.users : []).forEach(function(u){
+        if(!u.perms) u.perms = {};
+        if(u.perms['pdi_ver'] !== true){ u.perms['pdi_ver'] = true; alterou = true; }
+        if(u.permissoes) u.permissoes['pdi_ver'] = true;
+        var jaAdmin = u.perms['admin']===true || u.perms['usuarios_gerenciar']===true;
+        if(jaAdmin && u.perms['pdi_gestor'] !== true){ u.perms['pdi_gestor'] = true; alterou = true; }
+      });
+      if(typeof current !== 'undefined' && current){
+        current.perms = current.perms || {};
+        if(current.perms['pdi_ver'] !== true){ current.perms['pdi_ver'] = true; alterou = true; }
+        if(current.permissoes) current.permissoes['pdi_ver'] = true;
+        var euJaAdmin = current.perms['admin']===true || current.perms['usuarios_gerenciar']===true;
+        if(euJaAdmin && current.perms['pdi_gestor'] !== true){ current.perms['pdi_gestor'] = true; alterou = true; }
+      }
+      if(alterou){ doSave(); try{ if(typeof buildNav === 'function') buildNav(); }catch(e){} }
+    }catch(e){ console.error('[PDI] erro ao conceder acesso:', e); }
+  }
+  try{ pdiConcederAcessoBase(); }catch(e){}
+
+  /* ================= garantia extra de salvamento no Firebase ================= */
+  var _origSavePdi = window.save;
+  window.save = function(){
+    var result = (typeof _origSavePdi === 'function') ? _origSavePdi.apply(this, arguments) : undefined;
+    try{
+      if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
+        var d = ensurePdiData();
+        window.firebaseDb.ref('/').update({
+          pdiReunioes: d.pdiReunioes || [],
+          pdiPontos: d.pdiPontos || [],
+          avalCiclos: d.avalCiclos || [],
+          avalAvaliacoes: d.avalAvaliacoes || [],
+          avalClassificacoes: d.avalClassificacoes || {},
+          avalDepartamentos: d.avalDepartamentos || [],
+          avalEquipes: d.avalEquipes || [],
+          avalCargos: d.avalCargos || [],
+          avalGrupos: d.avalGrupos || []
+        }).catch(function(err){ console.error('[PDI] Erro ao salvar no Firebase:', err); });
+      }
+    }catch(e){ console.error('[PDI] Erro ao salvar (garantia extra):', e); }
+    return result;
+  };
+  try{ save = window.save; }catch(e){}
+
+  /* ================= preserva os dados no cloudToLocal (leitura do Firebase) ================= */
+  var _oldCloudToLocalPdi = window.cloudToLocal || (typeof cloudToLocal === 'function' ? cloudToLocal : null);
+  if(_oldCloudToLocalPdi && !window.__npcPdiCloudToLocalWrapped){
+    window.__npcPdiCloudToLocalWrapped = true;
+    window.cloudToLocal = function(cloud){
+      var base = _oldCloudToLocalPdi.apply(this, arguments);
+      function arr(v){ return Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []); }
+      base.pdiReunioes = (cloud && cloud.pdiReunioes) ? arr(cloud.pdiReunioes) : (base.pdiReunioes || []);
+      base.pdiPontos = (cloud && cloud.pdiPontos) ? arr(cloud.pdiPontos) : (base.pdiPontos || []);
+      base.avalCiclos = (cloud && cloud.avalCiclos) ? arr(cloud.avalCiclos) : (base.avalCiclos || []);
+      base.avalAvaliacoes = (cloud && cloud.avalAvaliacoes) ? arr(cloud.avalAvaliacoes) : (base.avalAvaliacoes || []);
+      base.avalClassificacoes = (cloud && cloud.avalClassificacoes && typeof cloud.avalClassificacoes==='object') ? cloud.avalClassificacoes : (base.avalClassificacoes || {});
+      base.avalDepartamentos = (cloud && cloud.avalDepartamentos) ? arr(cloud.avalDepartamentos) : (base.avalDepartamentos || []);
+      base.avalEquipes = (cloud && cloud.avalEquipes) ? arr(cloud.avalEquipes) : (base.avalEquipes || []);
+      base.avalCargos = (cloud && cloud.avalCargos) ? arr(cloud.avalCargos) : (base.avalCargos || []);
+      base.avalGrupos = (cloud && cloud.avalGrupos) ? arr(cloud.avalGrupos) : (base.avalGrupos || []);
+      return base;
+    };
+    try{ cloudToLocal = window.cloudToLocal; }catch(e){}
+  }
+
+  try{ if(typeof buildNav === 'function') setTimeout(buildNav, 0); }catch(e){}
+
+  console.log('[PDI] Módulo Plano de Desenvolvimento Individual instalado.');
 })();
 </script>
 <script>
