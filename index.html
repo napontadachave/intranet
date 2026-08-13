@@ -942,6 +942,7 @@ window.saveKanbanCard=function(cardId=''){
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore-compat.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -957,6 +958,18 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const firebaseAuth = firebase.auth();
 const firebaseDb = firebase.database();
+/* Cloud Firestore — usado especificamente pela Análise 360° (ver módulo mais
+   abaixo). O resto do sistema continua no Realtime Database (firebaseDb) sem
+   nenhuma mudança; só a Análise 360° passou a gravar/ler daqui, porque os
+   dados dela (milhares de linhas de imóveis/negociações/atendimentos) cabem
+   muito melhor num banco de coleções/documentos do que numa árvore JSON só. */
+const firebaseFirestore = firebase.firestore();
+/* IMPORTANTE: "const" no topo do script NÃO vira propriedade de window
+   automaticamente (mesma armadilha que já existia com firebaseDb/firebaseAuth,
+   por isso eles são re-expostos em vários módulos abaixo). Sem esta linha,
+   window.firebaseFirestore fica undefined e a Análise 360° nunca consegue
+   gravar, mesmo com o SDK carregado e funcionando normalmente. */
+window.firebaseFirestore = firebaseFirestore;
 try{ firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION); }catch(e){ console.error('Falha ao definir persistência de sessão:', e); }
 const DEFAULT_PASSWORD = '#Npc123';
 const $=id=>document.getElementById(id); const KEY='npc_intranet_producao_v20'; let current=null, page='dashboard';
@@ -14643,13 +14656,13 @@ body:has(#login:not(.hidden)) #app.hidden{
   try{
     if(typeof pages !== 'undefined'){
       if(!pages.some(function(p){ return p[1] === 'analise360'; })){
-        pages.push(['Geral','analise360','Análise 360° - Vendas','◈','analise360_ver']);
+        pages.push(['Vendas','analise360','Análise 360° - Vendas','◈','analise360_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'analise360_locacao'; })){
-        pages.push(['Geral','analise360_locacao','Análise 360° - Locação','⌂','analise360_locacao_ver']);
+        pages.push(['Locação','analise360_locacao','Análise 360° - Locação','⌂','analise360_locacao_ver']);
       }
       if(!pages.some(function(p){ return p[1] === 'analise360_upload'; })){
-        pages.push(['Geral','analise360_upload','Importar Análise 360°','⇪','analise360_upload']);
+        pages.push(['Administração','analise360_upload','Importar Análise 360°','⇪','analise360_upload']);
       }
     }
     if(typeof window.pages !== 'undefined') window.pages = pages;
@@ -14670,10 +14683,16 @@ body:has(#login:not(.hidden)) #app.hidden{
     return '<p class="sub" style="color:'+(p>=0?'#136b3a':'#a61b12')+';font-weight:900;font-size:11.5px">'+seta+' '+Math.abs(p).toFixed(1)+'% vs. período anterior</p>';
   }
 
+  /* A partir daqui, a Análise 360° guarda seus dados no Cloud Firestore, num
+     "cofre" em memória (window.__npcA360Store) que é carregado assincronamente
+     do Firestore na primeira vez que a tela é aberta na sessão (ver
+     garantirCarregamentoFirestore() mais abaixo). Antes disso os dados viviam
+     dentro de db.analise360 (Realtime Database) — foi migrado porque a
+     planilha de imóveis (milhares de linhas) tornava a árvore do Realtime
+     Database grande demais, deixando a gravação lenta/instável. */
   function ensureStore(){
-    var d = dbRef();
-    d.analise360 = d.analise360 || {};
-    var s = d.analise360;
+    if(!window.__npcA360Store) window.__npcA360Store = {};
+    var s = window.__npcA360Store;
     if(!Array.isArray(s.negociacoes)) s.negociacoes = [];
     if(!Array.isArray(s.atendimentosVendas)) s.atendimentosVendas = [];
     if(!Array.isArray(s.atendimentosLocacao)) s.atendimentosLocacao = [];
@@ -14685,6 +14704,139 @@ body:has(#login:not(.hidden)) #app.hidden{
      no Firebase se confirmar por completo */
   function atualizarCacheLocal(){
     try{ window.__npcA360Cache = JSON.parse(JSON.stringify(ensureStore())); }catch(e){}
+  }
+
+  /* ================= camada de armazenamento no Cloud Firestore =================
+     Em vez de uma árvore JSON única e gigante (como era no Realtime Database),
+     cada conjunto de dados (negociações, atendimentos, imóveis) vira uma coleção
+     de documentos pequenos ("chunk_0", "chunk_1", ...), cada um com até
+     A360_TAMANHO_CHUNK linhas. Isso faz cada gravação/leitura ser uma operação
+     pequena e independente — muito mais difícil de travar do que mandar tudo
+     de uma vez só, e o Firestore aguenta numa boa esse volume de documentos. */
+  var A360_TAMANHO_CHUNK = 500;
+  var A360_LOTE_FIRESTORE = 450; /* folga em relação ao limite de 500 operações por batch do Firestore */
+
+  function fsColecao(nome){
+    if(!window.firebaseFirestore) throw new Error('Firestore não está disponível.');
+    return window.firebaseFirestore.collection(nome);
+  }
+
+  function dividirEmChunks(arr, tamanho){
+    var chunks = [];
+    for(var i=0;i<arr.length;i+=tamanho) chunks.push(arr.slice(i, i+tamanho));
+    return chunks;
+  }
+
+  /* grava "itens" (já no formato final a ser persistido) numa coleção do Firestore,
+     dividido em chunks, e apaga qualquer chunk antigo que tenha sobrado de um
+     envio anterior maior que este. progresso(feito,total) é opcional, usado só
+     pra atualizar a mensagem de status na tela. */
+  async function gravarColecaoEmChunks(nomeColecao, itens, metaExtra, progresso){
+    var col = fsColecao(nomeColecao);
+    var snapshotAntigo = await col.get();
+    var idsAntigos = snapshotAntigo.docs.map(function(d){ return d.id; }).filter(function(id){ return id.indexOf('chunk_') === 0; });
+
+    var chunksNovos = dividirEmChunks(itens || [], A360_TAMANHO_CHUNK);
+    var operacoes = [];
+    chunksNovos.forEach(function(chunk, i){ operacoes.push({ tipo:'set', id:'chunk_'+i, dados:{ itens: chunk } }); });
+    idsAntigos.forEach(function(id){
+      var indice = Number(id.replace('chunk_',''));
+      if(!(indice < chunksNovos.length)) operacoes.push({ tipo:'delete', id:id });
+    });
+    operacoes.push({ tipo:'set', id:'_meta', dados: Object.assign({ totalChunks: chunksNovos.length, totalItens: (itens||[]).length }, metaExtra||{}) });
+
+    for(var i=0;i<operacoes.length;i+=A360_LOTE_FIRESTORE){
+      var lote = window.firebaseFirestore.batch();
+      operacoes.slice(i, i+A360_LOTE_FIRESTORE).forEach(function(op){
+        var ref = col.doc(op.id);
+        if(op.tipo==='delete') lote.delete(ref); else lote.set(ref, op.dados);
+      });
+      await lote.commit();
+      if(progresso) progresso(Math.min(i+A360_LOTE_FIRESTORE, operacoes.length), operacoes.length);
+    }
+  }
+
+  async function lerColecaoEmChunks(nomeColecao){
+    var col = fsColecao(nomeColecao);
+    var snap = await col.get();
+    var metaDoc = snap.docs.find(function(d){ return d.id === '_meta'; });
+    var meta = metaDoc ? metaDoc.data() : null;
+    var chunks = snap.docs
+      .filter(function(d){ return d.id.indexOf('chunk_') === 0; })
+      .sort(function(a,b){ return Number(a.id.replace('chunk_','')) - Number(b.id.replace('chunk_','')); });
+    var itens = [];
+    chunks.forEach(function(d){ var dados = d.data(); if(dados && Array.isArray(dados.itens)) itens = itens.concat(dados.itens); });
+    return { itens: itens, meta: meta };
+  }
+
+  /* imóveis usam ainda a compressão por dicionário (tipo/cidade/bairro/finalidade
+     viram números) por cima do "chunking" — dupla economia de espaço */
+  async function gravarImoveisFirestore(nomeColecao, linhasVerbosas, metaExtra, progresso){
+    var comprimido = comprimirLinhasImoveis(linhasVerbosas || []);
+    await gravarColecaoEmChunks(nomeColecao, comprimido.itens, Object.assign({ dic: comprimido.dic }, metaExtra||{}), progresso);
+  }
+
+  async function lerImoveisFirestore(nomeColecao){
+    var resultado = await lerColecaoEmChunks(nomeColecao);
+    if(!resultado.meta) return { linhas: [], meta: null };
+    var linhas = descomprimirLinhasImoveis({ dic: resultado.meta.dic, itens: resultado.itens });
+    return { linhas: linhas, meta: resultado.meta };
+  }
+
+  /* carrega TUDO da Análise 360° do Firestore pra memória, no mesmo formato que
+     o resto do código já espera (idêntico ao que antes vinha do Realtime
+     Database) — assim analise360Render()/analise360RenderLocacao() e toda a
+     lógica de filtros continuam funcionando sem precisar de nenhuma mudança. */
+  async function carregarAnalise360Firestore(){
+    var iaVazio = { total:0, porTipo:{}, porCidade:{}, porBairro:{}, porFinalidade:{}, ticketMedioVenda:0, ticketMedioLocacao:0 };
+    var resultados = await Promise.all([
+      lerColecaoEmChunks('analise360Negociacoes'),
+      lerColecaoEmChunks('analise360AtendimentosVendas'),
+      lerColecaoEmChunks('analise360AtendimentosLocacao'),
+      lerImoveisFirestore('analise360ImoveisAtivos'),
+      lerImoveisFirestore('analise360ImoveisInativos')
+    ]);
+    var neg = resultados[0], av = resultados[1], al = resultados[2], ia = resultados[3], ii = resultados[4];
+    var metaMaisRecente = [neg.meta, av.meta, al.meta, ia.meta, ii.meta].filter(Boolean).sort(function(a,b){
+      return String(b.atualizadoEm||'').localeCompare(String(a.atualizadoEm||''));
+    })[0];
+    var store = {
+      negociacoes: neg.itens || [],
+      atendimentosVendas: av.itens || [],
+      atendimentosLocacao: al.itens || [],
+      imoveisAtivos: ia.meta ? Object.assign({ linhas: ia.linhas }, ia.meta.agregados || {}) : Object.assign({ linhas: [] }, iaVazio),
+      imoveisInativos: ii.meta ? Object.assign({ linhas: ii.linhas }, ii.meta.agregados || {}) : Object.assign({ linhas: [] }, iaVazio),
+      atualizadoEm: metaMaisRecente ? metaMaisRecente.atualizadoEm : '',
+      atualizadoPor: metaMaisRecente ? metaMaisRecente.atualizadoPor : ''
+    };
+    return store;
+  }
+
+  window.__npcA360FirestoreEstado = { carregando:false, carregado:false, erro:null };
+
+  /* chamado sempre que uma tela da Análise 360° é aberta — na primeira vez da
+     sessão, busca tudo do Firestore em segundo plano e re-renderiza quando
+     terminar; nas próximas vezes é instantâneo (já está em memória). */
+  function garantirCarregamentoFirestore(aoTerminar){
+    var estado = window.__npcA360FirestoreEstado;
+    if(estado.carregado || estado.carregando){
+      if(estado.carregado && aoTerminar) aoTerminar(null);
+      return;
+    }
+    estado.carregando = true;
+    carregarAnalise360Firestore().then(function(store){
+      window.__npcA360Store = store;
+      try{ if(typeof window.npcAtualizarIndicadorSincronizacao==='function') window.npcAtualizarIndicadorSincronizacao(); }catch(e){}
+      estado.carregando = false;
+      estado.carregado = true;
+      estado.erro = null;
+      if(aoTerminar) aoTerminar(null);
+    }).catch(function(e){
+      console.error('[V115] Erro ao carregar Análise 360° do Firestore:', e);
+      estado.carregando = false;
+      estado.erro = e;
+      if(aoTerminar) aoTerminar(e);
+    });
   }
 
   /* ---------- registra "analise360" no mecanismo padrão de sincronização do Firebase ----------
@@ -14700,6 +14852,14 @@ body:has(#login:not(.hidden)) #app.hidden{
         if(!Array.isArray(base.analise360.negociacoes)) base.analise360.negociacoes = [];
         if(!Array.isArray(base.analise360.atendimentosVendas)) base.analise360.atendimentosVendas = [];
         if(!Array.isArray(base.analise360.atendimentosLocacao)) base.analise360.atendimentosLocacao = [];
+        /* as linhas de imóveis vêm comprimidas do Firebase (ver comprimirLinhasImoveis) —
+           descomprimimos aqui, uma vez só na leitura, pra todo o resto do código continuar
+           trabalhando com tipo/cidade/bairro/finalidade por extenso, como sempre trabalhou */
+        try{
+          if(base.analise360.imoveisAtivos && base.analise360.imoveisAtivos.linhasComp && typeof descomprimirLinhasImoveis==='function'){
+            base.analise360.imoveisAtivos.linhas = descomprimirLinhasImoveis(base.analise360.imoveisAtivos.linhasComp);
+          }
+        }catch(e){ console.error('[V115] Erro ao descomprimir linhas de imóveis:', e); }
         /* preserva localmente o que acabou de ser salvo, caso essa leitura da nuvem
            ainda esteja desatualizada em relação à última gravação feita por este navegador */
         if(window.__npcA360Cache){
@@ -14754,15 +14914,75 @@ body:has(#login:not(.hidden)) #app.hidden{
     return xlsxLoadPromise;
   }
 
-  /* ---------- leitura de planilha (SheetJS) ---------- */
+  /* ---------- leitura de planilha (SheetJS) ----------
+     duas correções importantes aqui, feitas depois de observar planilhas reais
+     de clientes com problema:
+     1) Alguns "relatórios em Excel" exportados por sistemas de CRM não são um
+        .xlsx binário de verdade (formato ZIP) — são uma tabela HTML salva com
+        extensão .xlsx/.xls. Quando isso acontece e a gente lê os bytes crus sem
+        decodificar como texto, o SheetJS pode interpretar a acentuação errado
+        (vira " "/caixinha no lugar de "ç", "ã", "ó" etc.). Por isso checamos a
+        assinatura do arquivo: se não for um ZIP de verdade, decodificamos os
+        bytes como texto UTF-8 explicitamente antes de entregar ao SheetJS.
+     2) Em vez de deixar o SheetJS montar os objetos (sheet_to_json no "modo
+        objeto"), lemos a planilha como matriz bruta (uma linha = um array,
+        célula a célula) e nós mesmos casamos cada valor com o cabeçalho da
+        MESMA posição de coluna. Isso evita um bug observado em que, com certas
+        planilhas (colunas mescladas/sem cabeçalho no meio), o SheetJS desalinha
+        o cabeçalho em relação aos dados — o valor que devia cair em "Bairro"
+        aparecia em "Cidade", e "Bairro" ficava em branco. */
+  function matrizParaLinhas(matriz){
+    if(!matriz || !matriz.length) return [];
+    var vistos = {};
+    var cabecalhos = matriz[0].map(function(h, i){
+      var nome = String(h==null ? '' : h).trim() || ('Coluna'+(i+1));
+      if(vistos[nome]){ vistos[nome]++; nome = nome + '_' + vistos[nome]; }
+      else vistos[nome] = 1;
+      return nome;
+    });
+    return matriz.slice(1)
+      .filter(function(linha){ return linha && linha.some(function(v){ return v!=null && String(v).trim()!==''; }); })
+      .map(function(linha){
+        var obj = {};
+        cabecalhos.forEach(function(h, i){ obj[h] = (linha[i]==null ? '' : linha[i]); });
+        return obj;
+      });
+  }
+
+  function pareceZipBinario(bytes){
+    /* assinatura padrão de arquivo ZIP (todo .xlsx/.xlsm de verdade é um ZIP) */
+    return bytes.length > 4 && bytes[0]===0x50 && bytes[1]===0x4B && (bytes[2]===0x03||bytes[2]===0x05||bytes[2]===0x07);
+  }
+
+  /* alguns sistemas de CRM exportam a "planilha" como uma tabela HTML salva com
+     extensão .xlsx, usando a codificação antiga do Windows (windows-1252/ANSI) em
+     vez de UTF-8 — muito comum em sistemas brasileiros mais antigos. Se a gente
+     decodificar como UTF-8 e o resultado vier cheio de " " (caractere de
+     substituição, sinal de bytes inválidos pra UTF-8), tentamos de novo como
+     windows-1252, que é o que normalmente resolve certinho nesses casos. */
+  function decodificarTexto(bytes){
+    var utf8 = new TextDecoder('utf-8').decode(bytes);
+    if(utf8.indexOf('\uFFFD') === -1) return utf8;
+    try{
+      var win1252 = new TextDecoder('windows-1252').decode(bytes);
+      if(win1252.indexOf('\uFFFD') === -1) return win1252;
+    }catch(e){}
+    return utf8;
+  }
+
   function lerPlanilha(file){
     return new Promise(function(resolve, reject){
       var reader = new FileReader();
       reader.onload = function(ev){
         try{
-          var wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true});
+          var bytes = new Uint8Array(ev.target.result);
+          var fonte = pareceZipBinario(bytes) ? bytes : decodificarTexto(bytes);
+          var wb = (typeof fonte === 'string')
+            ? XLSX.read(fonte, {type:'string', cellDates:true})
+            : XLSX.read(fonte, {type:'array', cellDates:true});
           var sheet = wb.Sheets[wb.SheetNames[0]];
-          resolve(XLSX.utils.sheet_to_json(sheet, {defval:''}));
+          var matriz = XLSX.utils.sheet_to_json(sheet, {header:1, defval:'', blankrows:false});
+          resolve(matrizParaLinhas(matriz));
         }catch(err){ reject(err); }
       };
       reader.onerror = function(){ reject(new Error('Falha ao ler arquivo')); };
@@ -14907,10 +15127,124 @@ body:has(#login:not(.hidden)) #app.hidden{
       total: linhasContagem.length,
       porTipo: contarPor(linhasContagem,'Tipo'),
       porCidade: contarPor(linhasContagem,'Cidade'),
+      porBairro: contarPor(linhasContagem,'Bairro'),
       porFinalidade: contarPor(linhasContagem,'Finalidade'),
       ticketMedioVenda: valoresVenda.length ? soma(valoresVenda)/valoresVenda.length : 0,
       ticketMedioLocacao: valoresLocacao.length ? soma(valoresLocacao)/valoresLocacao.length : 0
     };
+  }
+
+  /* ---------- versão "crua" (uma linha por imóvel) guardada à parte, para permitir
+     recalcular a carteira dinamicamente quando o usuário clica pra filtrar por bairro ---------- */
+  function trimImoveis(rows){
+    return rows.map(function(r){
+      return {
+        tipo: String(r['Tipo']||'').trim(),
+        cidade: String(r['Cidade']||'').trim(),
+        bairro: String(r['Bairro']||'').trim(),
+        finalidade: String(r['Finalidade']||'').trim(),
+        valorVenda: paraNumero(r['Valor Venda']),
+        valorLocacao: paraNumero(r['Valor Locação'])
+      };
+    });
+  }
+
+  function agregarImoveisLinhas(linhas, modo, filtroExtra){
+    var rows = linhas || [];
+    if(modo === 'venda') rows = rows.filter(function(r){ return r.valorVenda > 0; });
+    else if(modo === 'locacao') rows = rows.filter(function(r){ return r.valorLocacao > 0; });
+    filtroExtra = filtroExtra || {};
+    if(filtroExtra.imovelBairro) rows = rows.filter(function(r){ return normalizarChave(r.bairro) === filtroExtra.imovelBairro; });
+    if(filtroExtra.imovelCidade) rows = rows.filter(function(r){ return normalizarChave(r.cidade) === filtroExtra.imovelCidade; });
+    if(filtroExtra.imovelTipo) rows = rows.filter(function(r){ return normalizarChave(r.tipo) === filtroExtra.imovelTipo; });
+    if(filtroExtra.imovelFinalidade) rows = rows.filter(function(r){ return normalizarChave(r.finalidade) === filtroExtra.imovelFinalidade; });
+    var contarCampo = function(campo){
+      var out = {};
+      rows.forEach(function(r){ var k = normalizarChave(r[campo]) || '(Em branco)'; out[k] = (out[k]||0) + 1; });
+      return out;
+    };
+    var valoresVenda=[], valoresLocacao=[];
+    rows.forEach(function(r){
+      if(r.valorVenda>0) valoresVenda.push(r.valorVenda);
+      if(r.valorLocacao>0) valoresLocacao.push(r.valorLocacao);
+    });
+    var soma = function(arr){ return arr.reduce(function(a,b){ return a+b; },0); };
+    return {
+      total: rows.length,
+      porTipo: contarCampo('tipo'),
+      porCidade: contarCampo('cidade'),
+      porBairro: contarCampo('bairro'),
+      porFinalidade: contarCampo('finalidade'),
+      ticketMedioVenda: valoresVenda.length ? soma(valoresVenda)/valoresVenda.length : 0,
+      ticketMedioLocacao: valoresLocacao.length ? soma(valoresLocacao)/valoresLocacao.length : 0
+    };
+  }
+
+  /* ---------- compressão das linhas de imóveis pra gravar no Firebase ----------
+     guardar "São Bernardo do Campo" escrito por extenso em milhares de linhas pesa
+     muito à toa, já que só existem algumas dezenas de cidades/bairros/tipos
+     diferentes no total. Aqui trocamos o texto repetido por um número (índice
+     num dicionário pequeno gravado uma vez só), o que reduz bastante o tamanho
+     gravado. Isso é só um detalhe de armazenamento — o resto do código sempre
+     trabalha com o formato "por extenso" (tipo/cidade/bairro/finalidade), então
+     descomprimimos de volta assim que os dados voltam do Firebase. */
+  function comprimirLinhasImoveis(linhas){
+    var dicTipos = [], idxTipos = {};
+    var dicCidades = [], idxCidades = {};
+    var dicBairros = [], idxBairros = {};
+    var dicFinalidades = [], idxFinalidades = {};
+    function idxDe(valor, dic, idx){
+      var chave = valor || '';
+      if(!Object.prototype.hasOwnProperty.call(idx, chave)){ idx[chave] = dic.length; dic.push(chave); }
+      return idx[chave];
+    }
+    var itens = (linhas||[]).map(function(r){
+      return {
+        t: idxDe(r.tipo, dicTipos, idxTipos),
+        c: idxDe(r.cidade, dicCidades, idxCidades),
+        b: idxDe(r.bairro, dicBairros, idxBairros),
+        f: idxDe(r.finalidade, dicFinalidades, idxFinalidades),
+        v: r.valorVenda || 0,
+        l: r.valorLocacao || 0
+      };
+    });
+    return { dic: { tipos: dicTipos, cidades: dicCidades, bairros: dicBairros, finalidades: dicFinalidades }, itens: itens };
+  }
+
+  function descomprimirLinhasImoveis(compacto){
+    if(!compacto || !Array.isArray(compacto.itens)) return [];
+    var dic = compacto.dic || {};
+    var tipos = dic.tipos || [], cidades = dic.cidades || [], bairros = dic.bairros || [], finalidades = dic.finalidades || [];
+    return compacto.itens.map(function(it){
+      return {
+        tipo: tipos[it.t] || '',
+        cidade: cidades[it.c] || '',
+        bairro: bairros[it.b] || '',
+        finalidade: finalidades[it.f] || '',
+        valorVenda: it.v || 0,
+        valorLocacao: it.l || 0
+      };
+    });
+  }
+
+  function montarDiagnosticoImoveis(linhas){
+    if(!linhas || !linhas.length) return '';
+    var todasChaves = {};
+    linhas.forEach(function(r){ Object.keys(r).forEach(function(k){ todasChaves[k]=1; }); });
+    var colunas = Object.keys(todasChaves);
+    var comBairro = linhas.filter(function(r){ return String(r['Bairro']||'').trim(); }).length;
+    var comCidade = linhas.filter(function(r){ return String(r['Cidade']||'').trim(); }).length;
+    var amostra = linhas.slice(0,6).map(function(r){
+      return '[Bairro: '+esc(String(r['Bairro']||'—'))+' / Cidade: '+esc(String(r['Cidade']||'—'))+']';
+    }).join(' ');
+    return '<div class="card pad" style="margin-bottom:10px;background:#fbfbfb;border:1px dashed #ccc">'
+      + '<h3 style="margin:0 0 6px;font-size:13px">Diagnóstico da última planilha de Imóveis Ativos lida</h3>'
+      + '<p class="sub" style="margin:2px 0">Linhas lidas: <b>'+linhas.length+'</b></p>'
+      + '<p class="sub" style="margin:2px 0">Colunas detectadas na planilha ('+colunas.length+'): '+esc(colunas.join(' | '))+'</p>'
+      + '<p class="sub" style="margin:2px 0">Linhas com a coluna "Bairro" preenchida: <b>'+comBairro+'</b> de '+linhas.length+'</p>'
+      + '<p class="sub" style="margin:2px 0">Linhas com a coluna "Cidade" preenchida: <b>'+comCidade+'</b> de '+linhas.length+'</p>'
+      + '<p class="sub" style="margin:2px 0">Amostra das 6 primeiras linhas: '+amostra+'</p>'
+      + '</div>';
   }
 
   function topN(obj, n){
@@ -15159,8 +15493,9 @@ body:has(#login:not(.hidden)) #app.hidden{
     var btn = document.getElementById('a360BtnProcessar');
     if(btn){ btn.disabled = true; btn.textContent = 'Processando...'; }
 
+    var diagHtml = '';
     function mostrarStatus(html){
-      try{ var el = document.getElementById('a360Status'); if(el) el.innerHTML = html; }catch(e){}
+      try{ var el = document.getElementById('a360Status'); if(el) el.innerHTML = diagHtml + html; }catch(e){}
     }
 
     try{
@@ -15173,7 +15508,8 @@ body:has(#login:not(.hidden)) #app.hidden{
       if(arquivos.atendLocacao && arquivos.atendLocacao.files[0]) alRows = trimAtendimentos(await lerPlanilha(arquivos.atendLocacao.files[0]));
       if(arquivos.imoveisAtivos && arquivos.imoveisAtivos.files[0]){
         var linhasIA = await lerPlanilha(arquivos.imoveisAtivos.files[0]);
-        iaObj = { geral: agregarImoveis(linhasIA), venda: agregarImoveis(linhasIA,'venda'), locacao: agregarImoveis(linhasIA,'locacao') };
+        iaObj = { geral: agregarImoveis(linhasIA), venda: agregarImoveis(linhasIA,'venda'), locacao: agregarImoveis(linhasIA,'locacao'), linhas: trimImoveis(linhasIA) };
+        diagHtml = montarDiagnosticoImoveis(linhasIA);
       }
       if(arquivos.imoveisInativos && arquivos.imoveisInativos.files[0]){
         var linhasII = await lerPlanilha(arquivos.imoveisInativos.files[0]);
@@ -15193,39 +15529,73 @@ body:has(#login:not(.hidden)) #app.hidden{
       store.atualizadoEm = new Date().toISOString();
       store.atualizadoPor = (typeof current !== 'undefined' && current && current.name) || '';
 
-      atualizarCacheLocal();
-      doSave();
-      /* reforço: grava só este campo, isoladamente, para garantir que chegue ao
-         Firebase mesmo se o save() padrão tomar um caminho interno que não inclua
-         a Análise 360° para este usuário */
-      mostrarStatus('<p class="sub">Confirmando gravação no Firebase...</p>');
-      try{
-        if(window.firebaseDb && window.firebaseAuth && window.firebaseAuth.currentUser){
-          window.firebaseDb.ref('/').update({ analise360: store }).then(function(){
-            /* confirmação: relê direto do Firebase (não da memória local) pra ter
-               certeza absoluta de que os dados realmente ficaram gravados lá */
-            return window.firebaseDb.ref('/analise360').once('value');
-          }).then(function(snap){
-            var val = snap.val();
-            var temDados = val && ((val.negociacoes&&val.negociacoes.length) || (val.atendimentosVendas&&val.atendimentosVendas.length) || (val.atendimentosLocacao&&val.atendimentosLocacao.length) || val.imoveisAtivos || val.imoveisInativos);
-            if(temDados){
-              mostrarStatus('<p style="color:#136b3a;font-weight:800">✓ Confirmado: gravado no Firebase.</p>');
-              if(typeof toast==='function') toast('Confirmado: gravado no Firebase.','ok');
-            } else {
-              mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ ATENÇÃO: a gravação não persistiu no Firebase — os dados podem sumir ao atualizar a página. Tente novamente ou avise o suporte.</p>');
-              if(typeof toast==='function') toast('ATENÇÃO: a gravação não persistiu no Firebase.','err');
-            }
-          }).catch(function(e){
-            mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ ERRO ao gravar/confirmar no Firebase: '+esc(e.code||e.message)+'</p>');
-            if(typeof toast==='function') toast('ERRO ao gravar no Firebase: ' + (e.code||e.message),'err');
-            console.error('[V115] Falha na gravação/confirmação de reforço:', e);
-          });
-        } else {
-          mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ Sem conexão com o Firebase no momento do envio — os dados só ficaram salvos localmente neste navegador (vão sumir ao atualizar a página).</p>');
-        }
-      }catch(e){ console.error('[V115] Erro na gravação de reforço:', e); }
+      if(!window.firebaseFirestore){
+        mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ Firestore não está disponível neste navegador (verifique a conexão). Os dados NÃO foram gravados.</p>');
+        return;
+      }
 
-      if(typeof toast==='function') toast('Dados salvos. Confira em "Análise 360°".','ok');
+      var agora = new Date().toISOString();
+      var quem = (typeof current !== 'undefined' && current && current.name) || '';
+
+      function comTimeout(promise, ms, rotulo){
+        return Promise.race([
+          promise,
+          new Promise(function(_, reject){
+            setTimeout(function(){ reject(new Error('Tempo esgotado gravando '+rotulo+' (mais de '+Math.round(ms/1000)+'s sem resposta do Firestore — provavelmente a conexão está lenta ou instável).')); }, ms);
+          })
+        ]);
+      }
+
+      /* cada arquivo enviado vira uma etapa de gravação independente no Firestore,
+         dividida internamente em lotes pequenos (ver gravarColecaoEmChunks) — bem
+         diferente do Realtime Database, onde tudo ia junto numa gravação só */
+      var etapas = [];
+      if(negRows) etapas.push({ nome:'negociações', fn: function(prog){ return gravarColecaoEmChunks('analise360Negociacoes', negRows, {atualizadoEm:agora, atualizadoPor:quem}, prog); } });
+      if(avRows) etapas.push({ nome:'atendimentos de vendas', fn: function(prog){ return gravarColecaoEmChunks('analise360AtendimentosVendas', avRows, {atualizadoEm:agora, atualizadoPor:quem}, prog); } });
+      if(alRows) etapas.push({ nome:'atendimentos de locação', fn: function(prog){ return gravarColecaoEmChunks('analise360AtendimentosLocacao', alRows, {atualizadoEm:agora, atualizadoPor:quem}, prog); } });
+      if(iaObj) etapas.push({ nome:'imóveis ativos', fn: function(prog){ return gravarImoveisFirestore('analise360ImoveisAtivos', iaObj.linhas, {atualizadoEm:agora, atualizadoPor:quem, agregados:{geral:iaObj.geral, venda:iaObj.venda, locacao:iaObj.locacao}}, prog); } });
+      if(iiObj) etapas.push({ nome:'imóveis inativos', fn: function(prog){ return gravarImoveisFirestore('analise360ImoveisInativos', iiObj.linhas, {atualizadoEm:agora, atualizadoPor:quem, agregados:{geral:iiObj.geral, venda:iiObj.venda, locacao:iiObj.locacao}}, prog); } });
+
+      var erroEtapa = null;
+      for(var i=0;i<etapas.length;i++){
+        var etapa = etapas[i];
+        mostrarStatus('<p class="sub">Gravando '+etapa.nome+' ('+(i+1)+'/'+etapas.length+')...</p>');
+        try{
+          await comTimeout(etapa.fn(function(feito,total){
+            mostrarStatus('<p class="sub">Gravando '+etapa.nome+' ('+(i+1)+'/'+etapas.length+') — lote '+feito+' de '+total+'...</p>');
+          }), 60000, etapa.nome);
+        }catch(eEtapa){
+          erroEtapa = { nome: etapa.nome, erro: eEtapa };
+          break;
+        }
+      }
+
+      if(erroEtapa){
+        mostrarStatus('<p style="color:#a61b12;font-weight:800">✗ ERRO ao gravar '+esc(erroEtapa.nome)+': '+esc(erroEtapa.erro.message||String(erroEtapa.erro))+'. As etapas anteriores desta mesma vez já foram salvas — tente reenviar de novo (só o que faltou já é suficiente).</p>');
+        if(typeof toast==='function') toast('Erro ao gravar '+erroEtapa.nome+' no Firestore.','err');
+        console.error('[V115] Falha ao gravar no Firestore:', erroEtapa);
+      } else {
+        /* atualiza a memória local na hora, sem precisar reler do Firestore —
+           assim quem acabou de enviar já vê os dados novos imediatamente, sem
+           esperar uma nova leitura (e sem gastar leituras à toa) */
+        var storeAtual = ensureStore();
+        if(negRows) storeAtual.negociacoes = negRows;
+        if(avRows) storeAtual.atendimentosVendas = avRows;
+        if(alRows) storeAtual.atendimentosLocacao = alRows;
+        if(iaObj) storeAtual.imoveisAtivos = { linhas: iaObj.linhas, geral: iaObj.geral, venda: iaObj.venda, locacao: iaObj.locacao };
+        if(iiObj) storeAtual.imoveisInativos = { linhas: iiObj.linhas, geral: iiObj.geral, venda: iiObj.venda, locacao: iiObj.locacao };
+        storeAtual.atualizadoEm = agora;
+        storeAtual.atualizadoPor = quem;
+        window.__npcA360Store = storeAtual;
+        window.__npcA360FirestoreEstado.carregado = true;
+        window.__npcA360FirestoreEstado.carregando = false;
+        window.__npcA360FirestoreEstado.erro = null;
+        try{ if(typeof window.npcAtualizarIndicadorSincronizacao==='function') window.npcAtualizarIndicadorSincronizacao(); }catch(e){}
+
+        mostrarStatus('<p style="color:#136b3a;font-weight:800">✓ Gravado no Firestore com sucesso.</p>');
+        if(typeof toast==='function') toast('Dados salvos no Firestore. Confira em "Análise 360°".','ok');
+      }
+
       Object.keys(arquivos).forEach(function(k){ if(arquivos[k]) arquivos[k].value=''; });
     }catch(err){
       console.error('[V115] Erro ao processar arquivos da Análise 360°:', err);
@@ -15338,6 +15708,10 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.analise360ClicarMidia = function(valor){ window.analise360SetFiltroExtra('midia', valor); };
   window.analise360ClicarEtapa = function(valor){ window.analise360SetFiltroExtra('etapa', valor); };
   window.analise360ClicarTipo = function(valor){ window.analise360SetFiltroExtra('tipo', valor); };
+  window.analise360ClicarImovelBairro = function(valor){ window.analise360SetFiltroExtra('imovelBairro', valor); };
+  window.analise360ClicarImovelCidade = function(valor){ window.analise360SetFiltroExtra('imovelCidade', valor); };
+  window.analise360ClicarImovelTipo = function(valor){ window.analise360SetFiltroExtra('imovelTipo', valor); };
+  window.analise360ClicarImovelFinalidade = function(valor){ window.analise360SetFiltroExtra('imovelFinalidade', valor); };
 
   window.analise360LimparFiltroExtra = function(campo){
     window.__npcA360Filtro = window.__npcA360Filtro || {};
@@ -15376,6 +15750,10 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(opts.filtroExtra.midia) chips.push({label:'Mídia: '+opts.filtroExtra.midia, onclick:opts.limparCampoFn+"('midia')"});
     if(opts.filtroExtra.etapa) chips.push({label:'Etapa: '+opts.filtroExtra.etapa, onclick:opts.limparCampoFn+"('etapa')"});
     if(opts.filtroExtra.tipo) chips.push({label:'Tipo: '+opts.filtroExtra.tipo, onclick:opts.limparCampoFn+"('tipo')"});
+    if(opts.filtroExtra.imovelBairro) chips.push({label:'Bairro: '+opts.filtroExtra.imovelBairro, onclick:opts.limparCampoFn+"('imovelBairro')"});
+    if(opts.filtroExtra.imovelCidade) chips.push({label:'Cidade: '+opts.filtroExtra.imovelCidade, onclick:opts.limparCampoFn+"('imovelCidade')"});
+    if(opts.filtroExtra.imovelTipo) chips.push({label:'Tipo do imóvel: '+opts.filtroExtra.imovelTipo, onclick:opts.limparCampoFn+"('imovelTipo')"});
+    if(opts.filtroExtra.imovelFinalidade) chips.push({label:'Finalidade: '+opts.filtroExtra.imovelFinalidade, onclick:opts.limparCampoFn+"('imovelFinalidade')"});
     if(!chips.length) return '';
     return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
       + '<span style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#8a8f99">Filtros ativos:</span>'
@@ -15412,6 +15790,16 @@ body:has(#login:not(.hidden)) #app.hidden{
   ];
 
   function analise360Render(){
+    var box0 = document.getElementById('a360Resultados');
+    var estadoFs = window.__npcA360FirestoreEstado;
+    if(estadoFs.carregando){
+      if(box0) box0.innerHTML = '<div class="empty">Carregando dados da Análise 360°...</div>';
+      return;
+    }
+    if(estadoFs.erro){
+      if(box0) box0.innerHTML = '<div class="empty">✗ Não foi possível carregar os dados do Firestore: '+esc(estadoFs.erro.message||String(estadoFs.erro))+'. <button type="button" onclick="window.__npcA360FirestoreEstado.erro=null; garantirCarregamentoFirestore(function(){ analise360Render(); });" style="margin-left:8px">Tentar de novo</button></div>';
+      return;
+    }
     var store = ensureStore();
     var negociacoesVenda = (store.negociacoes || []).filter(function(r){ return !tipoEhLocacao(r.tipo); });
     var box = document.getElementById('a360Resultados');
@@ -15495,9 +15883,9 @@ body:has(#login:not(.hidden)) #app.hidden{
 
     var neg = agregarNegociacoes(negLinhas);
     var av = agregarAtendimentos(avLinhas);
-    var iaVazio = {total:0,porTipo:{},porCidade:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
+    var iaVazio = {total:0,porTipo:{},porCidade:{},porBairro:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
     var iaBruto = store.imoveisAtivos || null;
-    var ia = iaBruto ? (iaBruto.venda || iaBruto.geral || iaBruto) : iaVazio;
+    var ia = (iaBruto && Array.isArray(iaBruto.linhas)) ? agregarImoveisLinhas(iaBruto.linhas, 'venda', filtroExtra) : (iaBruto ? (iaBruto.venda || iaBruto.geral || iaBruto) : iaVazio);
     var totalAtendimentos = av.total||0;
     var atendimentosPorCorretor = av.porCorretor;
 
@@ -15560,8 +15948,9 @@ body:has(#login:not(.hidden)) #app.hidden{
         + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis na Carteira (Venda)</div><div class="v">'+ia.total+'</div><p class="sub">Portfólio ativo</p></div>'
         + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Venda</div><div class="v">'+moneyCompact(ia.ticketMedioVenda)+'</div><p class="sub">&nbsp;</p></div>';
       conteudo = '<div class="grid cols2" style="margin-bottom:18px">'+kpisCa+'</div>'
-        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10))+barraLista('Carteira por Cidade', topN(ia.porCidade,10))+'</div>'
-        + '<div class="grid cols1">'+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6))+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10), null, filtroExtra.imovelTipo, 'analise360ClicarImovelTipo')+barraLista('Carteira por Cidade', topN(ia.porCidade,10), null, filtroExtra.imovelCidade, 'analise360ClicarImovelCidade')+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Bairro', topN(ia.porBairro,10), null, filtroExtra.imovelBairro, 'analise360ClicarImovelBairro')+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6), null, filtroExtra.imovelFinalidade, 'analise360ClicarImovelFinalidade')+'</div>'
+        + ((iaBruto && !Array.isArray(iaBruto.linhas)) ? '<p class="sub" style="margin-top:10px">Para poder clicar no bairro e filtrar a carteira, reenvie a planilha de Imóveis Ativos na tela "Importar Análise 360°" (os dados enviados anteriormente ainda não têm essa informação salva).</p>' : '')
         + (corretorAtivo ? '<p class="sub" style="margin-top:10px">A carteira de imóveis não é filtrada por corretor (não há essa relação nos dados de origem).</p>' : '');
     } else {
       var taxaConversaoGeral = av.total ? (neg.total/av.total*100) : null;
@@ -15636,6 +16025,16 @@ body:has(#login:not(.hidden)) #app.hidden{
   ];
 
   function analise360RenderLocacao(){
+    var box0 = document.getElementById('a360LocResultados');
+    var estadoFsLoc = window.__npcA360FirestoreEstado;
+    if(estadoFsLoc.carregando){
+      if(box0) box0.innerHTML = '<div class="empty">Carregando dados da Análise 360°...</div>';
+      return;
+    }
+    if(estadoFsLoc.erro){
+      if(box0) box0.innerHTML = '<div class="empty">✗ Não foi possível carregar os dados do Firestore: '+esc(estadoFsLoc.erro.message||String(estadoFsLoc.erro))+'. <button type="button" onclick="window.__npcA360FirestoreEstado.erro=null; garantirCarregamentoFirestore(function(){ analise360RenderLocacao(); });" style="margin-left:8px">Tentar de novo</button></div>';
+      return;
+    }
     var store = ensureStore();
     var negociacoesLocacao = (store.negociacoes || []).filter(function(r){ return tipoEhLocacao(r.tipo); });
     var box = document.getElementById('a360LocResultados');
@@ -15712,9 +16111,9 @@ body:has(#login:not(.hidden)) #app.hidden{
 
     var neg = agregarNegociacoes(negLinhas);
     var al = agregarAtendimentos(alLinhas);
-    var iaVazio = {total:0,porTipo:{},porCidade:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
+    var iaVazio = {total:0,porTipo:{},porCidade:{},porBairro:{},porFinalidade:{},ticketMedioVenda:0,ticketMedioLocacao:0};
     var iaBruto = store.imoveisAtivos || null;
-    var ia = iaBruto ? (iaBruto.locacao || iaBruto.geral || iaBruto) : iaVazio;
+    var ia = (iaBruto && Array.isArray(iaBruto.linhas)) ? agregarImoveisLinhas(iaBruto.linhas, 'locacao', filtroExtra) : (iaBruto ? (iaBruto.locacao || iaBruto.geral || iaBruto) : iaVazio);
     var totalAtendimentos = al.total||0;
     var atendimentosPorCorretor = al.porCorretor;
 
@@ -15776,8 +16175,9 @@ body:has(#login:not(.hidden)) #app.hidden{
         + '<div class="card kpi" style="text-align:center"><div class="l">Imóveis na Carteira (Locação)</div><div class="v">'+ia.total+'</div><p class="sub">Portfólio ativo</p></div>'
         + '<div class="card kpi" style="text-align:center"><div class="l">Ticket Médio Locação</div><div class="v">'+moneyCompact(ia.ticketMedioLocacao)+'</div><p class="sub">&nbsp;</p></div>';
       conteudo = '<div class="grid cols2" style="margin-bottom:18px">'+kpisCa+'</div>'
-        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10))+barraLista('Carteira por Cidade', topN(ia.porCidade,10))+'</div>'
-        + '<div class="grid cols1">'+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6))+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Tipo', topN(ia.porTipo,10), null, filtroExtra.imovelTipo, 'analise360ClicarImovelTipoLocacao')+barraLista('Carteira por Cidade', topN(ia.porCidade,10), null, filtroExtra.imovelCidade, 'analise360ClicarImovelCidadeLocacao')+'</div>'
+        + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Bairro', topN(ia.porBairro,10), null, filtroExtra.imovelBairro, 'analise360ClicarImovelBairroLocacao')+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6), null, filtroExtra.imovelFinalidade, 'analise360ClicarImovelFinalidadeLocacao')+'</div>'
+        + ((iaBruto && !Array.isArray(iaBruto.linhas)) ? '<p class="sub" style="margin-top:10px">Para poder clicar no bairro e filtrar a carteira, reenvie a planilha de Imóveis Ativos na tela "Importar Análise 360°" (os dados enviados anteriormente ainda não têm essa informação salva).</p>' : '')
         + (corretorAtivo ? '<p class="sub" style="margin-top:10px">A carteira de imóveis não é filtrada por corretor (não há essa relação nos dados de origem).</p>' : '');
     } else {
       var taxaConversaoGeral = al.total ? (neg.total/al.total*100) : null;
@@ -15896,6 +16296,10 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.analise360ClicarMidiaLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('midia', valor); };
   window.analise360ClicarEtapaLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('etapa', valor); };
   window.analise360ClicarTipoLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('tipo', valor); };
+  window.analise360ClicarImovelBairroLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('imovelBairro', valor); };
+  window.analise360ClicarImovelCidadeLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('imovelCidade', valor); };
+  window.analise360ClicarImovelTipoLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('imovelTipo', valor); };
+  window.analise360ClicarImovelFinalidadeLocacao = function(valor){ window.analise360SetFiltroExtraLocacao('imovelFinalidade', valor); };
 
   window.analise360LimparFiltroExtraLocacao = function(campo){
     window.__npcA360FiltroLocacao = window.__npcA360FiltroLocacao || {};
@@ -15934,6 +16338,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       c.innerHTML = '<div class="empty">Você não possui permissão para acessar a Análise 360° - Locação.</div>';
       return;
     }
+    garantirCarregamentoFirestore(function(){ if(typeof analise360RenderLocacao==='function') analise360RenderLocacao(); });
     if(document.getElementById('a360LocDe')){
       analise360RenderLocacao();
       return;
@@ -16003,6 +16408,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       c.innerHTML = '<div class="empty">Você não possui permissão para acessar a Análise 360°.</div>';
       return;
     }
+    garantirCarregamentoFirestore(function(){ if(typeof analise360Render==='function') analise360Render(); });
     /* já estamos nesta mesma tela (algo chamou render_analise360 de novo sem o
        usuário navegar pra cá — por exemplo, o sistema que atualiza os dados a
        cada clique na página) — nesse caso só atualiza os resultados, sem
@@ -19800,14 +20206,23 @@ body:has(#login:not(.hidden)) #app.hidden{
     try{
       var el = document.getElementById('npcSyncStatus');
       if(!el) return;
+      /* A Análise 360° migrou do Realtime Database para o Firestore; a fonte
+         mais atual de atualizadoEm/atualizadoPor agora é o "cofre" em memória
+         (window.__npcA360Store), populado tanto pelo carregamento assíncrono
+         quanto por um envio de planilha recém-concluído. Mantemos o fallback
+         para o Realtime Database (dbRef().analise360) só por segurança, caso
+         o Firestore ainda não tenha carregado nesta aba. */
+      var a360Fs = window.__npcA360Store || {};
       var d = dbRef();
-      var a360 = (d && d.analise360) || {};
+      var a360Rtdb = (d && d.analise360) || {};
+      var a360 = a360Fs.atualizadoEm ? a360Fs : a360Rtdb;
       if(!a360.atualizadoEm){ el.textContent = ''; return; }
       var texto = 'Dados sincronizados em ' + npcFormatarDataHoraSimples(a360.atualizadoEm);
       if(a360.atualizadoPor) texto += ' por ' + a360.atualizadoPor;
       el.textContent = texto;
     }catch(e){}
   }
+  window.npcAtualizarIndicadorSincronizacao = npcAtualizarIndicadorSincronizacao;
   (function(){
     if(window.__npcSyncStatusInstalled) return;
     window.__npcSyncStatusInstalled = true;
