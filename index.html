@@ -843,7 +843,7 @@ window.ensurePaymentConditions = function(card){
   document.head.appendChild(st);
   function uid(){return current?.id||current?.email||'';}
   function canManage(){return !!(current&&(current.perms?.admin===true||current.perms?.performance_admin===true||current.perms?.usuarios_gerenciar===true));}
-  function canUse(){return !!(current&&(canManage()||current.perms?.performance_base===true||current.perms?.performance_dashboard===true||current.perms?.performance_ranking===true));}
+  function canUse(){return !!(current&&(canManage()||current.perms?.performance_base===true||current.perms?.analise360_ver===true||current.perms?.performance_ranking===true));}
   function e(s){return typeof escape==='function'?escape(s??''):String(s??'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
   function a(s){return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function ensure(){
@@ -1042,7 +1042,7 @@ function forceLogoutOnPageClose(){
 }
 window.addEventListener('pagehide', forceLogoutOnPageClose);
 window.addEventListener('beforeunload', forceLogoutOnPageClose);
-const PERMS={dashboard:'Dashboard',institucional:'Institucional',comunicados_ver:'Ver comunicados',comunicados_gerenciar:'Gerenciar comunicados',agenda_ver:'Ver agenda',agenda_gerenciar:'Gerenciar agenda',aniversariantes_ver:'Ver aniversariantes',aniversariantes_gerenciar:'Gerenciar aniversariantes',treinamentos_ver:'Ver treinamentos',treinamentos_gerenciar:'Gerenciar treinamentos',biblioteca_ver:'Ver biblioteca NPC',playbook_ver:'Ver playbook',processos_ver:'Ver processos',metas_ver:'Ver metas e KPIs',vendas_ver:'Ver conteúdos de vendas',locacao_ver:'Ver conteúdos de locação',captacao_ver:'Ver conteúdos de captação',marketing_ver:'Ver marketing',juridico_ver:'Ver jurídico',performance_dashboard:'Performance: dashboard',performance_base:'Performance: base de dados',performance_ranking:'Performance: ranking',performance_admin:'Performance: visão gerencial',usuarios_gerenciar:'Gerenciar usuários',reconhecimentos_gerenciar:'Lançar novo reconhecimento',configuracoes:'Configurações'};
+const PERMS={dashboard:'Dashboard',institucional:'Institucional',comunicados_ver:'Ver comunicados',comunicados_gerenciar:'Gerenciar comunicados',agenda_ver:'Ver agenda',agenda_gerenciar:'Gerenciar agenda',aniversariantes_ver:'Ver aniversariantes',aniversariantes_gerenciar:'Gerenciar aniversariantes',treinamentos_ver:'Ver treinamentos',treinamentos_gerenciar:'Gerenciar treinamentos',biblioteca_ver:'Ver biblioteca NPC',playbook_ver:'Ver playbook',processos_ver:'Ver processos',metas_ver:'Ver metas e KPIs',vendas_ver:'Ver conteúdos de vendas',locacao_ver:'Ver conteúdos de locação',captacao_ver:'Ver conteúdos de captação',marketing_ver:'Ver marketing',juridico_ver:'Ver jurídico',performance_base:'Performance: base de dados',performance_ranking:'Performance: ranking',performance_admin:'Performance: visão gerencial',usuarios_gerenciar:'Gerenciar usuários',reconhecimentos_gerenciar:'Lançar novo reconhecimento',configuracoes:'Configurações'};
 const adminPerms=Object.fromEntries(Object.keys(PERMS).map(k=>[k,true]));
 const trainingModules=[
 {id:'visao',area:'Base',title:'Visão geral do treinamento',time:'25 min',level:'Essencial',target:'Todos',summary:'Entenda o objetivo do método, quem participa da operação e o resultado esperado.',objective:'Criar uma base única de execução para que todos entendam o mesmo método, os mesmos prazos e os mesmos indicadores.',blocks:[['Público-alvo',['Corretores: atendimento, visita, proposta e fechamento.','SDV: pré-atendimento, qualificação, fila, Kommo e supervisão do CRM.','Captadores: mapeamento, contato com proprietários, ligações e captações.','Gestores: indicadores, bloqueios, reconhecimento e correção de desvios.']],['Resultados esperados',['Aumentar velocidade de atendimento aos leads.','Reduzir perda por falta de retorno, registro ou follow-up.','Aumentar visitas, propostas, captações e vendas com previsibilidade.','Fazer a operação funcionar por processo, não por improviso.']]],checklist:['Sei explicar o objetivo do treinamento.','Entendo qual é a minha responsabilidade na engrenagem.','Consigo diferenciar processo, indicador e resultado.'],quiz:['Qual é o objetivo principal do treinamento?','Quais áreas participam do processo comercial?','O que muda quando a operação passa a trabalhar por método?']},
@@ -1119,7 +1119,7 @@ function save(){
     firebaseDb.ref('/').update(updates).catch(e=>toast('Erro ao salvar: '+e.message));
   }
 }
-function ensurePerformanceDb(){if(!db.performanceRecords)db.performanceRecords={}; db.users.forEach(u=>{if(!u.perms)u.perms={}; if(u.id==='u1'){['performance_dashboard','performance_base','performance_ranking'].forEach(k=>u.perms[k]=true)} }); save()}
+function ensurePerformanceDb(){if(!db.performanceRecords)db.performanceRecords={}; db.users.forEach(u=>{if(!u.perms)u.perms={}; if(u.id==='u1'){['analise360_ver','performance_base','performance_ranking'].forEach(k=>u.perms[k]=true)} }); save()}
 ensurePerformanceDb(); function has(p){return current&&current.perms&&current.perms[p]} function escape(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function toast(t,type='ok'){
   const el=$('toast');
@@ -1232,7 +1232,7 @@ firebaseAuth.onAuthStateChanged(async user=>{
   }
 });
 function toggleSide(){$('side').classList.toggle('open')}
-const pages=[['Geral','dashboard','Dashboard','◼','dashboard'],['Geral','institucional','Institucional','⌂','institucional'],['Comunicação','comunicados','Comunicados','●','comunicados_ver'],['Comunicação','agenda','Agenda','◷','agenda_ver'],['Comunicação','aniversariantes','Aniversariantes','★','aniversariantes_ver'],['Capacitação','treinamentos','Treinamentos','▣','treinamentos_ver'],['Capacitação','playbook','Playbook','▤','playbook_ver'],['Capacitação','processos','Processos','↻','processos_ver'],['Gestão','metas','Metas e KPIs','','metas_ver'],['Vendas','perf_gerencial','Visão Gerencial','','performance_admin'],['Vendas','perf_dashboard','Dashboard','','performance_dashboard'],['Vendas','perf_base','Registros Realizados','','performance_base'],['Vendas','perf_ranking','Ranking','','performance_ranking'],['Áreas','vendas','Vendas','◆','vendas_ver'],['Áreas','locacao','Locação','◇','locacao_ver'],['Áreas','captacao','Captação','◎','captacao_ver'],['Áreas','marketing','Marketing','✺','marketing_ver'],['Áreas','juridico','Jurídico','⚖','juridico_ver'],['Biblioteca','biblioteca','Biblioteca NPC','▦','biblioteca_ver'],['Administração','usuarios','Usuários','⚙','usuarios_gerenciar'],['Administração','config','Configurações','☷','configuracoes']];
+const pages=[['Geral','dashboard','Dashboard','◼','dashboard'],['Geral','institucional','Institucional','⌂','institucional'],['Comunicação','comunicados','Comunicados','●','comunicados_ver'],['Comunicação','agenda','Agenda','◷','agenda_ver'],['Comunicação','aniversariantes','Aniversariantes','★','aniversariantes_ver'],['Capacitação','treinamentos','Treinamentos','▣','treinamentos_ver'],['Capacitação','playbook','Playbook','▤','playbook_ver'],['Capacitação','processos','Processos','↻','processos_ver'],['Gestão','metas','Metas e KPIs','','metas_ver'],['Vendas','perf_gerencial','Visão Gerencial','','performance_admin'],['Vendas','perf_base','Registros Realizados','','performance_base'],['Vendas','perf_ranking','Ranking','','performance_ranking'],['Áreas','vendas','Vendas','◆','vendas_ver'],['Áreas','locacao','Locação','◇','locacao_ver'],['Áreas','captacao','Captação','◎','captacao_ver'],['Áreas','marketing','Marketing','✺','marketing_ver'],['Áreas','juridico','Jurídico','⚖','juridico_ver'],['Biblioteca','biblioteca','Biblioteca NPC','▦','biblioteca_ver'],['Administração','usuarios','Usuários','⚙','usuarios_gerenciar'],['Administração','config','Configurações','☷','configuracoes']];
 function buildNav(){let last='',insidePerf=false,out='';pages.filter(x=>has(x[4])).forEach(x=>{if(x[0]!==last){if(insidePerf){out+='</div>';insidePerf=false}last=x[0];out+=`<div class="nav-title">${x[0]}</div>`}out+=`<button id="nav_${x[1]}" onclick="go('${x[1]}')"><span>${x[3]}</span>${x[2]}</button>`});if(insidePerf)out+='</div>';$('nav').innerHTML=out}
 window.render=function(){try{const p=window.page||page;const fn=window.renders&&window.renders[p]||renders&&renders[p];if(typeof fn==='function')fn();}catch(e){console.warn('render() error:',e);}};
 function go(id){page=id; document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active')); const nb=$('nav_'+id); if(nb)nb.classList.add('active'); const label=pages.find(x=>x[1]===id)?.[2]||'Página'; $('crumb').textContent='Intranet / '+label; $('pageTitle').textContent=label; $('side').classList.remove('open'); (renders[id]||render_dashboard)()}
@@ -1476,10 +1476,10 @@ function saveUserEdit(id){
 }
 function savePerms(id){saveUserEdit(id)}
 function applyProfile(id){openModal('Perfil rápido',`<div class="grid cols2"><button class="primary" onclick="setProfile('${id}','admin')">Administrador</button><button class="primary" onclick="setProfile('${id}','vendas')">Vendas</button><button class="primary" onclick="setProfile('${id}','locacao')">Locação</button><button class="primary" onclick="setProfile('${id}','conteudo')">Conteúdo/Treinamentos</button></div>`)}
-function setProfile(id,p){const u=db.users.find(x=>x.id===id),base={dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,performance_dashboard:true,performance_base:true,performance_ranking:true};const ps={admin:adminPerms,vendas:{...base,playbook_ver:true,processos_ver:true,metas_ver:true,vendas_ver:true,captacao_ver:true,performance_dashboard:true,performance_base:true,performance_ranking:true},locacao:{...base,playbook_ver:true,processos_ver:true,metas_ver:true,locacao_ver:true,captacao_ver:true,performance_dashboard:true,performance_base:true,performance_ranking:true},conteudo:{...base,treinamentos_gerenciar:true,playbook_ver:true,processos_ver:true,marketing_ver:true,performance_dashboard:true,performance_ranking:true}};u.perms=ps[p];save();closeModal();render_usuarios();buildNav();toast('Perfil rápido aplicado ao usuário.')}
+function setProfile(id,p){const u=db.users.find(x=>x.id===id),base={dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,analise360_ver:true,performance_base:true,performance_ranking:true};const ps={admin:adminPerms,vendas:{...base,playbook_ver:true,processos_ver:true,metas_ver:true,vendas_ver:true,captacao_ver:true,analise360_ver:true,performance_base:true,performance_ranking:true},locacao:{...base,playbook_ver:true,processos_ver:true,metas_ver:true,locacao_ver:true,captacao_ver:true,analise360_ver:true,performance_base:true,performance_ranking:true},conteudo:{...base,treinamentos_gerenciar:true,playbook_ver:true,processos_ver:true,marketing_ver:true,analise360_ver:true,performance_ranking:true}};u.perms=ps[p];save();closeModal();render_usuarios();buildNav();toast('Perfil rápido aplicado ao usuário.')}
 
 function defaultUserPerms(role){
-  const base={dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,playbook_ver:true,processos_ver:true,metas_ver:true,performance_dashboard:true,performance_base:true,performance_ranking:true};
+  const base={dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,playbook_ver:true,processos_ver:true,metas_ver:true,analise360_ver:true,performance_base:true,performance_ranking:true};
   const r=(role||'').toLowerCase();
   if(r.includes('captador')) return {...base,captacao_ver:true};
   if(r.includes('loca')) return {...base,locacao_ver:true,captacao_ver:true};
@@ -1775,7 +1775,7 @@ function getUserPendencias(uid=current.id){
   const pendTrain=trainingPendingCount(uid);
   if(pendTrain)items.push({type:'treinamento',level:'warn',title:`${pendTrain} treinamento(s) pendente(s)`,desc:'Continue sua trilha de capacitação e registre conclusão dos módulos.',action:'go(\'treinamentos\')',btn:'Ver treinamentos'});
   const perf=calcPerf(uid,monthISO());
-  if(perf.score<80)items.push({type:'score',level:'warn',title:`Performance abaixo de 80% (${perf.score}%)`,desc:'Revise o plano de ação e priorize os indicadores críticos.',action:'go(\'perf_dashboard\')',btn:'Ver plano'});
+  if(perf.score<80)items.push({type:'score',level:'warn',title:`Performance abaixo de 80% (${perf.score}%)`,desc:'Revise o plano de ação e priorize os indicadores críticos.',action:'irParaPerformance360()',btn:'Ver plano'});
   const agenda=getAgendaHoje();
   if(agenda.length)items.push({type:'agenda',level:'ok',title:`${agenda.length} evento(s)/rotina(s) para hoje`,desc:agenda.map(a=>a.title||a.desc).join(', '),action:'go(\'agenda\')',btn:'Abrir agenda'});
   if(!items.length)items.push({type:'ok',level:'ok',title:'Tudo em dia por enquanto',desc:'Sem pendências automáticas para hoje. Mantenha a rotina.',action:'go(\'dashboard\')',btn:'Ir ao painel'});
@@ -1829,7 +1829,7 @@ function render_radar(){
   const abaixo=users.map(u=>({u,p:calcPerf(u.id,monthISO())})).filter(x=>x.p.score<80).sort((a,b)=>a.p.score-b.p.score);
   const pendCom=users.map(u=>({u,n:unreadComunicados(u.id).length})).filter(x=>x.n>0);
   const pendTreino=users.map(u=>({u,n:trainingPendingCount(u.id)})).filter(x=>x.n>0);
-  $('content').innerHTML=`<div class="section"><div><h2>Radar da Equipe</h2><p>Visão diária para gestão: registros, ciência, treinamentos e performance.</p></div><button class="secondary" onclick="go('modo_reuniao')">Modo reunião</button></div><div class="grid cols4"><div class="card kpi"><div class="l">Sem registro hoje</div><div class="v">${semRegistro.length}</div><p>colaboradores</p></div><div class="card kpi"><div class="l">Abaixo de 80%</div><div class="v">${abaixo.length}</div><p>performance</p></div><div class="card kpi"><div class="l">Sem ciência</div><div class="v">${pendCom.length}</div><p>comunicados</p></div><div class="card kpi"><div class="l">Treinamento pendente</div><div class="v">${pendTreino.length}</div><p>colaboradores</p></div></div><div style="height:18px"></div><div class="grid cols2"><div class="card pad radar-alert"><h3>Sem registro diário</h3>${radarList(semRegistro.map(u=>({name:u.name,desc:u.role,action:`go('perf_gerencial')`})))}</div><div class="card pad radar-alert"><h3>Abaixo de 80%</h3>${radarList(abaixo.map(x=>({name:x.u.name,desc:`${x.p.score}% · ${perfStatus(x.p.score).text}`,action:`window.radarDashUser='${x.u.id}';go('perf_dashboard')`})))}</div><div class="card pad"><h3>Comunicados sem ciência</h3>${radarList(pendCom.map(x=>({name:x.u.name,desc:`${x.n} pendente(s)`,action:`go('comunicados')`})))}</div><div class="card pad"><h3>Treinamentos pendentes</h3>${radarList(pendTreino.map(x=>({name:x.u.name,desc:`${x.n} módulo(s)`,action:`go('treinamentos')`})))}</div></div>`;
+  $('content').innerHTML=`<div class="section"><div><h2>Radar da Equipe</h2><p>Visão diária para gestão: registros, ciência, treinamentos e performance.</p></div><button class="secondary" onclick="go('modo_reuniao')">Modo reunião</button></div><div class="grid cols4"><div class="card kpi"><div class="l">Sem registro hoje</div><div class="v">${semRegistro.length}</div><p>colaboradores</p></div><div class="card kpi"><div class="l">Abaixo de 80%</div><div class="v">${abaixo.length}</div><p>performance</p></div><div class="card kpi"><div class="l">Sem ciência</div><div class="v">${pendCom.length}</div><p>comunicados</p></div><div class="card kpi"><div class="l">Treinamento pendente</div><div class="v">${pendTreino.length}</div><p>colaboradores</p></div></div><div style="height:18px"></div><div class="grid cols2"><div class="card pad radar-alert"><h3>Sem registro diário</h3>${radarList(semRegistro.map(u=>({name:u.name,desc:u.role,action:`go('perf_gerencial')`})))}</div><div class="card pad radar-alert"><h3>Abaixo de 80%</h3>${radarList(abaixo.map(x=>({name:x.u.name,desc:`${x.p.score}% · ${perfStatus(x.p.score).text}`,action:`irParaPerformance360('${x.u.id}')`})))}</div><div class="card pad"><h3>Comunicados sem ciência</h3>${radarList(pendCom.map(x=>({name:x.u.name,desc:`${x.n} pendente(s)`,action:`go('comunicados')`})))}</div><div class="card pad"><h3>Treinamentos pendentes</h3>${radarList(pendTreino.map(x=>({name:x.u.name,desc:`${x.n} módulo(s)`,action:`go('treinamentos')`})))}</div></div>`;
 }
 function radarList(items){
   if(!items.length)return '<p class="sub">Nada pendente neste bloco.</p>';
@@ -2021,6 +2021,29 @@ function completeLoginLoad(){
     setTimeout(()=>maybeShowRecognitionPopups(),1200);
   }
 }
+/* ====== PATCH: migração única — quem tinha "performance_dashboard" (Dashboard
+   de Performance, agora unificado na aba "Performance" da Análise 360°) passa a
+   ter "analise360_ver" também, pra ninguém perder acesso ao próprio dashboard ====== */
+(function(){
+  if(window.__npcMigrarAnalise360Ver) return;
+  window.__npcMigrarAnalise360Ver = true;
+  var oldCompleteLoginLoad = window.completeLoginLoad || completeLoginLoad;
+  window.completeLoginLoad = function(){
+    var ret = oldCompleteLoginLoad.apply(this, arguments);
+    try{
+      var mudou = false;
+      (db.users||[]).forEach(function(u){
+        if(u && u.perms && u.perms.performance_dashboard === true && u.perms.analise360_ver !== true){
+          u.perms.analise360_ver = true;
+          mudou = true;
+        }
+      });
+      if(mudou) save();
+    }catch(e){ console.error('[Migração] Erro ao migrar performance_dashboard -> analise360_ver:', e); }
+    return ret;
+  };
+  try{ completeLoginLoad = window.completeLoginLoad; }catch(e){}
+})();
 function savePerfForm(){
   const requested=$('perfUser')?.value||current.id,uid=perfAllowedUid(requested),date=$('perfDate').value||todayISO(),month=date.slice(0,7),day=date.slice(8,10),goals=perfGoals(uid),obj={obs:$('pf_obs').value};
   Object.keys(goals).forEach(k=>obj[k]=Number($('pf_'+k).value||0));
@@ -2390,7 +2413,7 @@ function render_dashboard_gestao(){
 
 /* ===== PATCH V34: Hoje na NPC por permissão, modo reunião e usuários ===== */
 function npcCanAccessPerformance(){
-  return !!(has('performance_base')||has('performance_dashboard')||has('performance_ranking')||has('performance_admin'));
+  return !!(has('performance_base')||has('analise360_ver')||has('performance_ranking')||has('performance_admin'));
 }
 function npcCanAccessLeads(){
   return !!(has('leads_ver')||has('leads_registros')||has('leads_cadastrar')||has('leads_dashboard')||has('leads_gerenciar_filas'));
@@ -2613,7 +2636,6 @@ function permissionGroups(){
     ]},
     {id:'performance',title:'Vendas',desc:'Lançamentos, dashboards e ranking de performance.',items:[
       ['performance_admin','Visão gerencial','Permite ver dados consolidados da equipe.'],
-      ['performance_dashboard','Dashboard individual','Permite ver dashboard de performance.'],
       ['performance_base','Registros realizados','Permite consultar e lançar registros próprios/autorizados.'],
       ['performance_leads_distribuidos','Leads distribuídos','Permite consultar o item Leads Distribuídos no menu Performance.'],
       ['performance_ranking','Ranking de performance','Permite ver ranking.']
@@ -3895,7 +3917,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.defaultUserPerms=function(role){
     const r=norm(role);
     if(r==='administrador') return fullPerms();
-    let p=baseDefault?baseDefault(role):{dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,playbook_ver:true,processos_ver:true,performance_dashboard:true,performance_base:true};
+    let p=baseDefault?baseDefault(role):{dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,playbook_ver:true,processos_ver:true,analise360_ver:true,performance_base:true};
     p={...p};
     ADMIN_ONLY_FULL_KEYS.forEach(k=>delete p[k]);
     p.admin=false;
@@ -4269,7 +4291,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   function kanbanIsAdmin(){return !!(current&&(current.perms?.view_all_users===true||current.permissoes?.view_all_users===true||current.perms?.admin===true||current.role==='Administrador'||current.role==='admin'||current.perms?.performance_admin===true||current.perms?.usuarios_gerenciar===true));}
   function kanbanCanManage(){return !!(current&&(current.perms?.performance_kanban_gestao===true||current.perms?.admin===true));}
-  function kanbanCanUse(){return !!(current&&(kanbanCanManage()||current.perms?.performance_kanban===true||current.perms?.performance_base===true||current.perms?.performance_dashboard===true||current.perms?.performance_ranking===true));}
+  function kanbanCanUse(){return !!(current&&(kanbanCanManage()||current.perms?.performance_kanban===true||current.perms?.performance_base===true||current.perms?.analise360_ver===true||current.perms?.performance_ranking===true));}
   function userKeys(){return [current?.id,current?.email,current?.user].filter(Boolean).map(String);}
   function userDisplayByKey(key){key=String(key||''); const u=(db.users||[]).find(x=>[x.id,x.email,x.user].filter(Boolean).map(String).includes(key)); return u?(u.name||u.email||u.user||key):key;}
   function cardCreatorLabel(c){return c?.createdByName||userDisplayByKey(c?.createdBy||c?.ownerId||c?.createdByEmail)||'Não informado';}
@@ -4756,7 +4778,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   [
     ['render_institucional','institucional'],['render_comunicados','comunicados_ver'],['render_agenda','agenda_ver'],['render_aniversariantes','aniversariantes_ver'],
     ['render_treinamentos','treinamentos_ver'],['render_playbook','playbook_ver'],['render_processos','processos_ver'],['render_metas','metas_ver'],['render_biblioteca','biblioteca_ver'],
-    ['render_perf_gerencial','performance_admin'],['render_perf_dashboard','performance_dashboard'],['render_perf_base','performance_base'],['render_perf_ranking','performance_ranking'],
+    ['render_perf_gerencial','performance_admin'],['render_perf_base','performance_base'],['render_perf_ranking','performance_ranking'],
     ['render_leads_registros','leads_registros'],['render_leads_dashboard','leads_dashboard'],['render_leads_filas','leads_gerenciar_filas'],
     ['render_config','configuracoes'],['render_reconhecimentos','reconhecimentos_ver'],['render_radar','radar_equipe'],['render_modo_reuniao','modo_reuniao'],['render_auditoria','auditoria'],
     ['render_chamados','chamados_ver'],['render_chamados_dashboard','chamados_dashboard'],['render_perf_kanban','performance_kanban'],['render_perf_kanban_gestao','performance_kanban_gestao']
@@ -6208,7 +6230,7 @@ body:has(#login:not(.hidden)) #app.hidden{
       {id:'comunicacao',title:'Comunicação',items:[['comunicados_ver','Ver comunicados','Permite consultar comunicados.'],['comunicados_gerenciar','Gerenciar comunicados','Permite criar e editar comunicados.'],['agenda_ver','Ver agenda','Permite consultar agenda.'],['agenda_gerenciar','Gerenciar agenda','Permite criar e editar eventos.'],['aniversariantes_ver','Ver aniversariantes','Permite consultar aniversariantes.'],['aniversariantes_gerenciar','Gerenciar aniversariantes','Permite editar aniversariantes.']]},
       {id:'capacitacao',title:'Capacitação',items:[['treinamentos_ver','Ver treinamentos','Permite acessar treinamentos.'],['treinamentos_gerenciar','Gerenciar treinamentos','Permite editar treinamentos.'],['biblioteca_ver','Ver biblioteca NPC','Permite acessar biblioteca.'],['playbook_ver','Ver playbook','Permite acessar playbook.'],['processos_ver','Ver processos','Permite acessar processos.']]},
       {id:'gestao',title:'Gestão',items:[['metas_ver','Ver metas e KPIs','Permite acessar metas e indicadores.']]},
-      {id:'performance',title:'Vendas',items:[['performance_admin','Ver visão gerencial','Permite acessar visão gerencial respeitando escopo.'],['performance_dashboard','Ver dashboard de performance','Permite acessar dashboard de performance.'],['performance_base','Ver registros realizados','Permite lançar e consultar registros.'],['performance_ranking','Ver ranking','Permite acessar ranking.'],['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.'],['performance_kanban','Ver vendas','Permite acessar quadro de vendas.'],['performance_kanban_gestao','Gerenciar vendas','Permite configurar colunas/opções de vendas.']]},
+      {id:'performance',title:'Vendas',items:[['performance_admin','Ver visão gerencial','Permite acessar visão gerencial respeitando escopo.'],['performance_base','Ver registros realizados','Permite lançar e consultar registros.'],['performance_ranking','Ver ranking','Permite acessar ranking.'],['performance_visitas_analise','Ver Visitas','Pode ver, editar e excluir visitas lançadas na Análise de Visitas.'],['performance_kanban','Ver vendas','Permite acessar quadro de vendas.'],['performance_kanban_gestao','Gerenciar vendas','Permite configurar colunas/opções de vendas.']]},
       {id:'leads',title:'Leads',items:[['leads_ver','Ver módulo de leads','Libera o bloco Leads no menu.'],['leads_cadastrar','Cadastrar leads','Permite criar novo lead e acionar rodízio.'],['leads_consultar','Consultar registros de leads','Permite ver registros cadastrados.'],['leads_inativar','Inativar leads','Permite excluir/inativar registros.'],['leads_dashboard','Dashboard de leads','Permite ver gráficos e visão gerencial.'],['leads_filas_configurar','Configurações de Leads','Permite configurar filas de rodízio e origens dos leads.'],['leads_pular_corretor','Pular corretor','Permite pular corretor com justificativa.']]},
       {id:'chamados',title:'Chamados',items:[['chamados_ver','Ver chamados','Permite consultar chamados próprios/atribuídos.'],['chamados_gerenciar','Gerenciar chamados','Permite gerenciar chamados.']]},
       {id:'areas',title:'Áreas',items:[['vendas_ver','Ver conteúdos de vendas','Permite acessar área de vendas.'],['locacao_ver','Ver conteúdos de locação','Permite acessar área de locação.'],['captacao_ver','Ver conteúdos de captação','Permite acessar área de captação.'],['marketing_ver','Ver marketing','Permite acessar marketing.'],['juridico_ver','Ver jurídico','Permite acessar jurídico.']]},
@@ -7464,7 +7486,7 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   window.drawPerfLeadsDistribuidos = renderTable;
   window.render_perf_leads_distribuidos = function(){
-    if(!hasPerm(PAGE_PERM) && !hasPerm('performance_dashboard') && !hasPerm('performance_admin')){
+    if(!hasPerm(PAGE_PERM) && !hasPerm('analise360_ver') && !hasPerm('performance_admin')){
       var c = byId('content'); if(c) c.innerHTML = '<div class="empty">Você não possui permissão para acessar Leads Distribuídos.</div>';
       return;
     }
@@ -8757,7 +8779,6 @@ body:has(#login:not(.hidden)) #app.hidden{
     modo_reuniao:'modo_reuniao',
     auditoria:'auditoria',
     perf_gerencial:'performance_admin',
-    perf_dashboard:'performance_dashboard',
     perf_base:'performance_base',
     perf_leads_distribuidos:'performance_leads_distribuidos',
     perf_ranking:'performance_ranking',
@@ -8797,7 +8818,7 @@ body:has(#login:not(.hidden)) #app.hidden{
     modo_reuniao:['Ver Modo Reunião','Permite exibir o item Modo Reunião no menu lateral.'],
     auditoria:['Ver Auditoria','Permite exibir o item Auditoria no menu lateral.'],
     performance_admin:['Ver Visão Gerencial','Permite exibir o item Visão Gerencial no menu lateral.'],
-    performance_dashboard:['Ver Dashboard de Performance','Permite exibir o item Dashboard de Performance no menu lateral.'],
+    analise360_ver:['Ver Análise 360° - Vendas','Permite exibir o item Análise 360° - Vendas no menu lateral (inclui a aba Performance, com o dashboard individual).'],
     performance_base:['Ver Registros Realizados','Permite exibir o item Registros Realizados no menu lateral.'],
     performance_leads_distribuidos:['Ver Leads Distribuídos','Permite exibir o item Leads Distribuídos no menu lateral.'],
     performance_ranking:['Ver Ranking','Permite exibir o item Ranking no menu lateral.'],
@@ -11104,6 +11125,17 @@ body:has(#login:not(.hidden)) #app.hidden{
 
   try{ if(window.renders) window.renders.perf_dashboard = window.render_perf_dashboard; }catch(e){}
   try{ render_perf_dashboard = window.render_perf_dashboard; drawPerfDashboard = window.drawPerfDashboard; }catch(e){}
+
+  /* expõe os cálculos internos pra serem reaproveitados pela aba "Performance"
+     dentro da Análise 360° - Vendas (em vez de duplicar essa lógica) */
+  window.__npcPerfCalcDateRange = calcPerfDateRange;
+  window.__npcPerfAggregateDateRange = aggregatePerfDateRange;
+  window.__npcPerfUserList = perfUserList;
+  window.__npcPerfCanSeeAll = canSeeAll;
+  window.__npcPerfStatus = status;
+  window.__npcPerfMetricCards = metricCards;
+  window.__npcPerfUserById = userById;
+  window.__npcPerfAllowedUid = allowedUid;
 })();
 </script>
 
@@ -12988,7 +13020,7 @@ body:has(#login:not(.hidden)) #app.hidden{
   }
 
   function buildDefaultTypes(){
-    var base = {dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,playbook_ver:true,processos_ver:true,metas_ver:true,performance_dashboard:true,performance_base:true,performance_ranking:true,chamados_ver:true,chamados_abrir:true,reconhecimentos_ver:true};
+    var base = {dashboard:true,institucional:true,comunicados_ver:true,agenda_ver:true,aniversariantes_ver:true,biblioteca_ver:true,treinamentos_ver:true,playbook_ver:true,processos_ver:true,metas_ver:true,analise360_ver:true,performance_base:true,performance_ranking:true,chamados_ver:true,chamados_abrir:true,reconhecimentos_ver:true};
     var adminPerms = getAllPermKeys().reduce(function(o,k){ o[k]=true; return o; }, {});
     return {
       'Corretor':      Object.assign({},base,{vendas_ver:true,captacao_ver:true,leads_ver:true,leads_registros:true,performance_kanban:true}),
@@ -15286,6 +15318,21 @@ body:has(#login:not(.hidden)) #app.hidden{
     return { porCidade: porCidade, porBairro: porBairro, comInteresse: comInteresse,
       refsParseadas: refsParseadas, refsEncontradas: refsEncontradas, naoEncontrados: naoEncontrados };
   }
+  /* usada tanto pra montar o filtro clicável quanto pra aplicá-lo — campo é 'cidade' ou 'bairro' */
+  function atendimentoTemInteresseEm(r, campo, valorFiltro, mapaReferencias){
+    var refs = parseReferenciasInteresse(r.imoveisInteresse);
+    if(valorFiltro === A360_LABEL_IMOVEL_NAO_INFORMADO) return !refs.length;
+    if(!refs.length) return false;
+    var temInvalido = false;
+    var bate = refs.some(function(ref){
+      var achado = mapaReferencias[ref];
+      if(!achado){ temInvalido = true; return false; }
+      var chave = normalizarChave(achado[campo]) || '(Em branco)';
+      return chave === valorFiltro;
+    });
+    if(bate) return true;
+    return valorFiltro === A360_LABEL_IMOVEL_INVALIDO && temInvalido;
+  }
 
   function montarDiagnosticoImoveis(linhas){
     if(!linhas || !linhas.length) return '';
@@ -15772,6 +15819,23 @@ body:has(#login:not(.hidden)) #app.hidden{
   window.analise360ClicarImovelCidade = function(valor){ window.analise360SetFiltroExtra('imovelCidade', valor); };
   window.analise360ClicarImovelTipo = function(valor){ window.analise360SetFiltroExtra('imovelTipo', valor); };
   window.analise360ClicarImovelFinalidade = function(valor){ window.analise360SetFiltroExtra('imovelFinalidade', valor); };
+  window.analise360ClicarInteresseCidade = function(valor){ window.analise360SetFiltroExtra('interesseCidade', valor); };
+  window.analise360ClicarInteresseBairro = function(valor){ window.analise360SetFiltroExtra('interesseBairro', valor); };
+
+  /* usada por outras telas (Hoje na NPC, Radar da Equipe) pra abrir direto na
+     aba "Performance" da Análise 360° — substitui o antigo go('perf_dashboard') */
+  window.irParaPerformance360 = function(uid){
+    try{
+      if(uid){
+        var u = (db.users||[]).find(function(x){ return String(x.id) === String(uid); });
+        if(u && u.name){
+          window.__npcA360UltimoFiltro = Object.assign({}, window.__npcA360UltimoFiltro||{}, { corretor: normalizarChave(u.name) });
+        }
+      }
+    }catch(e){}
+    window.__npcA360Aba = 'performance';
+    if(typeof go === 'function') go('analise360');
+  };
 
   window.analise360LimparFiltroExtra = function(campo){
     window.__npcA360Filtro = window.__npcA360Filtro || {};
@@ -15814,6 +15878,8 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(opts.filtroExtra.imovelCidade) chips.push({label:'Cidade: '+opts.filtroExtra.imovelCidade, onclick:opts.limparCampoFn+"('imovelCidade')"});
     if(opts.filtroExtra.imovelTipo) chips.push({label:'Tipo do imóvel: '+opts.filtroExtra.imovelTipo, onclick:opts.limparCampoFn+"('imovelTipo')"});
     if(opts.filtroExtra.imovelFinalidade) chips.push({label:'Finalidade: '+opts.filtroExtra.imovelFinalidade, onclick:opts.limparCampoFn+"('imovelFinalidade')"});
+    if(opts.filtroExtra.interesseCidade) chips.push({label:'Imóvel procurado — Cidade: '+opts.filtroExtra.interesseCidade, onclick:opts.limparCampoFn+"('interesseCidade')"});
+    if(opts.filtroExtra.interesseBairro) chips.push({label:'Imóvel procurado — Bairro: '+opts.filtroExtra.interesseBairro, onclick:opts.limparCampoFn+"('interesseBairro')"});
     if(!chips.length) return '';
     return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
       + '<span style="font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:#8a8f99">Filtros ativos:</span>'
@@ -15846,8 +15912,44 @@ body:has(#login:not(.hidden)) #app.hidden{
     ['comissoes','Comissões'],
     ['ranking','Ranking'],
     ['atendimentos','Atendimentos'],
-    ['carteira','Carteira de Imóveis']
+    ['carteira','Carteira de Imóveis'],
+    ['performance','Performance']
   ];
+
+  /* ---------- aba "Performance": reaproveita o antigo Dashboard de Performance,
+     só que usando os mesmos filtros de Corretor/Período já escolhidos aqui na
+     Análise 360° (em vez de ter um segundo seletor duplicado) ---------- */
+  function analise360RenderPerformance(corretorAtivo, de, ate){
+    if(typeof window.__npcPerfCalcDateRange !== 'function' || typeof window.__npcPerfUserList !== 'function'){
+      return '<div class="card pad"><p class="sub">O módulo de Performance ainda não foi carregado. Recarregue a página e tente novamente.</p></div>';
+    }
+    var range = { start: de || todayISO_A360Fallback(), end: ate || todayISO_A360Fallback() };
+    function todayISO_A360Fallback(){ return new Date().toISOString().slice(0,10); }
+    var canAll = false;
+    try{ canAll = !!window.__npcPerfCanSeeAll(); }catch(e){}
+
+    if(!corretorAtivo && canAll){
+      var users = window.__npcPerfUserList();
+      var ag = window.__npcPerfAggregateDateRange(users, range.start, range.end);
+      var st = window.__npcPerfStatus(ag.score);
+      var rows = ag.users.slice().sort(function(a,b){ return b.perf.score-a.perf.score; }).map(function(x){
+        var s = window.__npcPerfStatus(x.perf.score);
+        return '<tr><td><b>'+esc(x.u.name)+'</b></td><td>'+esc(x.u.role || 'Colaborador')+'</td><td><b>'+x.perf.score+'%</b></td><td>'+esc(s.text)+'</td></tr>';
+      }).join('');
+      return '<div class="perf-score"><div class="perf-panel" style="text-align:center"><h3>Todos</h3><p class="sub">Consolidado da equipe</p><div class="score-ring" style="background:conic-gradient(var(--yellow) '+Math.min(ag.score,100)+'%,#eceff3 0)"><div>'+ag.score+'%</div></div><span class="ruler '+st.cls+'">'+esc(st.text)+'</span><p class="sub" style="margin-top:10px">Período: '+range.start.split('-').reverse().join('/')+' até '+range.end.split('-').reverse().join('/')+'</p></div><div class="perf-grid">'+window.__npcPerfMetricCards(ag.details)+'</div></div><div style="height:18px"></div><div class="card pad"><h3>Colaboradores no período</h3><div style="overflow:auto"><table class="perf-table"><thead><tr><th>Colaborador</th><th>Função</th><th>Score</th><th>Status</th></tr></thead><tbody>'+(rows || '<tr><td colspan="4">Nenhum colaborador encontrado.</td></tr>')+'</tbody></table></div></div>';
+    }
+
+    var users2 = window.__npcPerfUserList();
+    var alvo = corretorAtivo ? users2.find(function(u){ return normalizarChave(u.name) === corretorAtivo; }) : null;
+    var uid = alvo ? alvo.id : (window.current && window.current.id);
+    if(!uid){
+      return '<div class="card pad"><p class="sub">Não foi possível localizar os dados de performance para "'+esc(corretorAtivo||'')+'". Verifique se o nome do corretor bate com o cadastro de usuários.</p></div>';
+    }
+    var p = window.__npcPerfCalcDateRange(uid, range.start, range.end);
+    var st2 = window.__npcPerfStatus(p.score);
+    var user = (typeof window.__npcPerfUserById === 'function' ? window.__npcPerfUserById(uid) : null) || window.current || {};
+    return '<div class="perf-score"><div class="perf-panel" style="text-align:center"><h3>'+esc(user.name || corretorAtivo || 'Colaborador')+'</h3><p class="sub">'+range.start.split('-').reverse().join('/')+' até '+range.end.split('-').reverse().join('/')+'</p><div class="score-ring" style="background:conic-gradient(var(--yellow) '+Math.min(p.score,100)+'%,#eceff3 0)"><div>'+p.score+'%</div></div><span class="ruler '+st2.cls+'">'+esc(st2.text)+'</span>'+(p.locked ? '<p class="sub" style="margin-top:10px">Score travado em 80% porque o indicador principal não atingiu 80%.</p>' : '')+'</div><div class="perf-grid">'+window.__npcPerfMetricCards(p.details)+'</div></div>';
+  }
 
   function analise360Render(){
     var box0 = document.getElementById('a360Resultados');
@@ -15940,6 +16042,9 @@ body:has(#login:not(.hidden)) #app.hidden{
     if(filtroExtra.midia) avLinhas = avLinhas.filter(function(r){ return normalizarChave(r.midia) === filtroExtra.midia; });
     if(filtroExtra.etapa) avLinhas = avLinhas.filter(function(r){ return normalizarChave(r.etapa) === filtroExtra.etapa; });
     if(filtroExtra.tipo) negLinhas = negLinhas.filter(function(r){ return normalizarChave(r.tipo) === filtroExtra.tipo; });
+    var mapaRefInteresse = montarMapaReferencias((store.imoveisAtivos&&store.imoveisAtivos.linhas)||[], (store.imoveisInativos&&store.imoveisInativos.linhas)||[]);
+    if(filtroExtra.interesseCidade) avLinhas = avLinhas.filter(function(r){ return atendimentoTemInteresseEm(r, 'cidade', filtroExtra.interesseCidade, mapaRefInteresse); });
+    if(filtroExtra.interesseBairro) avLinhas = avLinhas.filter(function(r){ return atendimentoTemInteresseEm(r, 'bairro', filtroExtra.interesseBairro, mapaRefInteresse); });
 
     var neg = agregarNegociacoes(negLinhas);
     var av = agregarAtendimentos(avLinhas);
@@ -15999,15 +16104,14 @@ body:has(#login:not(.hidden)) #app.hidden{
     } else if(aba === 'atendimentos'){
       var kpisAt = ''
         + '<div class="card kpi" style="text-align:center"><div class="l">Atendimentos no Período</div><div class="v">'+totalAtendimentos+'</div>'+(totalAtendimentosAnt!=null?pctLabel(totalAtendimentos, totalAtendimentosAnt):'<p class="sub">&nbsp;</p>')+'</div>';
-      var mapaRefAt = montarMapaReferencias((store.imoveisAtivos&&store.imoveisAtivos.linhas)||[], (store.imoveisInativos&&store.imoveisInativos.linhas)||[]);
-      var interesseAt = agregarInteressePorImovel(avLinhas, mapaRefAt);
-      var temReferenciaAt = Object.keys(mapaRefAt).length > 0;
+      var interesseAt = agregarInteressePorImovel(avLinhas, mapaRefInteresse);
+      var temReferenciaAt = Object.keys(mapaRefInteresse).length > 0;
       var temInteresseAt = avLinhas.some(function(r){ return r.imoveisInteresse; });
       conteudo = '<div class="grid cols1" style="margin-bottom:18px">'+kpisAt+'</div>'
         + '<div class="grid cols1" style="margin-bottom:18px">'+graficoBarrasDiarioPorMes('Entrada de Leads Dia a Dia (Data de Cadastro)', preencherDiasVazios(av.porDia, de, ate), 'analise360ClicarDia', diaAtivo)+'</div>'
         + '<div class="grid cols2" style="margin-bottom:18px">'+graficoLinha('Atendimentos por Mês', av.porMes)+barraLista('Atendimentos por Corretor', topN(atendimentosPorCorretor,10), null, corretorAtivo, 'analise360ClicarCorretor')+'</div>'
         + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Atendimentos por Mídia', topN(av.porMidia,10), null, filtroExtra.midia, 'analise360ClicarMidia')+barraLista('Funil — Atendimentos por Etapa', topN(av.porEtapa,12), null, filtroExtra.etapa, 'analise360ClicarEtapa')+'</div>'
-        + '<div class="grid cols2">'+barraLista('Imóveis Procurados por Cidade', topN(interesseAt.porCidade,10))+barraLista('Imóveis Procurados por Bairro', topN(interesseAt.porBairro,10))+'</div>'
+        + '<div class="grid cols2">'+barraLista('Imóveis Procurados por Cidade', topN(interesseAt.porCidade,10), null, filtroExtra.interesseCidade, 'analise360ClicarInteresseCidade')+barraLista('Imóveis Procurados por Bairro', topN(interesseAt.porBairro,10), null, filtroExtra.interesseBairro, 'analise360ClicarInteresseBairro')+'</div>'
         + ((!temInteresseAt || !temReferenciaAt) ? '<p class="sub" style="margin-top:10px">Para preencher os gráficos de imóveis procurados, reenvie as planilhas de Atendimentos de Vendas e de Imóveis Ativos/Inativos na tela "Importar Análise 360°" (os dados enviados anteriormente ainda não têm as colunas "Imóveis de interesse"/"Referência" salvas).</p>' : '')
         + ((temInteresseAt && temReferenciaAt) ? '<p class="sub" style="margin-top:10px">Diagnóstico: '+interesseAt.comInteresse+' de '+avLinhas.length+' atendimentos têm "Imóveis de interesse" preenchido, totalizando '+interesseAt.refsParseadas+' referência(s) informada(s), das quais '+interesseAt.refsEncontradas+' bateram com a planilha de imóveis.'+(interesseAt.naoEncontrados.length?' Exemplos que não bateram: '+interesseAt.naoEncontrados.map(esc).join(', ')+'.':'')+'</p>' : '');
     } else if(aba === 'carteira'){
@@ -16019,6 +16123,8 @@ body:has(#login:not(.hidden)) #app.hidden{
         + '<div class="grid cols2" style="margin-bottom:18px">'+barraLista('Carteira por Bairro', topN(ia.porBairro,10), null, filtroExtra.imovelBairro, 'analise360ClicarImovelBairro')+barraLista('Carteira por Finalidade', topN(ia.porFinalidade,6), null, filtroExtra.imovelFinalidade, 'analise360ClicarImovelFinalidade')+'</div>'
         + ((iaBruto && !Array.isArray(iaBruto.linhas)) ? '<p class="sub" style="margin-top:10px">Para poder clicar no bairro e filtrar a carteira, reenvie a planilha de Imóveis Ativos na tela "Importar Análise 360°" (os dados enviados anteriormente ainda não têm essa informação salva).</p>' : '')
         + (corretorAtivo ? '<p class="sub" style="margin-top:10px">A carteira de imóveis não é filtrada por corretor (não há essa relação nos dados de origem).</p>' : '');
+    } else if(aba === 'performance'){
+      conteudo = analise360RenderPerformance(corretorAtivo, de, ate);
     } else {
       var taxaConversaoGeral = av.total ? (neg.total/av.total*100) : null;
       var kpis = ''
