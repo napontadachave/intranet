@@ -1059,12 +1059,7 @@ const trainingModules=[
 ];
 const dataDefault={users:[],birthdays:[],agenda:[{date:'Toda semana',title:'Check-in rápido',desc:'15–20 min: metas, bloqueios e prioridades.'},{date:'1ª quarta-feira',title:'Reunião mensal',desc:'Resultados, reconhecimento, ajustes e alinhamento presencial.'},{date:'Trimestral',title:'Revisão de OKRs',desc:'Cultura, playbook, projeções e indicadores.'}],performanceRecords:{},progress:{}};
 let db=load();
-const DEFAULT_COMUNICADOS=[
-  {id:'cadastro-imoveis',ativo:true,categoria:'Cadastro de imóveis',titulo:'Padronização de números',conteudo:'Trabalhar com números arredondados para condomínio e IPTU, melhorando sincronização com o Quinto Andar.',destaque:'Exemplo: condomínio 634,42 → 635,00 · IPTU 157,91 → 158,00'},
-  {id:'estrategia-preco',ativo:true,categoria:'Estratégia de preço interna',titulo:'Atualização da carteira',conteudo:'Aplicar estratégia em imóveis com atualização já realizada. Até 500K: baixar 5K do anúncio. Até 1,2MM: baixar 10K. Acima de 1,5MM: baixar 30K.',destaque:'Estratégia de preço atualizada: 5K, 10K ou 30K.'},
-  {id:'indique-ganhe',ativo:true,categoria:'Campanha',titulo:'Indique e Ganhe',conteudo:'Divulgação em grupos de Facebook, cidade principalmente. Todos podem participar, mas responsáveis pelo comercial são vendas e locação.',destaque:'Conhece um proprietário que está vendendo? Responda e fazemos a parceria.'},
-  {id:'datas-feedback',ativo:true,categoria:'Feedbacks',titulo:'Datas de feedback',conteudo:'Feedback é ferramenta para estimular, corrigir e melhorar comunicação. Maio: 01/05 a 10/05. Agosto: 01/08 a 10/08.',destaque:'Feedback precisa gerar plano de ação e acompanhamento.'}
-];
+const DEFAULT_COMUNICADOS=[];
 
 function load(){ return structuredClone(dataDefault); }
 function firebaseIsAdmin(){return current && (current.role==='Administrador' || current.role==='admin' || current.perms?.admin || current.perms?.usuarios_gerenciar)}
@@ -13085,6 +13080,10 @@ body:has(#login:not(.hidden)) #app.hidden{
       var el=byId('editRole'); if(!el||el.__npcV106patch) return; el.__npcV106patch=true;
       el.addEventListener('change',function(){
         var role=el.value; if(!role) return;
+        /* correção: sem isso, o reaproveitamento do objeto u (ainda com a função antiga,
+           ex. "Pendente") fazia o select voltar para o valor anterior ao reabrir o modal. */
+        var u=(typeof findUser==='function')?findUser(id):null;
+        if(u){ u.role=role; u.perfil=role; }
         var perms=permsForRole(role);
         if(typeof window.initPermDraft==='function') window.initPermDraft(id,perms);
         else if(window.__permDrafts) window.__permDrafts[id]=perms;
