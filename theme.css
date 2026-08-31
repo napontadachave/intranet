@@ -1,0 +1,354 @@
+/* =========================================================================
+   NA PONTA DA CHAVE — Intranet 2.0
+   Design system: paleta e identidade da NPC (extraída do sistema atual),
+   estrutura de layout inspirada no Univen (topbar + sidebar recolhível +
+   dashboard em cards/abas).
+   ========================================================================= */
+
+:root{
+  /* ---- marca NPC (mantidos do sistema atual) ---- */
+  --amarelo:#ffc71b;
+  --amarelo2:#f0b800;
+  --preto:#0c0d0f;
+  --preto2:#15171b;
+  --grafite:#24262d;
+  --branco:#fff;
+  --bg:#f3f4f6;
+  --linha:#e7e9ee;
+  --muted:#737782;
+  --texto:#181a1f;
+  --verde:#148653;
+  --azul:#2457d6;
+  --vermelho:#c9281c;
+  --raio:18px;
+  --raio-sm:10px;
+  --shadow:0 18px 55px rgba(15,18,25,.10);
+  --shadow-sm:0 4px 14px rgba(15,18,25,.06);
+
+  /* ---- estrutura (inspirada no Univen) ---- */
+  --topbar-h:64px;
+  --sidebar-w:236px;
+  --sidebar-w-collapsed:72px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  font-family:Inter,"Segoe UI",Arial,sans-serif;
+  color:var(--texto);
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+a{color:inherit;text-decoration:none}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#d7d9de;border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:#c3c6cc}
+
+/* ---------------------------------------------------------------------
+   LOGIN
+   --------------------------------------------------------------------- */
+.login{
+  min-height:100vh;display:grid;grid-template-columns:1.1fr .9fr;
+  background:#0d0e11;color:#fff;
+}
+.login-left{
+  padding:58px;display:flex;flex-direction:column;justify-content:space-between;
+  background:
+    radial-gradient(circle at 20% 20%,rgba(255,199,27,.16),transparent 27%),
+    linear-gradient(140deg,#0c0d10,#1d2026);
+}
+.login-left h1{font-size:44px;line-height:1.05;letter-spacing:-.03em;margin:0 0 16px}
+.login-left p{color:#d7dae1;line-height:1.7;max-width:640px}
+.login-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
+.login-kpis div{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:var(--raio);padding:16px}
+.login-kpis b{display:block;color:var(--amarelo);font-size:22px}
+.login-panel{display:grid;place-items:center;background:#fff;color:#111;padding:30px}
+.login-card{width:100%;max-width:360px}
+.login-card img.logo{width:220px;display:block;margin:0 auto 26px}
+.login-card .field{margin-bottom:14px}
+.login-card label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.login-card input{width:100%;padding:12px 14px;border:1px solid var(--linha);border-radius:var(--raio-sm);background:#fafafa}
+.login-card input:focus{outline:2px solid var(--amarelo);background:#fff}
+.btn-login{width:100%;padding:13px;border:0;border-radius:var(--raio-sm);background:var(--preto);color:var(--amarelo);font-weight:800;letter-spacing:.02em;margin-top:6px}
+.btn-login:hover{background:var(--preto2)}
+.login-error{color:var(--vermelho);font-size:13px;margin-top:10px;min-height:16px}
+
+/* ---------------------------------------------------------------------
+   APP SHELL — topbar + sidebar (estrutura Univen, marca NPC)
+   --------------------------------------------------------------------- */
+#app{display:block;min-height:100vh}
+
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--topbar-h);z-index:40;
+  background:var(--preto2);color:#fff;
+  display:flex;align-items:center;gap:18px;padding:0 20px;
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
+}
+.topbar .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.02em;white-space:nowrap}
+.topbar .brand img{height:28px;display:block}
+.topbar .searchbox{
+  flex:1;max-width:520px;display:flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;padding:9px 16px;color:#cfd2d8;
+}
+.topbar .searchbox input{background:transparent;border:0;color:#fff;flex:1;outline:none}
+.topbar .searchbox input::placeholder{color:#9aa0aa}
+.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+.topbar-icon-btn{
+  position:relative;width:38px;height:38px;border-radius:10px;border:0;
+  background:transparent;color:#e8eaee;display:grid;place-items:center;
+}
+.topbar-icon-btn:hover{background:rgba(255,255,255,.1)}
+.topbar-icon-btn .badge{
+  position:absolute;top:2px;right:2px;background:var(--amarelo);color:var(--preto);
+  font-size:10px;font-weight:800;border-radius:999px;min-width:16px;height:16px;
+  display:grid;place-items:center;padding:0 3px;
+}
+.topbar-user{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px}
+.topbar-user:hover{background:rgba(255,255,255,.1)}
+.topbar-user .avatar{width:28px;height:28px;border-radius:50%;background:var(--amarelo);color:var(--preto);display:grid;place-items:center;font-weight:800;font-size:12px}
+
+.sidebar{
+  position:fixed;top:var(--topbar-h);left:0;bottom:0;width:var(--sidebar-w);
+  background:#fff;border-right:1px solid var(--linha);overflow-y:auto;
+  transition:width .18s ease;z-index:30;padding:14px 10px;
+}
+.sidebar.collapsed{width:var(--sidebar-w-collapsed)}
+.sidebar .nav-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--raio-sm);
+  color:var(--texto);font-weight:600;font-size:14px;margin-bottom:2px;position:relative;
+}
+.sidebar .nav-item .ic{width:20px;height:20px;flex:0 0 auto;display:grid;place-items:center;color:var(--muted)}
+.sidebar .nav-item .label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar .nav-item .tag{flex:0 0 auto;white-space:nowrap}
+.sidebar .nav-item:hover{background:var(--bg)}
+.sidebar .nav-item.active{background:#fff7df;color:var(--preto)}
+.sidebar .nav-item.active .ic{color:var(--amarelo2)}
+.sidebar .nav-item.active::before{
+  content:"";position:absolute;left:-10px;top:8px;bottom:8px;width:4px;
+  background:var(--amarelo);border-radius:0 4px 4px 0;
+}
+.sidebar .nav-chevron{margin-left:auto;transition:transform .15s}
+.sidebar .nav-group.open .nav-chevron{transform:rotate(180deg)}
+.sidebar .submenu{padding-left:32px;display:none}
+.sidebar .nav-group.open .submenu{display:block}
+.sidebar .submenu a{display:block;padding:8px 10px;font-size:13.5px;color:var(--muted);border-radius:8px}
+.sidebar .submenu a:hover{background:var(--bg);color:var(--texto)}
+.sidebar .submenu a.active{color:var(--texto);font-weight:700}
+.sidebar.collapsed .label,.sidebar.collapsed .submenu,.sidebar.collapsed .nav-chevron{display:none}
+
+.main{margin-left:var(--sidebar-w);margin-top:var(--topbar-h);padding:28px 32px;transition:margin-left .18s ease}
+.main.sidebar-collapsed{margin-left:var(--sidebar-w-collapsed)}
+
+/* ---------------------------------------------------------------------
+   Componentes gerais
+   --------------------------------------------------------------------- */
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.page-header h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+.page-header p{margin:0;color:var(--muted)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--linha);margin-bottom:20px}
+.tabs button{
+  background:transparent;border:0;padding:12px 4px;margin-right:22px;font-weight:700;
+  color:var(--muted);border-bottom:2px solid transparent;
+}
+.tabs button.active{color:var(--texto);border-color:var(--amarelo)}
+
+.grid{display:grid;gap:16px;min-width:0}
+.grid.cols2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.cols3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid.cols4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:1100px){.grid.cols3,.grid.cols4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:720px){.grid.cols2,.grid.cols3,.grid.cols4{grid-template-columns:minmax(0,1fr)}}
+
+.card{background:#fff;border:1px solid var(--linha);border-radius:var(--raio);box-shadow:var(--shadow-sm)}
+.card.pad{padding:20px}
+.kpi{padding:20px}
+.kpi .kpi-label{color:var(--muted);font-size:13px;font-weight:600;margin-bottom:8px}
+.kpi .kpi-value{font-size:30px;font-weight:800;letter-spacing:-.02em}
+/* .kpi-delta também é usado fora de cards .kpi, como texto pequeno/apagado
+   genérico (telas de Imóveis, Registros Diários, Configurações...) — por
+   isso o estilo base não depende de estar dentro de .kpi. */
+.kpi-delta{font-size:12.5px;margin-top:6px;color:var(--muted)}
+.kpi .kpi-delta.up{color:var(--verde)}
+.kpi .kpi-delta.down{color:var(--vermelho)}
+
+/* Análise 360° — lista de barras ranqueada (o gráfico mais reaproveitado
+   da tela, ver js/charts-svg.js) */
+.barra-lista{display:flex;flex-direction:column;gap:9px}
+.barra-lista-item{display:grid;grid-template-columns:120px 1fr 90px;align-items:center;gap:10px}
+.barra-lista-item.barra-ativa .barra-lista-label{font-weight:700;color:var(--texto)}
+.barra-lista-label{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barra-lista-trilho{height:10px;border-radius:999px;background:var(--bg);overflow:hidden}
+.barra-lista-fill{height:100%;border-radius:999px}
+.barra-lista-valor{font-size:13px;font-weight:700;text-align:right;white-space:nowrap}
+@media (max-width:640px){.barra-lista-item{grid-template-columns:90px 1fr 74px}}
+
+.btn{
+  display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:var(--raio-sm);
+  border:1px solid transparent;font-weight:700;font-size:14px;
+  transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .05s ease;
+}
+.btn.primary{background:var(--amarelo);color:var(--preto);box-shadow:0 2px 8px rgba(255,199,27,.35)}
+.btn.primary:hover{background:var(--amarelo2);box-shadow:0 4px 14px rgba(255,199,27,.45)}
+.btn.secondary{background:#fff;border-color:var(--linha);color:var(--texto)}
+.btn.secondary:hover{background:var(--bg);border-color:#d7d9de}
+.btn.danger{background:#fff;border-color:#f3caca;color:var(--vermelho)}
+.btn.danger:hover{background:#fdeceb;border-color:#eab3b1}
+.btn.ghost{background:transparent;border:0;color:var(--muted)}
+.btn.ghost:hover{background:var(--bg);color:var(--texto)}
+.btn.add{background:transparent;border:1.5px dashed var(--linha);color:var(--muted);width:100%;justify-content:center;padding:11px 18px}
+.btn.add:hover{border-color:var(--amarelo2);color:var(--texto);background:#fffdf5}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none}
+
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.field label{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+
+/* Estilo base para qualquer campo preenchível, com ou sem o wrapper .field
+   (ex.: as linhas de "condições de pagamento" e "comissionamento", que são
+   inputs soltos dentro de .rule-row) — assim nenhum campo fica com a
+   aparência crua do navegador. Especificidade propositalmente baixa (só o
+   seletor de elemento), para que regras mais específicas como as da tela
+   de login continuem podendo se sobrepor sem conflito. */
+input,select,textarea{
+  padding:10px 12px;border:1px solid var(--linha);border-radius:var(--raio-sm);
+  background:#fff;color:var(--texto);transition:border-color .15s ease,box-shadow .15s ease;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--amarelo2);box-shadow:0 0 0 3px rgba(255,199,27,.25)}
+input:disabled,select:disabled,textarea:disabled{background:var(--bg);color:var(--muted)}
+input[type="checkbox"],input[type="radio"],input[type="file"],input[type="range"]{
+  padding:0;border:0;background:transparent;border-radius:0;width:auto;
+}
+
+/* Badge circular do rótulo (A, B, C...) nas condições de pagamento */
+.pay-badge{
+  flex:0 0 32px;height:32px;border-radius:999px;background:var(--bg);
+  display:grid;place-items:center;font-weight:800;font-size:13px;color:var(--texto);
+}
+
+/* Linha do rateio de comissão — grade (não flex) para que as colunas se
+   ajustem à largura disponível e nunca "estourem" o modal para o lado. */
+.comissao-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 72px 130px auto;gap:10px;align-items:end}
+.comissao-row .field{margin:0;min-width:0}
+.comissao-row input{width:100%;min-width:0}
+@media (max-width:600px){.comissao-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+
+/* Linha de condição de pagamento — mesma lógica de grade do rateio de
+   comissão, para nunca estourar a largura do modal. */
+.payment-row{display:grid;grid-template-columns:32px 140px minmax(0,1fr) minmax(0,1fr) 32px;gap:10px;align-items:end;margin-bottom:10px}
+.payment-row .field{margin:0;min-width:0}
+.payment-row input{width:100%;min-width:0}
+@media (max-width:640px){.payment-row{grid-template-columns:32px minmax(0,1fr) minmax(0,1fr)}.payment-row .field:nth-child(4){grid-column:2 / span 2}}
+
+/* Seções do formulário comprido de "Editar venda"/"Nova negociação": cada
+   grupo de campos relacionados (dados do imóvel, financiamento, comissão,
+   vendedor(a)/comprador(a), condições de pagamento...) vira um bloco visual
+   próprio, com fundo levemente cinza destacando do branco do modal — sem
+   remover nenhum campo, só separando visualmente o que antes era uma lista
+   única e comprida de campos, um em cima do outro. */
+.form-secao{background:var(--bg);border-radius:var(--raio-sm);padding:18px 20px;margin-bottom:16px}
+.form-secao > *:last-child{margin-bottom:0}
+.form-secao-titulo{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 14px}
+.form-secao-titulo b{font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--texto)}
+.form-secao-titulo span{font-size:12.5px;color:var(--muted);font-weight:500}
+.form-secao .card.pad{background:#fff}
+
+/* Par de campos com um rótulo só (ex.: "Comissão bruta" = % + valor
+   calculado), usado no formulário de dados da negociação. */
+.field-pair{display:flex;gap:8px}
+.field-pair > :first-child{flex:0 0 90px;min-width:0}
+.field-pair > :last-child{flex:1;min-width:0}
+
+/* Grade de "itens que permanecerão no imóvel": cada item é uma caixinha
+   com checkbox + texto editável + excluir, em várias colunas. */
+.itens-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.item-row{display:flex;align-items:center;gap:8px;min-width:0;border:1px solid var(--linha);border-radius:var(--raio-sm);padding:8px 10px;background:#fff}
+.item-row input[type="text"]{flex:1;min-width:0;border:0;padding:2px;background:transparent}
+.item-row input[type="text"]:focus{box-shadow:none;outline:none}
+.item-row .item-del{flex:0 0 auto;width:22px;height:22px;border-radius:999px;border:0;background:transparent;color:var(--vermelho);display:grid;place-items:center;font-size:15px}
+.item-row .item-del:hover{background:#fbe6e5}
+@media (max-width:900px){.itens-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.itens-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Bloco de leitura da tela de "visualizar negociação" */
+.detalhe-secao{margin-bottom:18px}
+.detalhe-secao h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
+.detalhe-linha{display:flex;gap:6px;font-size:14px;margin-bottom:4px;line-height:1.5}
+.detalhe-linha b{flex:0 0 auto;color:var(--texto)}
+
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+table.tbl th{text-align:left;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;padding:10px 12px;border-bottom:1px solid var(--linha)}
+table.tbl td{padding:12px;border-bottom:1px solid var(--linha)}
+table.tbl tr:hover td{background:#fafafa}
+
+.tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.tag.yellow{background:#fff3cc;color:#8a6d00}
+.tag.green{background:#e3f5ec;color:var(--verde)}
+.tag.red{background:#fbe6e5;color:var(--vermelho)}
+.tag.blue{background:#e7edfc;color:var(--azul)}
+.tag.gray{background:#eef0f2;color:var(--muted)}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--muted);text-align:center}
+
+/* Kanban (negociações / atendimentos) */
+/* Barra de navegação entre colunas — fica sempre acima das colunas, numa
+   posição fixa e previsível (em vez de depender de onde a rolagem nativa
+   do navegador calha de aparecer, que muda de lugar conforme a altura das
+   colunas). A rolagem nativa (arrastar, trackpad, roda do mouse) continua
+   funcionando, só a barra de rolagem visível é que fica escondida. */
+.kanban-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.kanban-nav .btn{padding:5px 14px;font-size:16px;font-weight:800;line-height:1}
+.kanban{display:flex;gap:14px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none;-ms-overflow-style:none}
+.kanban::-webkit-scrollbar{display:none}
+.kanban-col{flex:0 0 280px;background:var(--bg);border-radius:var(--raio);padding:12px;min-height:120px}
+.kanban-col-head{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:13px;padding:4px 6px 10px;text-transform:uppercase;letter-spacing:.02em}
+.kanban-card{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow-sm);cursor:grab}
+.kanban-card b{display:block;margin-bottom:4px;font-size:14px}
+.kanban-card .meta{font-size:12.5px;color:var(--muted);margin-bottom:2px}
+.kanban-card .progress-bar{height:5px;background:var(--linha);border-radius:999px;overflow:hidden;margin:8px 0}
+.kanban-card .progress-fill{height:100%;background:var(--amarelo);border-radius:999px}
+.kanban-card .card-actions{display:flex;gap:6px;margin-top:10px}
+.kanban-card .card-actions .btn{flex:1;padding:6px 4px;font-size:12px;justify-content:center}
+.kanban-card .card-actions .btn.danger{flex:0 0 auto;padding:6px 10px}
+
+/* Modal — adapta-se ao tamanho da tela mantendo uma margem de 2cm em volta
+   (reduzida proporcionalmente em telas pequenas, para não sobrar espaço de
+   sobra demais); o conteúdo rola dentro do modal, não a página toda. */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(12,13,15,.5);
+  display:flex;align-items:center;justify-content:center;
+  padding:min(2cm,7vh) min(2cm,7vw);z-index:100;
+}
+.modal{
+  background:#fff;border-radius:var(--raio);max-width:720px;width:100%;
+  max-height:100%;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:24px 26px 16px;flex:0 0 auto}
+.modal-head h2{margin:0}
+.modal-head-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.modal-close{
+  width:32px;height:32px;border-radius:999px;border:1px solid var(--linha);background:#fff;
+  display:grid;place-items:center;color:var(--muted);font-size:17px;line-height:1;flex:0 0 auto;
+}
+.modal-close:hover{background:var(--bg);color:var(--texto)}
+.modal-body{padding:0 26px 26px;overflow-y:auto;flex:1;min-height:0}
+.modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex:0 0 auto}
+.modal-footer{flex:0 0 auto;padding:16px 26px;border-top:1px solid var(--linha);display:flex;gap:10px;justify-content:flex-end;background:#fff}
+
+.toast-wrap{position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--preto2);color:#fff;padding:12px 16px;border-radius:var(--raio-sm);font-size:14px;box-shadow:var(--shadow)}
+.toast.warn{background:var(--vermelho)}
+.toast.ok{background:var(--verde)}
+
+.rule-row{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid var(--linha);border-radius:var(--raio);margin-bottom:10px;background:#fff}
+.rule-row .grow{flex:1}
+.switch{position:relative;width:40px;height:22px;border-radius:999px;background:#d7d9de;flex:0 0 auto}
+.switch.on{background:var(--verde)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.switch.on::after{left:20px}
